@@ -128,6 +128,7 @@ class BatchConverter:
         self._needs_script_dir = False
         self._delayed_expansion = False
         self._needs_nullglob = False
+        self._bat2sh_status_valid = False
         self._current_command = ""
 
     # ------------------------------------------------------------------
@@ -141,6 +142,7 @@ class BatchConverter:
             produced = self._convert_line(start, line)
             bucket = self._func_out if (self._function_mode and self._current_func) else self._out
             bucket.extend(produced)
+            self._update_status_validity(line, produced)
             if not line.strip():
                 continue
             if produced and any(
@@ -425,6 +427,8 @@ class BatchConverter:
     def _label_line(self, name: str) -> list[str]:
         if not self._function_mode:
             return [self._c(f"# :{name}（标签，未使用，保留为注释）")]
+        # 进入函数时 errorlevel 来自调用方，静态不可知，保守作废状态快照。
+        self._bat2sh_status_valid = False
         out: list[str] = []
         if self._current_func:
             self._trim_function_tail()
@@ -641,29 +645,75 @@ class BatchConverter:
     def _restore_command(self, command: str) -> None:
         self._active_bucket().append(self._c(command))
 
+    @staticmethod
+    def _is_structural_line(line: str) -> bool:
+        if line in ("fi", "else", "done", "esac", "}", ";;", ")"):
+            return True
+        if line.endswith(("; then", "; do", "() {")):
+            return True
+        return bool(re.match(r"(?i)^(exit|return)(\s|$)", line))
+
+    def _has_effectful_command(self, produced: list[str]) -> bool:
+        for raw in produced:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if self._is_structural_line(line):
+                continue
+            return True
+        return False
+
+    def _update_status_validity(self, raw: str, produced: list[str]) -> None:
+        """按生成结果维护 ``__bat2sh_status`` 快照是否仍反映最近一条命令的退出码。"""
+        if re.match(
+            r"(?i)^\s*@?\s*if\s+(?:/i\s+)?(?:not\s+|not\()?errorlevel\b", raw
+        ):
+            if self._bat2sh_status_valid and self._has_effectful_command(produced):
+                self._bat2sh_status_valid = False
+            return
+        if self._has_effectful_command(produced):
+            self._bat2sh_status_valid = False
+
+    @staticmethod
+    def _status_condition(threshold: int, negate: bool) -> str:
+        if threshold == 1:
+            return '[ "$__bat2sh_status" -eq 0 ]' if negate else '[ "$__bat2sh_status" -ge 1 ]'
+        op = "-lt" if negate else "-ge"
+        return f'[ "$__bat2sh_status" {op} {threshold} ]'
+
     def _errorlevel_condition(
         self, lineno: int, threshold: int, negate: bool, original: str
     ) -> str | None:
         """把 ``if errorlevel N`` 改写为直接作用于上一条命令的条件。
 
-        改写后命令作为 if 条件执行，函数处于条件上下文，函数体内的
-        ``set -e`` 不会在失败时直接终止脚本。无法安全合并时返回 None，
-        由 :meth:`_parse_condition` 回退为 ``$?`` 比较并给出原有警告。
+        优先复用仍然有效的 ``__bat2sh_status`` 快照（连续 errorlevel 判断）；
+        否则上一条是简单命令时生成捕获（N>1）或 ``if ! cmd``（N=1），无法安全
+        合并时返回 None，由 :meth:`_parse_condition` 回退为 ``$?`` 比较并告警。
         """
+        if self._bat2sh_status_valid:
+            if threshold <= 0:
+                return "true" if not negate else "false"
+            return self._status_condition(threshold, negate)
         previous = self._take_previous_command()
         if previous is None:
             return None
         if threshold <= 0:
             # errorlevel 0 / 负数恒为真（或恒为假），命令仍需执行。
             self._restore_command(previous)
+            self._bat2sh_status_valid = False
             return "true" if not negate else "false"
-        if threshold != 1:
+        if threshold > 1:
+            self._restore_command("__bat2sh_status=0")
+            self._restore_command(f"{previous} || __bat2sh_status=$?")
             self._warn(
                 lineno,
-                f"if {'not ' if negate else ''}errorlevel {threshold} 已按命令成功/失败近似，"
-                "无法表达精确退出码阈值，请核对",
+                f"if {'not ' if negate else ''}errorlevel {threshold} 已改用 __bat2sh_status "
+                "精确捕获上一条命令的退出码，请核对语句顺序",
                 original,
             )
+            self._bat2sh_status_valid = True
+            return self._status_condition(threshold, negate)
+        self._bat2sh_status_valid = False
         return previous if negate else f"! {previous}"
 
     def _convert_operand(self, token: str, lineno: int) -> str:

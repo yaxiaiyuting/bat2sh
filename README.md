@@ -406,6 +406,18 @@ echo "清理完成"
 10. **`cmd /c`、`runas`、`powershell -Command`**：引号嵌套复杂时需人工整理。
 11. **`&` 分隔的多命令与管道混合**、`>file` 位置在命令之前等非常规写法：可能改变
     重定向顺序。
+12. **`if errorlevel N`**：上一条是简单命令时，N=1 生成 `if ! cmd` / `if cmd`；
+    N≥2 生成 `__bat2sh_status=0; cmd || __bat2sh_status=$?; if [ "$__bat2sh_status" -ge N ]`
+    以保留精确退出码。上一条不是简单命令（前面是 `fi`/`done`/块语句）、`if /i`、
+    `else if errorlevel` 等情况仍回退 `[ $? ... ]` 并告警；strict 模式下该回退通常是
+    死代码（前一条命令失败时 `set -e` 已退出）。
+13. **`goto :eof` 生成裸 `return`**（函数内）而非 `return 0`：批处理的 `goto :eof`
+    不修改 errorlevel，裸 `return` 保留最后一条命令的退出码，调用方的
+    `if errorlevel` 改写出的 `if ! func` 才能真正捕获失败；写成 `return 0` 会让
+    函数永远报告成功。
+14. **旧版 bash（<4.4）与 `set -u`**：`shopt -s nullglob` 让空 glob 产生空数组后，
+    `"${arr[@]}"` 在 bash 4.4 以前会报 `unbound variable`。转换器面向 bash 5.x；
+    如需兼容 RHEL7/macOS 自带旧 bash，请手工改为 `${arr[@]+"${arr[@]}"}`。
 
 ### 8.2 PowerShell
 
@@ -418,7 +430,12 @@ echo "清理完成"
 4. **.NET 与对象操作**：`[System.IO.File]::ReadAllText()`、`New-Object`、`Add-Type`、
    `Add-Member`、`$obj.Property`、`$_.X`、`Get-ItemProperty` 等 → TODO。
 5. **脚本块参数与高级函数**：`[Parameter()]`、`[CmdletBinding()]`、位置/命名参数的
-   完整绑定语义无法对应；用户函数的命名参数调用会退化为位置参数（告警）。
+   完整绑定语义无法对应。`param()` 中的 attribute（Mandatory/Position/Validate*/
+   Alias 等）会被剥离，参数仅按位置传递并告警，类型转换与 `[switch]` 命名调用仍需人工核对。
+   用户函数的命名参数调用按本文件扫描到的参数顺序改写为位置参数（告警）；
+   跨文件/模块、`Invoke-Expression`、动态 `Set-Alias` 产生的函数无法静态绑定：
+   未扫描到定义时生成 `# TODO`，命名风格不符合启发式（如全小写）的自定义函数
+   会被当作外部命令原样保留。
 6. **模块、配置文件、执行策略、远程、作业、事件日志、注册表、WMI/CIM** → TODO。
 7. **字符串/布尔差异**：PowerShell 插值、`-f` 格式运算符、here-string、反引号转义、
    空字符串与 0 的真值判断与 bash 不同；here-string 与 `-f` 会标 TODO。
@@ -426,6 +443,15 @@ echo "清理完成"
    会转成 bash 数组（`"${arr[@]}"`）。
 9. **`Read-Host -AsSecureString`**：转为 `read -s`，但返回的是纯文本而非安全字符串。
 10. **`$?`/`$LASTEXITCODE`**：在 bash 中 `$?` 语义更窄，多条命令后需重新获取。
+11. **`$env:NAME`**：常见变量映射为近似值（`$env:TEMP`→`${TMPDIR:-/tmp}`、
+    `$env:APPDATA`→`${XDG_CONFIG_HOME:-$HOME/.config}` 等）并告警；未收录变量原样
+    保留为 `${NAME}` 并告警——strict 模式（`set -u`）下变量未设置会直接报错，
+    建议在脚本里显式给默认值或改名。
+12. **`Join-Path`**：生成 `__bat2sh_join_path` 辅助函数，子路径为绝对路径
+    （`/...` 或 `C:/...`）时重置为子路径（对齐 .NET `Path.Combine`），否则以 `/`
+    拼接。bash 没有 provider 概念：不解析 `~`/盘符/UNC，不自动创建父目录；
+    子路径可能是目录（变量、含 `/`、`..`、盘符）时告警；`-Resolve`、
+    `-AdditionalChildPath` 等选项不转换并告警。
 
 ### 8.3 通用
 

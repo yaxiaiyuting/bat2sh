@@ -27,6 +27,7 @@ from .utils import (
     resolve_named_args,
     sanitize_identifier,
     split_top_level,
+    strip_leading_attributes,
     strip_outer_quotes,
     tokenize_args,
 )
@@ -59,6 +60,7 @@ class PowerShellConverter:
         self._function_params: dict[str, list[str]] = {}
         self._needs_script_dir = False
         self._needs_nullglob = False
+        self._needs_join_path = False
         self._here_end: str | None = None
         self._block_comment = False
         self._param_buffer: list[str] | None = None
@@ -155,9 +157,11 @@ class PowerShellConverter:
             following = re.search(r"(?i)\bfunction\s+[\w:.-]+", window)
             body = window[: following.start()] if following else window
             names: list[str] = []
-            inline = re.match(r"\s*\(([^)]*)\)", body)
-            if inline:
-                names = self._param_names(inline.group(1))
+            if body.lstrip().startswith("("):
+                start = body.find("(")
+                close = find_matching(body, "(", ")", start)
+                if close > start:
+                    names = self._param_names(body[start + 1:close])
             else:
                 param = re.search(r"(?i)\bparam\s*\(", body)
                 if param:
@@ -175,9 +179,10 @@ class PowerShellConverter:
             raw = raw.strip()
             if not raw:
                 continue
-            found = re.findall(r"\$(\w+)", raw)
+            _, decl = strip_leading_attributes(raw)
+            found = re.search(r"\$(\w+)", decl)
             if found:
-                names.append(found[-1])
+                names.append(found.group(1))
         return names
 
     def _compose(self) -> str:
@@ -191,6 +196,22 @@ class PowerShellConverter:
             header.append("shopt -s nullglob")
         if self._needs_script_dir:
             header.append('SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"')
+        if self._needs_join_path:
+            header.append("")
+            header.append("# Join-Path 辅助函数：子路径为绝对路径时重置（对齐 PowerShell/.NET Path.Combine 语义）")
+            header.append("__bat2sh_join_path() {")
+            header.append('    local __result="" __part')
+            header.append('    for __part in "$@"; do')
+            header.append('        if [[ "${__part}" == /* || "${__part}" == [A-Za-z]:/* ]]; then')
+            header.append('            __result="${__part}"')
+            header.append('        elif [[ -z "${__result}" || "${__result}" == */ ]]; then')
+            header.append('            __result="${__result}${__part}"')
+            header.append("        else")
+            header.append('            __result="${__result}/${__part}"')
+            header.append("        fi")
+            header.append("    done")
+            header.append("    printf '%s' \"${__result}\"")
+            header.append("}")
         header.append("")
         body = "\n".join(self._out).rstrip()
         return "\n".join(header) + body + "\n"
@@ -288,6 +309,12 @@ class PowerShellConverter:
                         )
                 else:
                     result.append("${%s}" % name)
+                    self._warn(
+                        lineno,
+                        f"$env:{name} 未收录映射，已原样保留为 ${{{name}}}；"
+                        "严格模式（set -u）下变量未设置会直接报错，请显式给默认值或改为脚本变量",
+                        text[i:i + m.end()],
+                    )
             elif scope == "using":
                 result.append("${%s}" % name)
                 self._warn(lineno, "$using: 跨会话变量在 bash 中无对应物", text[i:i + m.end()])
@@ -358,7 +385,11 @@ class PowerShellConverter:
         positional = [t for t in tokens if not t.startswith("-")]
         if name == "join-path":
             parts = [strip_outer_quotes(self._replace_vars(t, lineno))[0] for t in positional]
-            return "printf %s " + dq("/".join(convert_backslashes(p) for p in parts))
+            parts = [convert_backslashes(p) for p in parts]
+            self._needs_join_path = True
+            for child in parts[1:]:
+                self._warn_join_path_child(lineno, ("Join-Path" + args).strip(), child)
+            return "__bat2sh_join_path " + " ".join(dq(p) for p in parts)
         target = positional[0] if positional else '""'
         converted = self._convert_arg(target, lineno)
         if name == "split-path":
@@ -385,10 +416,12 @@ class PowerShellConverter:
             changed = False
             guard += 1
             m = re.search(r"(?i)\bJoin-Path\s+(\S+)\s+(\S+)", expr)
-            if m:
-                parts = [m.group(1), m.group(2)]
-                inner = [self._strip_quotes_for_path(p) for p in parts]
-                expr = expr[:m.start()] + '"' + "/".join(inner) + '"' + expr[m.end():]
+            if m and not m.group(1).startswith("-") and not m.group(2).startswith("-"):
+                parts = [self._strip_quotes_for_path(p) for p in (m.group(1), m.group(2))]
+                self._needs_join_path = True
+                self._warn_join_path_child(lineno, m.group(0), parts[1])
+                replacement = "$(__bat2sh_join_path " + " ".join(dq(p) for p in parts) + ")"
+                expr = expr[:m.start()] + replacement + expr[m.end():]
                 changed = True
                 continue
             m = re.search(r"(?i)\bSplit-Path\s+(\S+)\s+-Leaf\b", expr)
@@ -466,8 +499,9 @@ class PowerShellConverter:
 
         if self._param_buffer is not None:
             self._param_buffer.append(text)
-            if ")" in text:
-                joined = " ".join(self._param_buffer)
+            joined = " ".join(self._param_buffer)
+            open_index = joined.find("(")
+            if open_index >= 0 and find_matching(joined, "(", ")", open_index) >= 0:
                 self._param_buffer = None
                 return self._emit_param(lineno, joined)
             return []
@@ -923,18 +957,25 @@ class PowerShellConverter:
     # ------------------------------------------------------------------
     def _emit_function(self, lineno: int, text: str, m: re.Match[str]) -> list[str]:
         raw_name = m.group(1)
-        params = m.group(2) or ""
-        tail = m.group(4).strip()
+        after = text[m.end(1):]
+        open_index = after.find("(")
+        close = find_matching(after, "(", ")", open_index) if open_index >= 0 else -1
+        if close > open_index:
+            params = after[open_index + 1:close]
+            tail = after[close + 1:].strip()
+        else:
+            params = ""
+            tail = after.strip()
         name = self._function_map.get(raw_name.lower(), sanitize_identifier(raw_name))
         lines = [self._c(f"{name}() {{")]
         self._stack.append(_Block("function", "}"))
         local_lines = self._convert_params(params, lineno, as_local=True, start_index=1)
         lines.extend(self._indent + line if line else "" for line in local_lines)
-        if tail.startswith("}") and tail.endswith("}"):
-            self._stack.pop()
+        if tail.startswith("{") and tail.endswith("}"):
             body = tail[1:-1].strip()
-            if body:
-                lines.extend(self._convert_line(lineno, body))
+            body_lines = self._convert_line(lineno, body) if body else []
+            self._stack.pop()
+            lines.extend(body_lines)
             lines.append(self._c("}"))
         elif tail and tail != "{":
             lines.extend(self._convert_line(lineno, tail))
@@ -944,7 +985,9 @@ class PowerShellConverter:
         if ")" not in text:
             self._param_buffer = [text]
             return []
-        interior = text[text.find("(") + 1:text.rfind(")")] if "(" in text else ""
+        open_index = text.find("(")
+        close = find_matching(text, "(", ")", open_index) if open_index >= 0 else -1
+        interior = text[open_index + 1:close] if close > open_index else ""
         inside_function = any(b.kind == "function" for b in self._stack)
         if not inside_function:
             self._warn(lineno, "脚本级 param() 已转换为位置参数，命名参数需手动处理", text)
@@ -961,14 +1004,10 @@ class PowerShellConverter:
             raw = raw.strip().rstrip(",")
             if not raw:
                 continue
-            if raw.startswith("[Parameter") or "Parameter(" in raw:
-                param_name = re.search(r"\$(\w+)", raw)
-                if param_name:
-                    lines.append(f'{prefix}{param_name.group(1)}="${index}"')
-                    index += 1
-                continue
-            raw = re.sub(r"^\[[\w\.\[\]]+\]\s*", "", raw)
-            m = re.match(r"\$(\w+)\s*(?:=\s*(.+))?$", raw, re.S)
+            attrs, decl = strip_leading_attributes(raw)
+            if attrs:
+                self._warn_param_attributes(lineno, attrs, raw)
+            m = re.match(r"\$(\w+)\s*(?:=\s*(.+))?$", decl, re.S)
             if not m:
                 self._warn(lineno, f"无法解析的参数声明: {raw}", raw)
                 continue
@@ -995,6 +1034,25 @@ class PowerShellConverter:
                 lines.append(f'{prefix}{name}="${index}"')
             index += 1
         return lines
+
+    def _warn_param_attributes(self, lineno: int, attrs: str, raw: str) -> None:
+        """参数 attribute 仅在生成 ``local`` 时被剥离，需提醒被丢弃的绑定语义。"""
+        low = attrs.lower()
+        unsupported: list[str] = []
+        if "parameter" in low:
+            unsupported.append("Mandatory/Position/管道绑定校验")
+        if "validate" in low:
+            unsupported.append("Validate* 参数校验")
+        if "alias" in low:
+            unsupported.append("Alias 别名")
+        if "allownull" in low or "allowempty" in low:
+            unsupported.append("AllowNull/AllowEmpty")
+        if unsupported:
+            self._warn(
+                lineno,
+                "参数 attribute 已剥离（" + "、".join(unsupported) + "），在 bash 中无对应物，请人工核对",
+                raw,
+            )
 
     # ------------------------------------------------------------------
     # 赋值
@@ -1331,6 +1389,9 @@ class PowerShellConverter:
     # ------------------------------------------------------------------
     def _convert_cmdlet_line(self, lineno: int, text: str) -> str | None:
         text = self._expand_inline_cmdlets(text, lineno)
+        if text.lstrip().startswith("$("):
+            # Join-Path/Split-Path 等内联改写后整条语句已是命令替换，无命令名可映射。
+            return self._convert_expression(text, lineno)
         tokens = tokenize_args(text)
         if not tokens:
             return None
@@ -1678,10 +1739,42 @@ class PowerShellConverter:
         path = paths[0] if paths else '""'
         return f"[ -e {self._convert_arg(path, lineno)} ]"
 
+    def _warn_join_path_child(self, lineno: int, original: str, child: str) -> None:
+        """子路径可能包含目录时提醒：bash 的 ``cp/mv`` 不会自动创建父目录。"""
+        if not child:
+            return
+        looks_like_path = (
+            "$" in child
+            or "/" in child
+            or "\\" in child
+            or child.startswith("..")
+            or bool(re.match(r"^[A-Za-z]:", child))
+        )
+        if looks_like_path:
+            self._warn(
+                lineno,
+                "Join-Path 的子路径可能包含子目录，bash 不会自动创建父目录，"
+                "请确认目标目录存在或先 mkdir -p",
+                original,
+            )
+
     def cmd_join_path(self, lineno: int, args: list[str], original: str) -> str:
         paths = [a for a in args if not a.startswith("-")]
-        parts = [strip_outer_quotes(self._replace_vars(p.strip('"'), lineno))[0] for p in paths]
-        return '"' + "/".join(convert_backslashes(p) for p in parts) + '"'
+        options = [a for a in args if a.startswith("-") and a.lower() not in ("-path", "-childpath")]
+        if options:
+            self._warn(
+                lineno,
+                "Join-Path 选项 " + "、".join(options) + " 无法等价转换，请人工核对",
+                original,
+            )
+        parts = [
+            convert_backslashes(strip_outer_quotes(self._replace_vars(p.strip('"'), lineno))[0])
+            for p in paths
+        ]
+        self._needs_join_path = True
+        for child in parts[1:]:
+            self._warn_join_path_child(lineno, original, child)
+        return "$(__bat2sh_join_path " + " ".join(dq(p) for p in parts) + ")"
 
     def cmd_split_path(self, lineno: int, args: list[str], original: str) -> str | None:
         path = next((a for a in args if not a.startswith("-")), None)

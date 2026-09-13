@@ -349,3 +349,25 @@ def needs_nullglob(text: str) -> bool:
         if char in "*?":
             return True
     return False
+
+
+def strip_leading_attributes(text: str) -> tuple[str, str]:
+    """剥离开头的 PowerShell attribute 块，返回 ``(属性文本, 剩余声明)``。
+
+    支持 ``[Parameter(Mandatory=$true)]``、``[ValidateSet("a","b")]`` 这类
+    含嵌套括号、引号与 ``$`` 的属性；连续多个属性会被全部剥离。
+    """
+    attrs: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        while i < n and text[i].isspace():
+            i += 1
+        if i >= n or text[i] != "[":
+            break
+        close = find_matching(text, "[", "]", i)
+        if close < 0:
+            break
+        attrs.append(text[i + 1:close])
+        i = close + 1
+    return " ".join(attrs), text[i:].strip()
