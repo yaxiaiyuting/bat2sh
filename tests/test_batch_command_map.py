@@ -116,3 +116,59 @@ def test_call_set_multiple_parts_todo(convert_bat):
     out, report = convert_bat('@echo off\ncall set "R=%%%A%%%%%%%%B%%%"\n')
     assert report.todo_count == 1
     assert "!A!" not in out
+
+
+def test_errorlevel_warn_defaults_to_todo(convert_bat):
+    out, report = convert_bat("@echo off\necho rc=%ERRORLEVEL%\n")
+    assert report.todo_count == 1
+    assert "# TODO" in out
+    assert "${__bat2sh_rc}" not in out
+
+
+def test_errorlevel_map_uses_rc_capture(convert_bat):
+    out, report = convert_bat("@echo off\necho rc=%ERRORLEVEL%\n", last_exit_code="map")
+    assert "# 注意：$? 只反映紧邻上一条命令的退出码" in out
+    assert "__bat2sh_rc=$?" in out
+    assert 'echo "rc=${__bat2sh_rc}"' in out
+    assert report.todo_count == 0
+
+
+def test_errorlevel_map_captures_once(convert_bat):
+    out, _ = convert_bat(
+        "@echo off\necho a=%ERRORLEVEL%\necho b=%ERRORLEVEL%\n", last_exit_code="map"
+    )
+    assert out.count("__bat2sh_rc=$?") == 1
+    assert out.count("${__bat2sh_rc}") == 2
+
+
+def test_errorlevel_map_runs_after_failure(convert_bat, bash_run):
+    text = "@echo off\ncmd /c exit 3\necho rc=%ERRORLEVEL%\n"
+    out, report = convert_bat(text, last_exit_code="map", strict_mode=False)
+    assert report.todo_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0
+    assert "rc=3" in proc.stdout
+
+
+def test_errorlevel_map_shares_capture_with_powershell(convert_bat, convert_ps):
+    bat_out, _ = convert_bat("@echo off\necho %ERRORLEVEL%\n", last_exit_code="map")
+    ps_out, _ = convert_ps("Write-Output $LASTEXITCODE\n", last_exit_code="map")
+    assert "__bat2sh_rc=$?" in bat_out
+    assert "__bat2sh_rc=$?" in ps_out
+    assert "${__bat2sh_rc}" in bat_out
+    assert "${__bat2sh_rc}" in ps_out
+
+
+def test_errorlevel_in_for_f_command_todo(convert_bat):
+    text = '@echo off\nfor /f "delims=" %%i in (\'echo %ERRORLEVEL%\') do echo %%i\n'
+    out, report = convert_bat(text)
+    assert report.todo_count == 1
+    assert "# TODO" in out
+
+
+def test_errorlevel_warn_paren_block_stays_balanced(convert_bat):
+    text = "@echo off\nif %ERRORLEVEL% equ 0 (\n    echo ok\n)\necho done\n"
+    out, report = convert_bat(text)
+    assert report.todo_count == 1
+    assert 'echo "done"' in out
+    assert not any("多余" in d.message for d in report.warnings)

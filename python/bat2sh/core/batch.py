@@ -90,6 +90,7 @@ def _restore_placeholders(line: str) -> str:
 
 
 _VARIABLE_MARKER = re.compile(r"[%!]")
+_ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
 
 
 def _is_string_operand(token: str) -> bool:
@@ -282,6 +283,7 @@ class BatchConverter:
         self._delayed_expansion = False
         self._needs_nullglob = False
         self._bat2sh_status_valid = False
+        self._errorlevel_captured = False
         self._current_command = ""
 
     # ------------------------------------------------------------------
@@ -294,6 +296,24 @@ class BatchConverter:
         for start, line in logical:
             produced = self._convert_line(start, line)
             produced = [_restore_placeholders(item) for item in produced]
+            if (
+                self.settings.last_exit_code == "map"
+                and not self._errorlevel_captured
+                and _ERRORLEVEL_VAR_RE.search(line)
+                and self._has_effectful_command(produced)
+            ):
+                self._errorlevel_captured = True
+                produced = [
+                    self._c("# 注意：$? 只反映紧邻上一条命令的退出码"),
+                    self._c("__bat2sh_rc=$?"),
+                    *produced,
+                ]
+                self._warn(
+                    start,
+                    "map 策略：%ERRORLEVEL% 已近似映射为 __bat2sh_rc（首次引用处捕获 $?），请人工复核",
+                    line,
+                    category="errorlevel",
+                )
             bucket = self._func_out if (self._function_mode and self._current_func) else self._out
             bucket.extend(produced)
             self._update_status_validity(line, produced)
@@ -333,6 +353,15 @@ class BatchConverter:
         self.report.todos.append(Diagnostic(lineno, message, original, category))
         comment = "# TODO: 手动检查: " + original
         return comment
+
+    def _todo_block_line(self, lineno: int, text: str, hint: str, category: str) -> list[str]:
+        comment = self._todo(lineno, text, hint, category)
+        lines = [self._c(comment)]
+        if "(" in text and find_matching(text, "(", ")") == -1:
+            block = _Block("comment", "")
+            block.paren_depth = 1
+            self._stack.append(block)
+        return lines
 
     def _logical_lines(self, text: str) -> list[tuple[int, str]]:
         result: list[tuple[int, str]] = []
@@ -437,6 +466,11 @@ class BatchConverter:
         def env_repl(m: re.Match[str]) -> str:
             name = m.group(1)
             upper = name.upper()
+            if upper == "ERRORLEVEL":
+                if self.settings.last_exit_code == "map":
+                    return "${__bat2sh_rc}"
+                self._warn(lineno, "%ERRORLEVEL% 的转换可能不完全等价", text, category="variables")
+                return "$?"
             if upper in rules.BATCH_ENV_MAP:
                 if upper in rules.BATCH_ENV_WARN:
                     self._warn(lineno, f"%{name}% 的转换可能不完全等价", text, category="variables")
@@ -530,6 +564,18 @@ class BatchConverter:
             return []
         if lower == "echo on":
             return [self._c("# 注意: echo on 在 bash 中无对应行为，已忽略")]
+
+        if (
+            self.settings.last_exit_code != "map"
+            and _ERRORLEVEL_VAR_RE.search(text)
+            and not re.match(r"(?i)^(?:rem\b|::)", text)
+        ):
+            return self._todo_block_line(
+                lineno,
+                text,
+                "warn 策略：%ERRORLEVEL% 的等价性无法保证，可改用 --last-exit-code map",
+                "errorlevel",
+            )
 
         if text == "(":
             opener = self._c("{")
@@ -1171,6 +1217,10 @@ class BatchConverter:
             raw = source[1:-1].strip()
             if not raw:
                 return self._for_todo_lines(lineno, text, body, "for /f 的 '命令' 为空，请手工转换")
+            if _ERRORLEVEL_VAR_RE.search(raw):
+                return self._for_todo_lines(
+                    lineno, text, body, "for /f 命令中的 %ERRORLEVEL% 无法保证捕获时机，请手工处理"
+                )
             todo_mark = len(self.report.todos)
             command_lines = self._convert_simple_no_pipe(lineno, raw)
             if (
