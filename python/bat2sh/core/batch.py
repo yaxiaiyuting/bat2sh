@@ -409,6 +409,7 @@ class BatchConverter:
         self._finish()
         output = self._compose()
         output = self._ensure_block_bodies(output)
+        output = self._guard_unset_variable_refs(output)
         if self.settings.bash_check:
             syntax_error = self._bash_syntax_error(output)
             if syntax_error is not None:
@@ -505,6 +506,40 @@ class BatchConverter:
                     entry[0] = True
             result.append(line)
         return "\n".join(result)
+
+    _VAR_ASSIGN_RE = re.compile(r"(?:local\s+|export\s+|readonly\s+|declare\s+)?([A-Za-z_]\w*)=")
+
+    def _guard_unset_variable_refs(self, output: str) -> str:
+        assigned: set[str] = set()
+        for line in output.split("\n"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            m = self._VAR_ASSIGN_RE.match(stripped)
+            if m:
+                assigned.add(m.group(1))
+            m = re.match(r"(?:for|select)\s+([A-Za-z_]\w*)\s+in\b", stripped)
+            if m:
+                assigned.add(m.group(1))
+            read_match = re.search(r"\bread\b", stripped)
+            if read_match and re.match(r"(?:while|until)\b", stripped):
+                for token in tokenize_args(stripped[read_match.end():]):
+                    if token.startswith("-") or token in ('""', "''"):
+                        continue
+                    if re.match(r"^[A-Za-z_]\w*$", token):
+                        assigned.add(token)
+
+        def guard(m: re.Match[str]) -> str:
+            name = m.group(1)
+            return m.group(0) if name in assigned else f"${{{name}:-}}"
+
+        pattern = re.compile(r"(?<!\\)\$\{([A-Za-z_]\w*)\}")
+        return "\n".join(
+            line
+            if line.strip().startswith("#")
+            else pattern.sub(guard, line)
+            for line in output.split("\n")
+        )
 
     # ------------------------------------------------------------------
     # 基础工具

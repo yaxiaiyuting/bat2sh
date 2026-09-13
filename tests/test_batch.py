@@ -184,7 +184,7 @@ def test_if_defined(convert_bat):
 
 def test_if_compare(convert_bat):
     out, _ = convert_bat('@echo off\nif "%A%"=="B" echo eq\n')
-    assert 'if [ "${A}" = "B" ]; then' in out
+    assert 'if [ "${A:-}" = "B" ]; then' in out
 
 
 @pytest.mark.parametrize(
@@ -231,12 +231,12 @@ def test_if_numeric_compare_with_paren_blocks(convert_bat, bash_check):
 
 def test_if_string_compare_with_spaces_stays_string(convert_bat):
     out, _ = convert_bat('@echo off\nif "%MY_VAR%"=="Hello World" echo 相等\n')
-    assert 'if [ "${MY_VAR}" = "Hello World" ]; then' in out
+    assert 'if [ "${MY_VAR:-}" = "Hello World" ]; then' in out
 
 
 def test_if_equ_quoted_operands_use_string_compare(convert_bat, bash_run):
     out, report = convert_bat('@echo off\nif "%STR1%" equ "%STR2%" echo same\n')
-    assert 'if [ "${STR1}" = "${STR2}" ]; then' in out
+    assert 'if [ "${STR1:-}" = "${STR2:-}" ]; then' in out
     assert report.warning_count == 0
     proc = bash_run("STR1=abc STR2=abc\n" + out)
     assert proc.returncode == 0, proc.stderr
@@ -254,12 +254,12 @@ def test_if_equ_quoted_strings_differ_no_runtime_error(convert_bat, bash_run):
 
 def test_if_equ_unquoted_variables_stay_numeric(convert_bat):
     out, _ = convert_bat("@echo off\nif %N1% equ %N2% echo same\n")
-    assert 'if [ "${N1}" -eq "${N2}" ]; then' in out
+    assert 'if [ "${N1:-}" -eq "${N2:-}" ]; then' in out
 
 
 def test_if_neq_unquoted_variables_stay_numeric(convert_bat):
     out, _ = convert_bat("@echo off\nif %X% neq %Y% echo diff\n")
-    assert 'if [ "${X}" -ne "${Y}" ]; then' in out
+    assert 'if [ "${X:-}" -ne "${Y:-}" ]; then' in out
 
 
 def test_if_equ_numeric_literals_use_numeric_compare(convert_bat):
@@ -274,7 +274,7 @@ def test_if_equ_bare_word_operands_use_string_compare(convert_bat):
 
 def test_if_neq_quoted_operands_use_string_compare(convert_bat, bash_run):
     out, _ = convert_bat('@echo off\nif "%S1%" neq "%S2%" echo diff\n')
-    assert 'if [ "${S1}" != "${S2}" ]; then' in out
+    assert 'if [ "${S1:-}" != "${S2:-}" ]; then' in out
     proc = bash_run("S1=abc S2=xyz\n" + out)
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout == "diff\n"
@@ -594,7 +594,7 @@ def test_for_nested_inner_loop_quotes_variable(convert_bat):
 
 def test_for_set_variable_quoted_with_warning(convert_bat):
     out, report = convert_bat("@echo off\nfor %%f in (%LIST%) do echo %%f\n")
-    assert 'for f in "${LIST}"; do' in out
+    assert 'for f in "${LIST:-}"; do' in out
     assert any("%LIST% 变量集合已加引号" in d.message for d in report.warnings)
 
 
@@ -608,7 +608,7 @@ def test_for_set_variable_unquoted_when_quote_variables_off(convert_bat):
     out, report = convert_bat(
         "@echo off\nfor %%f in (%LIST%) do echo %%f\n", quote_variables=False
     )
-    assert "for f in ${LIST}; do" in out
+    assert "for f in ${LIST:-}; do" in out
     assert not any("变量集合已加引号" in d.message for d in report.warnings)
 
 
