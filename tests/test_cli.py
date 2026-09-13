@@ -11,7 +11,7 @@ from bat2sh import __version__
 from bat2sh.cli import main
 
 CLEAN_BAT = "@echo off\necho hello\n"
-TODO_BAT = "@echo off\nfor /f \"tokens=*\" %%i in ('dir /b') do echo %%i\n"
+TODO_BAT = "@echo off\nfor /f \"delims=,\" %%i in ('dir /b') do echo %%i\n"
 
 
 def make_bat(tmp_path: Path, name: str = "demo.bat", text: str = CLEAN_BAT) -> Path:

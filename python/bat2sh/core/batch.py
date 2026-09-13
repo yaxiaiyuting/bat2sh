@@ -747,19 +747,11 @@ class BatchConverter:
         body = m.group(4).strip()
         opts_lower = opts.lower()
 
-        if "/f" in opts_lower or "/r" in opts_lower:
-            hint = "for /f 请改用 while read 或 $(...) 命令替换" if "/f" in opts_lower else "for /r 请改用 find"
-            self._todo(lineno, text, hint)
-            lines = [self._c("# TODO: 手动检查: " + text)]
-            if body == "(" or (body.startswith("(") and find_matching(body, "(", ")") == -1):
-                block = _Block("comment", "")
-                block.paren_depth = 1
-                self._stack.append(block)
-                inner = body[1:].strip()
-                if inner:
-                    block.paren_depth += 1
-                    lines.append(self._c("# " + inner))
-            return lines
+        if "/f" in opts_lower:
+            return self._emit_for_f(lineno, text, opts, set_text, var, body)
+
+        if "/r" in opts_lower:
+            return self._for_todo_lines(lineno, text, body, "for /r 请改用 find")
 
         items = self._convert_for_set(set_text, lineno)
         if "/l" in opts_lower:
@@ -811,6 +803,101 @@ class BatchConverter:
         lines = [header]
         lines.extend(inner_lines)
         lines.append(self._indent + "done")
+        return lines
+
+    def _emit_for_f(
+        self, lineno: int, text: str, opts: str, set_text: str, var: str, body: str
+    ) -> list[str]:
+        options = self._parse_for_f_options(opts)
+        if options is None:
+            return self._for_todo_lines(
+                lineno,
+                text,
+                body,
+                "for /f 的 delims/tokens/skip/eol/usebackq 选项无法自动转换",
+            )
+        source = set_text.strip()
+        m = re.match(r"^'(.*)'$", source, re.S)
+        if not m or not m.group(1).strip():
+            return self._for_todo_lines(
+                lineno, text, body, "for /f 仅支持 '命令' 形式，字符串/文件解析请手工转换"
+            )
+        todo_mark = len(self.report.todos)
+        command_lines = self._convert_simple_no_pipe(lineno, m.group(1).strip())
+        if (
+            len(command_lines) != 1
+            or not command_lines[0].strip()
+            or command_lines[0].lstrip().startswith("#")
+        ):
+            del self.report.todos[todo_mark:]
+            return self._for_todo_lines(
+                lineno, text, body, "for /f 的命令无法自动转换，请手工改写为 while read"
+            )
+        command = command_lines[0].strip()
+        if "tokens=*" not in options:
+            self._warn(
+                lineno,
+                "for /f 默认只取每行第一个空白分隔 token，已按整行近似，请核对",
+                text,
+            )
+        header = self._indent + f"while IFS= read -r {var}; do"
+        close_word = f"done < <({command})"
+        if body.startswith("("):
+            close = find_matching(body, "(", ")")
+            if close < 0:
+                self._loop_vars.append(var)
+                self._stack.append(_Block("for", close_word, var))
+                lines = [header]
+                inner = body[1:].strip()
+                if inner:
+                    lines.extend(self._convert_line(lineno, inner))
+                return lines
+            inner = body[1:close]
+            self._loop_vars.append(var)
+            self._stack.append(_Block("for", close_word, var))
+            lines = [header]
+            if inner.strip():
+                lines.extend(self._convert_line(lineno, inner))
+            self._stack.pop()
+            self._loop_vars.remove(var)
+            lines.append(self._indent + close_word)
+            return lines
+        if not body:
+            self._loop_vars.append(var)
+            self._stack.append(_Block("for", close_word, var))
+            return [header]
+        self._loop_vars.append(var)
+        self._stack.append(_Block("for", close_word, var))
+        inner_lines = self._convert_line(lineno, body)
+        self._stack.pop()
+        self._loop_vars.remove(var)
+        lines = [header]
+        lines.extend(inner_lines)
+        lines.append(self._indent + close_word)
+        return lines
+
+    @staticmethod
+    def _parse_for_f_options(opts: str) -> set[str] | None:
+        rest = re.sub(r"(?i)^/f\b\s*", "", opts).strip()
+        if not rest:
+            return set()
+        m = re.match(r'^"(.*)"$', rest, re.S)
+        if not m:
+            return None
+        options = {part.strip().lower() for part in m.group(1).split() if part.strip()}
+        return options if options <= {"tokens=*"} else None
+
+    def _for_todo_lines(self, lineno: int, text: str, body: str, hint: str) -> list[str]:
+        self._todo(lineno, text, hint)
+        lines = [self._c("# TODO: 手动检查: " + text)]
+        if body == "(" or (body.startswith("(") and find_matching(body, "(", ")") == -1):
+            block = _Block("comment", "")
+            block.paren_depth = 1
+            self._stack.append(block)
+            inner = body[1:].strip()
+            if inner:
+                block.paren_depth += 1
+                lines.append(self._c("# " + inner))
         return lines
 
     def _convert_for_set(self, set_text: str, lineno: int) -> str:

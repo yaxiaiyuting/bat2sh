@@ -204,6 +204,7 @@ bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
 | `if errorlevel N` / `if not errorlevel N` | `if [ $? -ge N ]` / `[ $? -lt N ]`（含 `$?` 时机警告） |
 | `if defined VAR` | `[ -n "${VAR:-}" ]` |
 | `for %%i in (*.txt) do ...`（含嵌套、多行块） | `for i in *.txt; do ...; done` |
+| `for /f "tokens=*" %%i in ('cmd') do ...`（或无选项） | `while IFS= read -r i; do ...; done < <(cmd)`（仅简单形式；其余选项仍 TODO） |
 | `for /l %%i in (1,1,10) do ...` | `for i in $(seq 1 1 10); do ...; done` |
 | `for /d %%d in (dir\*) do ...` | `for d in dir/*/; do ...; done` |
 | `call :label args` / `:label` | `label_<name> args` / `label_<name>() { ... }`（子程序重构为函数并前置定义） |
@@ -397,8 +398,10 @@ echo "清理完成"
 
 1. **`goto`/标签控制流**：仅 `call :label` 子程序会被重构为函数。普通 `goto` 跳转、
    循环式 goto、跨标签 fall-through 无法等价转换 → `# TODO`。
-2. **`for /f`、`for /r`**：命令输出解析、token/delims 选项、递归遍历 → 整块注释为 TODO
-   （提示改用 `while read` / `find`）。
+2. **`for /f`、`for /r`**：`for /f "tokens=*" %%i in ('cmd')`（或无选项）已转换为
+   `while IFS= read -r i; do ... done < <(cmd)`；带 `delims`/`tokens`（非 `*`）/`skip`/
+   `eol`/`usebackq` 选项、字符串/文件解析仍整块注释为 TODO。`for /r` 递归遍历仍 TODO
+   （提示改用 `find`）。无选项时 cmd 默认只取每行第一个 token，转换按整行近似并告警。
 3. **延迟展开 `!var!`**：尽力转 `${var}`，但循环内赋值语义不同，需复核。
 4. **`set /a`**：多表达式（逗号）、复杂位运算仅部分支持；`!`→`~` 为近似。
 5. **`%DATE%`/`%TIME%`**：格式与 Windows 区域设置不同；`%ERRORLEVEL%`→`$?` 只反映
