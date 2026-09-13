@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import sys
 from pathlib import Path
 
 from . import APP_DESCRIPTION, __version__
-from .core.encoding import decode_bytes
-from .core.engine import ConversionResult, convert_file, convert_text, detect_kind
+from .core.encoding import decode_bytes, normalize_newlines
+from .core.engine import (
+    ConversionResult,
+    convert_file,
+    convert_text,
+    detect_kind,
+    output_path_for,
+)
 from .core.settings import ConvertSettings
 from .core.types import ConvertReport, SourceKind
 
@@ -35,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--encoding", help="强制指定输入编码（默认自动检测）")
     parser.add_argument("--no-overwrite", action="store_true", help="输出已存在时拒绝覆盖")
     parser.add_argument("--print", dest="print_only", action="store_true", help="只输出到 stdout，不写文件")
+    parser.add_argument("--diff", action="store_true", help="打印源文件与转换结果的 unified diff")
     report_group = parser.add_mutually_exclusive_group()
     report_group.add_argument("--report", action="store_true", help="打印转换报告")
     report_group.add_argument(
@@ -71,6 +79,21 @@ def _emit_report(convert_report: ConvertReport, args: argparse.Namespace) -> Non
         sys.stderr.write(convert_report.to_json() + "\n")
 
 
+def _emit_diff(
+    source_text: str, output_text: str, from_name: str, to_name: str, stream
+) -> None:
+    source_lines = normalize_newlines(source_text).splitlines()
+    output_lines = normalize_newlines(output_text).splitlines()
+    diff_lines = list(
+        difflib.unified_diff(
+            source_lines, output_lines, fromfile=from_name, tofile=to_name, lineterm=""
+        )
+    )
+    if not diff_lines:
+        return
+    stream.write("\n".join(diff_lines) + "\n")
+
+
 def _print_only(
     path: Path, settings: ConvertSettings, encoding: str | None, args: argparse.Namespace
 ) -> int:
@@ -82,6 +105,14 @@ def _print_only(
     text, convert_report = convert_text(decoded.text, kind, settings, path.name)
     convert_report.encoding = decoded.encoding
     sys.stdout.write(text)
+    if args.diff:
+        _emit_diff(
+            decoded.text,
+            text,
+            path.name,
+            output_path_for(path, settings).name,
+            sys.stderr,
+        )
     _emit_report(convert_report, args)
     return 3 if convert_report.todo_count else 0
 
@@ -110,6 +141,19 @@ def run_one(
             f" | 警告 {result.report.warning_count}"
             f" | TODO {result.report.todo_count}"
         )
+    if args.diff:
+        try:
+            decoded = decode_bytes(path.read_bytes(), encoding)
+        except OSError:
+            decoded = None
+        if decoded is not None:
+            _emit_diff(
+                decoded.text,
+                result.text,
+                path.name,
+                Path(result.output_path).name,
+                sys.stdout,
+            )
     _emit_report(result.report, args)
     return (3 if result.report.todo_count else 0), result
 

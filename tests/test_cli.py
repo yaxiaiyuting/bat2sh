@@ -224,6 +224,45 @@ def test_report_and_report_json_are_mutually_exclusive(tmp_path, capsys):
     assert "not allowed with" in capsys.readouterr().err
 
 
+def test_no_diff_by_default(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    assert main([str(path), "--print"]) == 0
+    captured = capsys.readouterr()
+    assert "--- demo.bat" not in captured.out
+    assert "--- demo.bat" not in captured.err
+
+
+def test_diff_in_print_mode_goes_to_stderr(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    assert main([str(path), "--print", "--diff"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.startswith("#!/usr/bin/env bash")
+    assert "--- demo.bat" in captured.err
+    assert "+++ demo.sh" in captured.err
+    assert "-echo hello" in captured.err
+    assert '+echo "hello"' in captured.err
+    assert "--- demo.bat" not in captured.out
+
+
+def test_diff_in_file_mode_goes_to_stdout(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    assert main([str(path), "--diff"]) == 0
+    captured = capsys.readouterr()
+    assert "[已写出]" in captured.out
+    assert "--- demo.bat" in captured.out
+    assert "+++ demo.sh" in captured.out
+    assert (tmp_path / "demo.sh").is_file()
+
+
+def test_diff_with_report_json_print_mode(tmp_path, capsys):
+    path = make_bat(tmp_path, text=TODO_BAT)
+    assert main([str(path), "--print", "--diff", "--report-json"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.startswith("#!/usr/bin/env bash")
+    assert "--- demo.bat" in captured.err
+    assert '"todo_count": 1' in captured.err
+
+
 def test_quiet_suppresses_status_output(tmp_path, capsys):
     path = make_bat(tmp_path)
     assert main([str(path), "--quiet"]) == 0
