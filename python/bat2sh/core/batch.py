@@ -30,6 +30,17 @@ from .utils import (
 _DOLLAR_PLACEHOLDER = "\ue000"
 
 
+#: cmd 的 echo 空行写法：`echo.`、`echo(`、`echo:` 等（分隔符后紧跟的内容仍按字面回显）
+_ECHO_BLANK_SEP = re.compile(r"(?i)^(@?\s*echo)([.:/\\\[\]+(,;=])(.*)$", re.S)
+
+
+def _normalize_echo_blank(text: str) -> str:
+    m = _ECHO_BLANK_SEP.match(text)
+    if not m:
+        return text
+    return m.group(1) + " " + m.group(3)
+
+
 def _split_sequential(text: str) -> list[str]:
     """按顶层单个 ``&`` 切分命令（保留 &&、||、管道与重定向中的 &）。"""
     parts: list[str] = []
@@ -1022,6 +1033,7 @@ class BatchConverter:
         if m:
             comment = m.group(1) or ""
             return [self._c("# " + comment if comment else "#")]
+        text = _normalize_echo_blank(text)
         body, redirs = split_redirects(text)
         redir_text = self._render_redirs(redirs, lineno)
         if not body.strip():

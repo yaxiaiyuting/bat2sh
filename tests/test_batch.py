@@ -286,6 +286,39 @@ def test_echo_star_is_literal_no_nullglob(convert_bat):
     assert report.warning_count == 0
 
 
+def test_echo_dot_outputs_blank_line(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho.\necho hi\n")
+    assert "echo." not in out
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "\nhi\n"
+
+
+def test_echo_open_paren_outputs_blank_line(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho(\necho hi\n")
+    assert "echo(" not in out
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "\nhi\n"
+
+
+def test_echo_dot_with_text_echoes_text(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho.hello world\n")
+    assert 'echo "hello world"' in out
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "hello world\n"
+
+
+def test_echo_dot_with_redirect_binds_to_echo(convert_bat):
+    out, report = convert_bat("@echo off\necho. > blank.txt\n")
+    assert "echo >blank.txt" in out
+    assert report.warning_count == 0
+
+
 def test_echo_escapes_literal_dollar(convert_bat, bash_run):
     out, report = convert_bat("@echo off\necho 价格 $100\n")
     assert 'echo "价格 \\$100"' in out
