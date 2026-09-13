@@ -158,10 +158,14 @@ def test_errorlevel_after_todo_command_falls_back(convert_bat):
 # ----------------------------------------------------------------------
 # pause / 重定向
 # ----------------------------------------------------------------------
-def test_pause_redirection_current_behavior(convert_bat):
-    # 锁定当前行为：重定向追加在 || true 之后，实际作用于 true 而非 read（阶段 6 候选）
+def test_pause_redirect_binds_to_read(convert_bat):
     out, _ = convert_bat("@echo off\npause >nul\n")
-    assert 'read -rp "Press Enter to continue..." || true >/dev/null' in out
+    assert 'read -rp "Press Enter to continue..." >/dev/null || true' in out
+
+
+def test_set_p_redirect_binds_to_read(convert_bat):
+    out, _ = convert_bat("@echo off\nset /p X=prompt >log.txt\n")
+    assert 'read -rp "prompt" X >log.txt || true' in out
 
 
 def test_redirect_order_preserved(convert_bat):

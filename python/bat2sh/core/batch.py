@@ -938,9 +938,21 @@ class BatchConverter:
         if line is None:
             result = [self._c("# TODO: 手动检查: " + text)]
         else:
-            full = (line + (" " + redir_text if redir_text else "")).strip()
+            full = self._append_redirs(line, redir_text)
             result = [self._c(full)]
         return result
+
+    @staticmethod
+    def _append_redirs(command: str, redir_text: str) -> str:
+        """把重定向拼到命令上；``guard_read`` 的 ``|| true`` 守卫始终保留在末尾。"""
+        stripped = command.rstrip()
+        if not redir_text:
+            return stripped
+        guard = "|| true"
+        if stripped.endswith(guard):
+            base = stripped[: -len(guard)].rstrip()
+            return f"{base} {redir_text} {guard}"
+        return f"{stripped} {redir_text}".strip()
 
     def _render_redirs(self, redirs: list[tuple[str, str]], lineno: int) -> str:
         parts: list[str] = []
