@@ -110,6 +110,44 @@ pip install .               # 通过 pyproject.toml 安装（含 PySide6 依赖�
   `QT_QPA_PLATFORMTHEME=kde`（多数 CachyOS/KDE 默认已是）。
 - 生成的脚本 shebang 固定为 `#!/usr/bin/env bash`，与用户默认的 fish 无关。
 
+### 3.5 文件关联（双击 .bat/.cmd/.ps1 打开 bat2sh）
+
+PKGBUILD/AUR 安装时会注册 bat2sh 专用 MIME 类型并刷新数据库。
+`bat2sh.desktop` 同时声明可打开系统的 `application/x-bat` 与
+`application/x-powershell`，因此双击 / "打开方式" 中都能选择 bat2sh：
+
+- `application/x-bat2sh-batch` → `*.bat`、`*.cmd`（继承 `application/x-bat`）
+- `application/x-bat2sh-powershell` → `*.ps1`（继承 `application/x-powershell`）
+
+双击行为：打开 GUI 并载入文件、自动转换到预览态，**不会自动保存或执行**。
+
+安装 bat2sh **不会**抢占系统默认程序：`.bat/.cmd` 若已关联 Wine，双击仍由
+Wine 打开。要让双击默认用 bat2sh，手动将其设为默认（任选其一）：
+
+```bash
+# 命令行（用户级）：
+xdg-mime default bat2sh.desktop application/x-bat
+xdg-mime default bat2sh.desktop application/x-powershell
+xdg-mime default bat2sh.desktop application/x-bat2sh-batch
+xdg-mime default bat2sh.desktop application/x-bat2sh-powershell
+
+# 如需恢复 Wine 处理 .bat/.cmd：
+xdg-mime default wine.desktop application/x-bat
+```
+
+KDE Plasma：系统设置 → 应用程序 → 文件关联，搜索 `bat` / `ps1`，将 bat2sh
+移到首位；或在 Dolphin 中右键文件 → 打开方式 → 其他应用，选择 bat2sh 并
+勾选"记住此应用"。
+
+不使用 PKGBUILD 时（如 `install.sh` 用户级安装），可手动注册：
+
+```bash
+install -Dm644 data/mime/bat2sh.xml ~/.local/share/mime/packages/bat2sh.xml
+update-mime-database ~/.local/share/mime
+install -Dm644 bat2sh.desktop ~/.local/share/applications/bat2sh.desktop
+update-desktop-database ~/.local/share/applications
+```
+
 ## 4. 使用
 
 ### 4.1 图形界面
@@ -121,6 +159,7 @@ bat2sh a.bat b.ps1  # 启动并载入文件
 
 工作流：打开/拖入文件 → 自动转换并在右侧预览 → 按需编辑 → 保存（自动 `chmod +x`）。
 "批量转换"会按设置逐个转换、写出，并弹出汇总报告。
+双击打开与默认程序设置见 3.5 节"文件关联"。
 
 快捷键：
 
