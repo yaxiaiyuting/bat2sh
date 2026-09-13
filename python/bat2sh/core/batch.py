@@ -752,6 +752,25 @@ class BatchConverter:
         return [self._c("# TODO: 手动检查: " + text)]
 
     def _convert_call(self, lineno: int, text: str) -> list[str]:
+        indirect = re.match(
+            r'(?i)^call\s+set\s+"?([\w.]+)=%%%([A-Za-z_][A-Za-z0-9_]*)%%%"?\s*$',
+            text,
+        )
+        if indirect:
+            name = sanitize_identifier(indirect.group(1))
+            var = indirect.group(2)
+            return [self._c(f'{name}="${{!{var}}}"')]
+        if re.match(r"(?i)^call\s+set\b", text):
+            return [
+                self._c(
+                    self._todo(
+                        lineno,
+                        text,
+                        "call set 仅支持整个值为单个 %%%VAR%%% 间接引用（如 call set \"R=%%%A%%%\"）",
+                        category="variables",
+                    )
+                )
+            ]
         m = re.match(r"(?i)^call\s+:([\w.\-]+)\s*(.*)$", text)
         if m:
             func = "label_" + sanitize_identifier(m.group(1))

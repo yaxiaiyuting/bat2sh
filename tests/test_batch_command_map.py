@@ -81,3 +81,38 @@ def test_systemroot_preserves_name_and_allows_override(convert_bat, bash_run, mo
     assert bash_run(out).stdout.strip() == "/"
     monkeypatch.setenv("SystemRoot", "/custom")
     assert bash_run(out).stdout.strip() == "/custom"
+
+
+def test_call_set_indirect_basic(convert_bat):
+    out, report = convert_bat('@echo off\ncall set "R=%%%A%%%"\n')
+    assert 'R="${!A}"' in out
+    assert report.todo_count == 0
+
+
+def test_call_set_indirect_name_with_underscore_digits(convert_bat):
+    out, _ = convert_bat('@echo off\ncall set "OUT_1=%%%VAR_2%%%"\n')
+    assert 'OUT_1="${!VAR_2}"' in out
+
+
+def test_call_set_indirect_runs(convert_bat, bash_run):
+    text = (
+        '@echo off\nset "A=target"\nset "target=resolved"\n'
+        'call set "R=%%%A%%%"\necho %R%\n'
+    )
+    out, report = convert_bat(text)
+    assert report.todo_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0
+    assert proc.stdout.strip() == "resolved"
+
+
+def test_call_set_unmatched_pattern_todo(convert_bat):
+    out, report = convert_bat('@echo off\ncall set "R=pre_%%%A%%%"\n')
+    assert report.todo_count == 1
+    assert "# TODO" in out
+
+
+def test_call_set_multiple_parts_todo(convert_bat):
+    out, report = convert_bat('@echo off\ncall set "R=%%%A%%%%%%%%B%%%"\n')
+    assert report.todo_count == 1
+    assert "!A!" not in out

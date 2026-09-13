@@ -20,8 +20,6 @@ STRESS_BAT = Path(__file__).resolve().parents[1] / "examples" / "stress_test.bat
 FROZEN_WARNINGS = [
     (16, 'variables', '%DATE% 的转换可能不完全等价'),
     (16, 'variables', '%TIME% 的转换可能不完全等价'),
-    (63, 'variables', '检测到 %% 间接引用语法（call set），请手工处理'),
-    (68, 'variables', '检测到 %% 间接引用语法（call set），请手工处理'),
     (84, 'command', 'findstr 已转换为 grep，正则语法可能存在差异'),
     (114, 'glob', '检测到通配符集合，已在脚本头添加 shopt -s nullglob：无匹配时循环体不执行'),
     (127, 'variables', '%ERRORLEVEL% 的转换可能不完全等价'),

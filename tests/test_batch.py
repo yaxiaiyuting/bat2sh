@@ -145,19 +145,15 @@ def test_escaped_percent_pair_is_literal(convert_bat, bash_run):
     assert proc.stdout == "百分号: %PATH%\n"
 
 
-def test_triple_percent_indirect_warning(convert_bat):
+def test_triple_percent_indirect_maps_to_bang(convert_bat):
     out, report = convert_bat('@echo off\ncall set "INDIRECT=%%%VAR_NAME%%%"\n')
-    assert any(
-        "检测到 %% 间接引用语法（call set），请手工处理" == d.message for d in report.warnings
-    )
+    assert 'INDIRECT="${!VAR_NAME}"' in out
     assert not any("循环变量" in d.message for d in report.warnings)
 
 
-def test_triple_percent_single_letter_is_indirect(convert_bat):
+def test_triple_percent_single_letter_maps_to_bang(convert_bat):
     out, report = convert_bat('@echo off\ncall set "RESULT=%%%A%%%"\n')
-    assert any(
-        "检测到 %% 间接引用语法（call set），请手工处理" == d.message for d in report.warnings
-    )
+    assert 'RESULT="${!A}"' in out
     assert not any("循环变量" in d.message for d in report.warnings)
 
 
