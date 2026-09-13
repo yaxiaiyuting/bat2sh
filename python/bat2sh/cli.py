@@ -43,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-overwrite", action="store_true", help="输出已存在时拒绝覆盖")
     parser.add_argument("--print", dest="print_only", action="store_true", help="只输出到 stdout，不写文件")
     parser.add_argument("--diff", action="store_true", help="打印源文件与转换结果的 unified diff")
+    parser.add_argument("--dry-run", action="store_true", help="只显示将写出的文件，不实际写盘")
     report_group = parser.add_mutually_exclusive_group()
     report_group.add_argument("--report", action="store_true", help="打印转换报告")
     report_group.add_argument(
@@ -128,12 +129,35 @@ def run_one(
         return code, None
     output_override = args.output if args.output else None
     result = convert_file(
-        path, settings, encoding_override=encoding, output_override=output_override
+        path,
+        settings,
+        encoding_override=encoding,
+        output_override=output_override,
+        write=not args.dry_run,
     )
     if result.error:
         print(f"bat2sh: {result.error}", file=sys.stderr)
         return 2, result
-    if not args.quiet:
+    if args.dry_run:
+        if not args.quiet:
+            out_path = Path(result.output_path)
+            if (
+                out_path.exists()
+                and not settings.overwrite
+                and not settings.backup_existing
+            ):
+                print(
+                    f"bat2sh: 输出文件已存在且未允许覆盖: {out_path}",
+                    file=sys.stderr,
+                )
+                return 2, result
+            suffix = (
+                "（已存在，将先备份）"
+                if out_path.exists() and settings.backup_existing
+                else ""
+            )
+            print(f"[dry-run] 将写出: {out_path}{suffix}")
+    elif not args.quiet:
         status = "已写出" if result.written else "未写出"
         print(
             f"[{status}] {result.source_path} -> {result.output_path}"
@@ -166,6 +190,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.output and len(args.inputs) > 1:
         print("bat2sh: -o/--output 仅适用于单个输入文件，多文件请使用 --outdir", file=sys.stderr)
         return 1
+    if args.print_only and args.dry_run and not args.quiet:
+        print("bat2sh: --print 模式下不写文件，--dry-run 已忽略", file=sys.stderr)
     settings = settings_from_args(args)
     todo_total = 0
     has_error = False

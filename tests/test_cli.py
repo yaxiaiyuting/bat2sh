@@ -263,6 +263,56 @@ def test_diff_with_report_json_print_mode(tmp_path, capsys):
     assert '"todo_count": 1' in captured.err
 
 
+def test_dry_run_does_not_write(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    assert main([str(path), "--dry-run"]) == 0
+    captured = capsys.readouterr()
+    assert "[dry-run] 将写出" in captured.out
+    assert str(tmp_path / "demo.sh") in captured.out
+    assert not (tmp_path / "demo.sh").exists()
+
+
+def test_dry_run_existing_with_backup_announces_backup(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    out_path = tmp_path / "demo.sh"
+    out_path.write_text("OLD\n", encoding="utf-8")
+    assert main([str(path), "--dry-run", "--backup"]) == 0
+    captured = capsys.readouterr()
+    assert "将先备份" in captured.out
+    assert out_path.read_text(encoding="utf-8") == "OLD\n"
+
+
+def test_dry_run_no_overwrite_conflict_exit_2(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    out_path = tmp_path / "demo.sh"
+    out_path.write_text("OLD\n", encoding="utf-8")
+    assert main([str(path), "--dry-run", "--no-overwrite"]) == 2
+    captured = capsys.readouterr()
+    assert "输出文件已存在" in captured.err
+    assert out_path.read_text(encoding="utf-8") == "OLD\n"
+
+
+def test_dry_run_fail_on_todo_exit_3(tmp_path):
+    path = make_bat(tmp_path, text=TODO_BAT)
+    assert main([str(path), "--dry-run", "--fail-on-todo"]) == 3
+    assert not (tmp_path / "demo.sh").exists()
+
+
+def test_dry_run_quiet_suppresses_message(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    assert main([str(path), "--dry-run", "--quiet"]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_print_takes_precedence_over_dry_run(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    assert main([str(path), "--print", "--dry-run"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.startswith("#!/usr/bin/env bash")
+    assert "已忽略" in captured.err
+    assert not (tmp_path / "demo.sh").exists()
+
+
 def test_quiet_suppresses_status_output(tmp_path, capsys):
     path = make_bat(tmp_path)
     assert main([str(path), "--quiet"]) == 0
