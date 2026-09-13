@@ -37,6 +37,7 @@ class ConvertSettings:
     quote_variables: bool = True
     strict_mode: bool = True
     last_exit_code: str = "warn"  # 退出码策略（PowerShell $LASTEXITCODE / 批处理 %ERRORLEVEL%）: warn | map
+    bash_check: bool = True        # 生成脚本 bash -n 后置校验；失败则降级为注释（CLI: --no-bash-check）
 
     # 界面
     theme: str = "system"
@@ -53,6 +54,8 @@ class ConvertSettings:
             data["theme"] = "system"
         if data["last_exit_code"] not in ("warn", "map"):
             data["last_exit_code"] = "warn"
+        if not isinstance(data["bash_check"], bool):
+            data["bash_check"] = True
         if not data["suffix"]:
             data["suffix"] = ".sh"
         if not data["suffix"].startswith("."):

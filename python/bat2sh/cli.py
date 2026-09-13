@@ -46,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-quote-vars", action="store_true", help="变量不强制加双引号")
     parser.add_argument("--no-strict", action="store_true", help="不添加 set -euo pipefail")
     parser.add_argument(
+        "--no-bash-check",
+        action="store_true",
+        help="跳过生成脚本的 bash -n 语法校验（调试用；默认失败时降级为注释）",
+    )
+    parser.add_argument(
         "--last-exit-code",
         choices=["warn", "map"],
         default="warn",
@@ -103,6 +108,7 @@ def settings_from_args(args: argparse.Namespace) -> ConvertSettings:
         quote_variables=not args.no_quote_vars,
         strict_mode=not args.no_strict,
         last_exit_code=args.last_exit_code,
+        bash_check=not args.no_bash_check,
         overwrite=not args.no_overwrite,
     )
 
