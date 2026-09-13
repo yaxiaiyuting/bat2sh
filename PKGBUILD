@@ -1,6 +1,6 @@
 # Maintainer: yaxiaiyuting <jiangtianyou189@qq.com>
 pkgname=bat2sh
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="将 Windows 批处理 (.bat/.cmd) 与 PowerShell (.ps1) 脚本转换为 Bash 脚本的图形化工具"
 arch=('any')
@@ -10,7 +10,7 @@ depends=('python' 'pyside6' 'hicolor-icon-theme')
 makedepends=()
 options=('!strip')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('b076b7800d977b9aef34efb68c6ee2d5ae2eb4dfee9cd38c93568cacd6487e26')
+sha256sums=('07ab51860d6eba24e324833b531a12a290cb42afdaed4e4cd91c12657bda0a11')
 
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"
