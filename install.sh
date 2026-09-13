@@ -18,7 +18,7 @@ usage() {
   <prefix>/share/applications/bat2sh.desktop
   <prefix>/share/icons/hicolor/scalable/apps/bat2sh.svg
 
-依赖: python (>=3.9)、python-pyside6
+依赖: python (>=3.12)、python-pyside6
   Arch/CachyOS: sudo pacman -S python python-pyside6
 EOF
 }
