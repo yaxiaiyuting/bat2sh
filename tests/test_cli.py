@@ -10,6 +10,7 @@ import pytest
 
 from bat2sh import __version__
 from bat2sh.cli import main
+from bat2sh.core.types import ConvertReport, Diagnostic, SourceKind
 
 CLEAN_BAT = "@echo off\necho hello\n"
 TODO_BAT = "@echo off\nfor /f \"delims=,\" %%i in ('dir /b') do echo %%i\n"
@@ -222,6 +223,52 @@ def test_report_and_report_json_are_mutually_exclusive(tmp_path, capsys):
         main([str(path), "--report", "--report-json"])
     assert excinfo.value.code == 2
     assert "not allowed with" in capsys.readouterr().err
+
+
+def test_report_text_groups_by_category():
+    report = ConvertReport(source="x.bat", kind=SourceKind.BATCH)
+    report.warnings = [
+        Diagnostic(3, "路径一", category="path"),
+        Diagnostic(1, "命令一", category="command"),
+        Diagnostic(4, "路径二", category="path"),
+    ]
+    text = report.to_text()
+    assert text.index("[命令映射]") < text.index("[路径]")
+    assert text.index("[路径]") < text.index("路径一")
+    assert text.index("路径一") < text.index("路径二")
+    assert "命令一" in text
+
+
+def test_report_text_misc_and_empty_share_other():
+    report = ConvertReport(source="x.bat", kind=SourceKind.BATCH)
+    report.warnings = [
+        Diagnostic(1, "无法归类一", category="misc"),
+        Diagnostic(2, "无类别", category=""),
+    ]
+    text = report.to_text()
+    assert text.count("[其他]") == 1
+    assert "无法归类一" in text
+    assert "无类别" in text
+
+
+def test_report_text_todos_grouped():
+    report = ConvertReport(source="x.ps1", kind=SourceKind.POWERSHELL)
+    report.todos = [
+        Diagnostic(1, "管道段", category="pipeline"),
+        Diagnostic(2, "对象属性", category="objects"),
+    ]
+    text = report.to_text()
+    assert "── 需要人工检查" in text
+    assert text.index("[管道]") < text.index("[对象模型]")
+    assert text.index("[对象模型]") < text.index("对象属性")
+
+
+def test_report_text_without_diagnostics_has_no_groups():
+    report = ConvertReport(source="x.bat", kind=SourceKind.BATCH)
+    text = report.to_text()
+    assert "[其他]" not in text
+    assert "── 警告" not in text
+    assert "── 需要人工检查" not in text
 
 
 def test_no_diff_by_default(tmp_path, capsys):

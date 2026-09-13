@@ -6,6 +6,20 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum
 
+_CATEGORY_LABELS: tuple[tuple[str, str], ...] = (
+    ("command", "命令映射"),
+    ("control_flow", "控制流"),
+    ("errorlevel", "退出码"),
+    ("glob", "通配符"),
+    ("path", "路径"),
+    ("pipeline", "管道"),
+    ("params", "参数"),
+    ("objects", "对象模型"),
+    ("strings", "字符串与文本"),
+    ("variables", "变量"),
+)
+_OTHER_LABEL = "其他"
+
 
 class SourceKind(str, Enum):
     """源脚本类型。"""
@@ -110,12 +124,28 @@ class ConvertReport:
             f"警告数量    : {self.warning_count}",
             f"无法自动转换: {self.todo_count}",
         ]
-        if self.warnings:
+        for title, diagnostics in (("警告", self.warnings), ("需要人工检查", self.todos)):
+            if not diagnostics:
+                continue
             lines.append("")
-            lines.append("── 警告 ─────────────────────────────────")
-            lines.extend("  " + d.format() for d in self.warnings)
-        if self.todos:
-            lines.append("")
-            lines.append("── 需要人工检查 ─────────────────────────")
-            lines.extend("  " + d.format() for d in self.todos)
+            lines.append(f"── {title} ─────────────────────────────────")
+            for label, group in self._group_diagnostics(diagnostics):
+                lines.append(f"  [{label}]")
+                lines.extend("    " + d.format() for d in group)
         return "\n".join(lines)
+
+    @staticmethod
+    def _group_diagnostics(
+        diagnostics: list[Diagnostic],
+    ) -> list[tuple[str, list[Diagnostic]]]:
+        known = {name: label for name, label in _CATEGORY_LABELS}
+        buckets: dict[str, list[Diagnostic]] = {}
+        for diagnostic in diagnostics:
+            key = diagnostic.category if diagnostic.category in known else ""
+            buckets.setdefault(key, []).append(diagnostic)
+        groups = [
+            (label, buckets[name]) for name, label in _CATEGORY_LABELS if name in buckets
+        ]
+        if "" in buckets:
+            groups.append((_OTHER_LABEL, buckets[""]))
+        return groups
