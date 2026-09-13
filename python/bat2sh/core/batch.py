@@ -646,9 +646,9 @@ class BatchConverter:
 
         # %~ 修饰符（%~dp0 / %~f1 / %%~nxF ...）
         text = re.sub(r"%~([dfnpx]*)([0-9*A-Za-z])", lambda m: self._modifier(m, lineno, text), text)
-        # %* / %N
+        # %* / %N（cmd 缺参=空串；set -u 下用 ${N:-}）
         text = text.replace("%*", '"$@"')
-        text = re.sub(r"%([0-9])", r"$\1", text)
+        text = re.sub(r"%([0-9])", r"${\1:-}", text)
 
         # 延迟展开 !var!
         if self._delayed_expansion:
@@ -720,13 +720,18 @@ class BatchConverter:
             return '"$0"'
         arg = target
         if not mods:
-            return f"${arg}"
+            return f"${{{arg}:-}}"
         if "f" in mods:
-            return f'$(readlink -f "${arg}")'
+            return f'$(readlink -f "${{{arg}:-}}")'
         if "n" in mods and "x" in mods:
-            return f'$(basename "${arg}")'
-        self._warn(lineno, f"参数修饰符 %~{mods}{target} 无法自动转换，已按 ${target} 处理", original, category="params")
-        return f"${arg}"
+            return f'$(basename "${{{arg}:-}}")'
+        self._warn(
+            lineno,
+            f"参数修饰符 %~{mods}{target} 无法自动转换，已按 ${{{target}:-}} 处理",
+            original,
+            category="params",
+        )
+        return f"${{{arg}:-}}"
 
     # ------------------------------------------------------------------
     # 分发
@@ -1699,7 +1704,7 @@ class BatchConverter:
         ]
         return " ".join(fixed).strip()
 
-    _COLLECTION_VAR_RE = re.compile(r"^\$(?:\{[A-Za-z_]\w*\}|[0-9]+|[@*])$")
+    _COLLECTION_VAR_RE = re.compile(r"^\$(?:\{[A-Za-z_]\w*\}|\{[0-9]+:-\}|[0-9]+|[@*])$")
 
     def _quote_collection_token(self, token: str, lineno: int) -> str:
         if not self.settings.quote_variables or not self._COLLECTION_VAR_RE.match(token):
@@ -1717,6 +1722,9 @@ class BatchConverter:
     def _collection_token_display(self, token: str) -> str:
         if token.startswith("${"):
             inner = token[2:-1]
+            positional = re.match(r"^([0-9]+):-$", inner)
+            if positional:
+                return f"%{positional.group(1)}"
             if inner in self._loop_vars:
                 return f"%%{inner}"
             return f"%{inner}%"

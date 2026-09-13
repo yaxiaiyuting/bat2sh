@@ -438,7 +438,7 @@ def test_supported_modifiers_still_convert(convert_bat):
     assert report.todo_count == 0
     assert "${SCRIPT_DIR}/" in out
     assert '$(basename "$0")' in out
-    assert '$(readlink -f "$1")' in out
+    assert '$(readlink -f "${1:-}")' in out
 
 
 def test_path_search_modifier_is_todo(convert_bat):

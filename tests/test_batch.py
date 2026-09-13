@@ -600,7 +600,7 @@ def test_for_set_variable_quoted_with_warning(convert_bat):
 
 def test_for_set_argument_quoted_with_warning(convert_bat):
     out, report = convert_bat("@echo off\nfor %%f in (%1) do echo %%f\n")
-    assert 'for f in "$1"; do' in out
+    assert 'for f in "${1:-}"; do' in out
     assert any("%1 变量集合已加引号" in d.message for d in report.warnings)
 
 
@@ -706,7 +706,7 @@ def test_subroutine_hoisted_with_naked_return(convert_bat):
         "@echo off\ncall :demo hello\ngoto :eof\n\n:demo\n    echo %1\n    goto :eof\n"
     )
     assert "label_demo() {" in out
-    assert '    echo "$1"' in out
+    assert '    echo "${1:-}"' in out
     # README 8.1 第 13 条：goto :eof 生成裸 return，保留上一条命令的退出码
     assert "\n    return\n" in out
     assert "label_demo hello" in out
@@ -751,7 +751,7 @@ def test_path_modifiers(convert_bat):
     assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in out
     assert 'echo "${SCRIPT_DIR}/"' in out
     assert 'echo "$(basename "$0")"' in out
-    assert 'echo "$(readlink -f "$1")"' in out
+    assert 'echo "$(readlink -f "${1:-}")"' in out
 
 
 # ----------------------------------------------------------------------
