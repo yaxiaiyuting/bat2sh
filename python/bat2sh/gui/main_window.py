@@ -59,6 +59,18 @@ class SourceFile:
     report: ConvertReport | None = None
 
 
+def entry_to_result(entry: SourceFile, settings: ConvertSettings) -> ConversionResult:
+    """把列表项与当前设置组装成写出所需的 ConversionResult。"""
+    return ConversionResult(
+        source_path=str(entry.path),
+        output_path=str(entry.output_path or output_path_for(entry.path, settings)),
+        kind=entry.kind,
+        encoding=entry.detected_encoding or "utf-8",
+        text=entry.output_text,
+        report=entry.report or ConvertReport(),
+    )
+
+
 class MainWindow(QMainWindow):
     def __init__(self, settings: ConvertSettings, parent: QWidget | None = None):
         super().__init__(parent)
@@ -452,16 +464,6 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"已转换 {entry.path.name}")
         self._update_actions()
 
-    def _make_result(self, entry: SourceFile) -> ConversionResult:
-        return ConversionResult(
-            source_path=str(entry.path),
-            output_path=str(entry.output_path or output_path_for(entry.path, self.settings)),
-            kind=entry.kind,
-            encoding=entry.detected_encoding or "utf-8",
-            text=entry.output_text,
-            report=entry.report or ConvertReport(),
-        )
-
     def save_current(self) -> None:
         entry = self.current
         if entry is None:
@@ -471,7 +473,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "保存", "没有可保存的转换结果，请先执行转换。")
             return
         entry.output_path = entry.output_path or output_path_for(entry.path, self.settings)
-        result = self._make_result(entry)
+        result = entry_to_result(entry, self.settings)
         write_output(result, self.settings)
         if result.error:
             QMessageBox.critical(self, "保存失败", result.error)
@@ -505,7 +507,7 @@ class MainWindow(QMainWindow):
                     entry.output_text = text
                     entry.report = report
                     entry.output_path = output_path_for(entry.path, self.settings)
-                    result = self._make_result(entry)
+                    result = entry_to_result(entry, self.settings)
                     write_output(result, self.settings)
                     total_warnings += report.warning_count
                     total_todos += report.todo_count
