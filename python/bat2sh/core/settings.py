@@ -83,3 +83,80 @@ def save_settings(settings: ConvertSettings, path: str | Path | None = None) -> 
         json.dumps(asdict(settings.normalized()), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def presets_path() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return Path(base) / "bat2sh" / "presets.json"
+
+
+def preset_to_dict(settings: ConvertSettings) -> dict:
+    """转换成可持久化的 dict（先 normalized）。"""
+    return asdict(settings.normalized())
+
+
+def preset_from_dict(data: dict) -> ConvertSettings:
+    """容错构造：非 dict / 未知键 / 缺字段 / 类型不符 → 回退默认值，不抛异常。"""
+    defaults = ConvertSettings()
+    if not isinstance(data, dict):
+        return defaults
+    values: dict[str, object] = {}
+    for name in ConvertSettings.__dataclass_fields__:
+        default = getattr(defaults, name)
+        candidate = data.get(name, default)
+        if default is None:
+            values[name] = candidate if isinstance(candidate, str) else None
+        elif isinstance(default, bool):
+            values[name] = candidate if isinstance(candidate, bool) else default
+        elif isinstance(default, str):
+            values[name] = candidate if isinstance(candidate, str) else default
+        else:
+            values[name] = candidate
+    return ConvertSettings(**values).normalized()
+
+
+def parse_presets_json(raw: str) -> dict[str, ConvertSettings]:
+    """容错解析 presets.json；坏 JSON / 非 dict → 空字典。"""
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {
+        name: preset_from_dict(value)
+        for name, value in data.items()
+        if isinstance(name, str) and name
+    }
+
+
+def load_presets() -> dict[str, ConvertSettings]:
+    try:
+        raw = presets_path().read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    return parse_presets_json(raw)
+
+
+def _write_presets(presets: dict[str, ConvertSettings]) -> None:
+    target = presets_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    data = {name: preset_to_dict(settings) for name, settings in presets.items()}
+    payload = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    tmp.replace(target)
+
+
+def save_presets(name: str, settings: ConvertSettings) -> None:
+    """保存命名预设；同名覆盖。"""
+    presets = load_presets()
+    presets[name] = settings.normalized()
+    _write_presets(presets)
+
+
+def delete_preset(name: str) -> None:
+    presets = load_presets()
+    if name in presets:
+        del presets[name]
+        _write_presets(presets)

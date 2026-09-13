@@ -24,7 +24,13 @@ from PySide6.QtWidgets import (
 )
 
 from .. import APP_DESCRIPTION, APP_DISPLAY_NAME, APP_HOMEPAGE, __version__
-from ..core.settings import INDENT_CHOICES, ConvertSettings
+from ..core.settings import (
+    INDENT_CHOICES,
+    ConvertSettings,
+    delete_preset,
+    load_presets,
+    save_presets,
+)
 
 
 class SettingsDialog(QDialog):
@@ -33,13 +39,33 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("设置")
         self.setMinimumWidth(520)
         self._settings = settings
+        self._presets: dict[str, ConvertSettings] = {}
         self._build()
         self._load()
+        self._reload_presets()
 
     def _build(self) -> None:
         layout = QVBoxLayout(self)
         form = QFormLayout()
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        preset_row = QWidget()
+        preset_layout = QHBoxLayout(preset_row)
+        preset_layout.setContentsMargins(0, 0, 0, 0)
+        self.preset_combo = QComboBox()
+        self.preset_combo.setEditable(True)
+        self.preset_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.preset_combo.setToolTip("选择预设后点“保存为预设”可覆盖；输入新名称可另存")
+        self.preset_combo.currentIndexChanged.connect(self._on_preset_selected)
+        self.preset_combo.editTextChanged.connect(self._update_preset_buttons)
+        self.save_preset_button = QPushButton("保存为预设")
+        self.save_preset_button.clicked.connect(self._save_preset)
+        self.delete_preset_button = QPushButton("删除预设")
+        self.delete_preset_button.clicked.connect(self._delete_preset)
+        preset_layout.addWidget(self.preset_combo, 1)
+        preset_layout.addWidget(self.save_preset_button)
+        preset_layout.addWidget(self.delete_preset_button)
+        form.addRow("设置预设", preset_row)
 
         directory_row = QWidget()
         directory_layout = QHBoxLayout(directory_row)
@@ -108,7 +134,9 @@ class SettingsDialog(QDialog):
             self.output_dir_edit.setText(directory)
 
     def _load(self) -> None:
-        settings = self._settings
+        self._apply_settings(self._settings)
+
+    def _apply_settings(self, settings: ConvertSettings) -> None:
         self.output_dir_edit.setText(settings.output_dir or "")
         self.suffix_edit.setText(settings.suffix)
         self.exec_check.setChecked(settings.make_executable)
@@ -121,6 +149,46 @@ class SettingsDialog(QDialog):
         self.strict_check.setChecked(settings.strict_mode)
         theme_index = self.theme_combo.findData(settings.theme)
         self.theme_combo.setCurrentIndex(max(0, theme_index))
+
+    def _reload_presets(self) -> None:
+        self._presets = load_presets()
+        self.preset_combo.blockSignals(True)
+        self.preset_combo.clear()
+        self.preset_combo.addItem("（自定义）", None)
+        for name in self._presets:
+            self.preset_combo.addItem(name, name)
+        self.preset_combo.setCurrentIndex(0)
+        self.preset_combo.blockSignals(False)
+        self._update_preset_buttons()
+
+    def _update_preset_buttons(self) -> None:
+        name = self.preset_combo.currentText().strip()
+        self.save_preset_button.setEnabled(bool(name) and name != "（自定义）")
+        self.delete_preset_button.setEnabled(self.preset_combo.currentData() is not None)
+
+    def _on_preset_selected(self, index: int) -> None:
+        name = self.preset_combo.itemData(index)
+        if name and name in self._presets:
+            self._apply_settings(self._presets[name])
+        self._update_preset_buttons()
+
+    def _save_preset(self) -> None:
+        name = self.preset_combo.currentText().strip()
+        if not name or name == "（自定义）":
+            return
+        save_presets(name, self.result_settings())
+        self._reload_presets()
+        index = self.preset_combo.findText(name)
+        if index >= 0:
+            self.preset_combo.setCurrentIndex(index)
+
+    def _delete_preset(self) -> None:
+        name = self.preset_combo.currentData()
+        if not name:
+            return
+        delete_preset(name)
+        self._reload_presets()
+        self.preset_combo.setCurrentIndex(0)
 
     def result_settings(self) -> ConvertSettings:
         settings = ConvertSettings(
