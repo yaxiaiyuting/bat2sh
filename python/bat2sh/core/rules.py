@@ -67,6 +67,7 @@ BATCH_HANDLER_MAP: dict[str, str] = {
     "taskkill": "cmd_taskkill",
     "find": "cmd_find",
     "findstr": "cmd_findstr",
+    "sort": "cmd_sort",
     "set": "cmd_set",
     "setx": "cmd_setx",
     "if": "cmd_if_unsupported",  # 不应到达（dispatcher 已处理）

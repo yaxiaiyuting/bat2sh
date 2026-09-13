@@ -2248,6 +2248,50 @@ class BatchConverter:
         pattern = pattern or '""'
         return (f"grep {fixed_text}{opt_text}".rstrip() + f" {pattern} {files_text}").strip()
 
+    def cmd_sort(self, lineno: int, args: str, original: str) -> str | None:
+        tokens = tokenize_args(args)
+        if not tokens:
+            return "sort"
+        opts: list[str] = []
+        files: list[str] = []
+        output_file: str | None = None
+        index = 0
+        while index < len(tokens):
+            token = tokens[index]
+            low = token.lower()
+            if low == "/r":
+                opts.append("-r")
+            elif re.match(r"^/\+\d+$", low):
+                self._todo(
+                    lineno,
+                    original,
+                    "sort /+N（从第 N 个字符起排序）在 Linux sort 无对应，请手工处理",
+                    category="command",
+                )
+                return "# TODO: 手动检查: " + original
+            elif low == "/o" and index + 1 < len(tokens):
+                output_file = tokens[index + 1]
+                index += 1
+            elif low in ("/m", "/l") and index + 1 < len(tokens):
+                self._warn(
+                    lineno,
+                    f"sort 开关 {token} 在 Linux sort 无对应，已忽略",
+                    original,
+                    category="command",
+                )
+                index += 1
+            elif token.startswith("/"):
+                self._warn(
+                    lineno, f"sort 开关 {token} 未处理，已忽略", original, category="command"
+                )
+            else:
+                files.append(token)
+            index += 1
+        command = " ".join(["sort", *opts, *files]).strip()
+        if output_file:
+            command = f"{command} > {output_file}".strip()
+        return command
+
     def cmd_set(self, lineno: int, args: str, original: str) -> str | None:
         m = re.match(r"(?i)^/a\s+(.*)$", args, re.S)
         if m:
