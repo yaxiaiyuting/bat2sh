@@ -411,11 +411,17 @@ echo "清理完成"
 
 1. **`goto`/标签控制流**：仅 `call :label` 子程序会被重构为函数。普通 `goto` 跳转、
    循环式 goto、跨标签 fall-through 无法等价转换 → `# TODO`。
-2. **`for /f`、`for /r`**：**支持**无选项形式 `for /f %%a in ('命令')`（等价写法
-   `"tokens=*"`）→ `while IFS= read -r a; do ... done < <(命令)`。**不支持**：带
-   `delims`/`tokens`（非 `*`）/`skip`/`eol`/`usebackq` 选项，以及字符串字面量
-   `("文本")`、文件解析 `(file.txt)` 形式 → 整行 `# TODO`。`for /r` 递归遍历仍 TODO
-   （提示改用 `find`）。无选项时 cmd 默认只取每行第一个 token，转换按整行近似并告警。
+2. **`for /f`、`for /r`**：**支持**并转换为 `while read`：
+   - 选项：`tokens=*` / `tokens=N` / `tokens=1,2` / `tokens=1-3` / `tokens=1*`、
+     `delims=X`（未指定时按空白拆词，tokens 默认 1）、`skip=N`（命令侧为
+     `cmd | tail -n +N+1`）、`eol=X`（近似为跳过以 X 开头的行；**Windows 在行中间
+     遇到 X 会截断，该语义无法还原，转换时会告警**）、`usebackq` 双引号文件与
+     裸文件名（`done < "file"`）。
+   - 结构：命令输出统一用进程替换 `done < <(cmd)`（避免 `| while` 子 shell 丢变量）；
+     循环体首变量为空的行自动跳过；行尾 `\r`（CRLF）自动去除。
+   **仍不支持**：`usebackq` 反引号命令、字符串字面量 `("文本")` → 整行 `# TODO`；
+   循环体内 `goto`（整行 TODO + 告警，无法保证跳出语义）、循环体引用未声明的
+   `%%x`（仅告警，不生成变量）。`for /r` 递归遍历仍 TODO（提示改用 `find`）。
 3. **延迟展开 `!var!`**：尽力转 `${var}`，但循环内赋值语义不同，需复核。
 4. **`set /a`**：多表达式（逗号）、复杂位运算仅部分支持；`!`→`~` 为近似。
 5. **`%DATE%`/`%TIME%`**：格式与 Windows 区域设置不同；`%ERRORLEVEL%`→`$?` 只反映

@@ -115,6 +115,43 @@ def test_for_f_goto_body_todo(convert_bat):
     )
     assert "# TODO: 手动检查: for /f" in out
     assert report.todo_count == 1
+    assert report.warning_count == 1
+    assert "goto" in report.warnings[0].message
+
+
+# ----------------------------------------------------------------------
+# CRLF / tokens 越界
+# ----------------------------------------------------------------------
+def test_for_f_crlf_trim_line(convert_bat):
+    out, _ = convert_bat(
+        "@echo off\nfor /f \"tokens=*\" %%a in ('dir /b') do echo %%a\n"
+    )
+    assert "a=\"${a%$'\\r'}\"" in out
+
+
+def test_for_f_crlf_multi_var_trims_last_variable(convert_bat):
+    out, _ = convert_bat(
+        "@echo off\nfor /f \"tokens=1,2 delims=,\" %%a in ('echo 1,2') do echo %%a %%b\n"
+    )
+    assert "b=\"${b%$'\\r'}\"" in out
+
+
+def test_for_f_crlf_file_runs_clean(convert_bat, bash_run, tmp_path):
+    (tmp_path / "crlf.txt").write_bytes("alpha\r\n\r\nbeta\r\n".encode("utf-8"))
+    out, _ = convert_bat(
+        '@echo off\nfor /f "usebackq tokens=*" %%a in ("crlf.txt") do echo [%%a]\n'
+    )
+    proc = bash_run(f"cd {tmp_path}\n" + out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "[alpha]\n[beta]\n"
+
+
+def test_for_f_undeclared_token_warns(convert_bat):
+    out, report = convert_bat(
+        "@echo off\nfor /f \"tokens=1\" %%a in ('dir /b') do echo %%a %%b\n"
+    )
+    assert any("循环体引用 %%b 但 tokens 未声明" == d.message for d in report.warnings)
+    assert report.todo_count == 0
 
 
 # ----------------------------------------------------------------------

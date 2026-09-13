@@ -1182,6 +1182,12 @@ class BatchConverter:
             )
 
         if re.search(r"(?i)\bgoto\b", body):
+            self._warn(
+                lineno,
+                "循环体含 goto：无法还原跳出语义，已整行 TODO，请手工改写为 break/函数",
+                text,
+                category="control_flow",
+            )
             return self._for_todo_lines(lineno, text, body, "循环体含 goto，无法保证跳出语义")
 
         slots = _expand_tokens_spec(options.tokens if options.tokens is not None else "1")
@@ -1194,6 +1200,20 @@ class BatchConverter:
         ifs = _for_f_ifs(slots, options.delims)
         if ifs is None:
             return self._for_todo_lines(lineno, text, body, "for /f 的 delims 无法安全引用")
+
+        declared = set(loop_vars)
+        undeclared: list[str] = []
+        for match in re.finditer(r"(?<!%)%%(?:~[a-z]*)?([A-Za-z])", body):
+            letter = match.group(1).lower()
+            if letter not in declared and letter not in undeclared:
+                undeclared.append(letter)
+        for letter in undeclared:
+            self._warn(
+                lineno,
+                f"循环体引用 %%{letter} 但 tokens 未声明",
+                text,
+                category="control_flow",
+            )
 
         header = self._indent + f"while {ifs}read -r {' '.join(read_vars)}; do"
         if command is not None:
@@ -1222,7 +1242,9 @@ class BatchConverter:
             )
         else:
             guard = self._c(f'[ -z "${first_var}" ] && continue')
-        prelude = [header, guard]
+        trim_var = loop_vars[-1]
+        trim = self._c(f"{trim_var}=\"${{{trim_var}%$'\\r'}}\"")
+        prelude = [header, trim, guard]
 
         body = body.strip()
         if body.startswith("("):
