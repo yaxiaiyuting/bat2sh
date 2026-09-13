@@ -444,11 +444,25 @@ echo "清理完成"
    `Select-Object`（除 `-First/-Last`）、`Group-Object`、`Get-Member`、
    `Format-Table/List`、`ConvertTo/From-Json` 等仍依赖对象模型 → TODO
    （建议改用 `grep/awk/jq`）。
-2. **`try/catch/finally`**：try 体只有单条命令且 catch 无类型时转换为
-   `if ! cmd; then ...; fi`（近似：bash 的 `set -e` 与 PowerShell 异常语义不同）；
-   多命令、带类型 catch 仍为"结构保留 + TODO"。`finally` 生成独立的
-   `if true; then ... fi`，与 try/catch 块并列而非嵌套；建议配合脚本头 `set -e`
-   并手工整理错误处理。
+2. **`try/catch/finally`**（部分自动转换）：try 体只有单条命令且 catch 无类型时转换为
+   `if ! cmd; then ...; fi`；多命令、带类型 catch 仍为"结构保留 + TODO"。
+   `finally` 生成独立的 `if true; then ... fi`，与 try/catch 块并列而非嵌套。
+   已知限制：
+   1. 近似语义是"命令失败才进 catch"，并非 PowerShell 的 terminating error/异常捕获；
+      命令成功但报错、异常来自其他语句时行为不同（每次转换都会告警）。
+   2. 带类型的 catch（`catch [Type]`）类型被解析但不做过滤，一律结构保留 + TODO，
+      并单独告警"catch 类型已忽略"。
+   3. `finally` 在脚本因 `set -e` 提前退出或执行 `exit` 时不会执行（bash 需 `trap`
+      才能等价）。
+   4. "单条命令"判定保守：try 体多出任何非空、非结构行（含注释）就退化为结构保留，
+      不尝试 `if !`。
+   5. 裸 `try { cmd }`（无 catch/finally）按普通语句顺序执行，不产生告警。
+   6. 赋值语句（如 `$x = 1`）也会被视为单条命令，生成 `if ! x=1; then ...`——
+      bash 中合法且恒成功，几乎永不进入 catch。
+   7. 嵌套 try 不支持：内层 try 整块注释为 TODO，避免生成非法 bash。
+   8. 空分支体（try / catch / finally / else）会自动补 `:`（bash no-op），
+      保证生成脚本通过 `bash -n`。
+   建议配合脚本头 `set -e` 并手工整理错误处理。
 3. **`switch`**：整块注释为 TODO。
 4. **.NET 与对象操作**：`[System.IO.File]::ReadAllText()`、`New-Object`、`Add-Type`、
    `Add-Member`、`$obj.Property`、`$_.X`、`Get-ItemProperty` 等 → TODO。
