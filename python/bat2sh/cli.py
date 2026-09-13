@@ -77,7 +77,10 @@ def _emit_report(convert_report: ConvertReport, args: argparse.Namespace) -> Non
     if args.report:
         sys.stderr.write(convert_report.to_text() + "\n")
     elif args.report_json:
-        sys.stderr.write(convert_report.to_json() + "\n")
+        payload = convert_report.to_json() + "\n"
+        # --print 时 stdout 属于脚本本身，JSON 报告只能走 stderr
+        stream = sys.stderr if args.print_only else sys.stdout
+        stream.write(payload)
 
 
 def _emit_diff(
@@ -156,14 +159,15 @@ def run_one(
                 if out_path.exists() and settings.backup_existing
                 else ""
             )
-            print(f"[dry-run] 将写出: {out_path}{suffix}")
+            print(f"[dry-run] 将写出: {out_path}{suffix}", file=sys.stderr)
     elif not args.quiet:
         status = "已写出" if result.written else "未写出"
         print(
             f"[{status}] {result.source_path} -> {result.output_path}"
             f" | 转换 {result.report.converted_lines} 行"
             f" | 警告 {result.report.warning_count}"
-            f" | TODO {result.report.todo_count}"
+            f" | TODO {result.report.todo_count}",
+            file=sys.stderr,
         )
     if args.diff:
         try:

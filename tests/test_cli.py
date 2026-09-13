@@ -189,11 +189,11 @@ def test_report_plain_text_on_stderr(tmp_path, capsys):
     assert "已转换行数" not in captured.out
 
 
-def test_report_json_on_stderr(tmp_path, capsys):
+def test_report_json_on_stdout(tmp_path, capsys):
     path = make_bat(tmp_path)
     assert main([str(path), "--report-json"]) == 0
     captured = capsys.readouterr()
-    data = json.loads(captured.err)
+    data = json.loads(captured.out)
     assert data["source"] == "demo.bat"
     assert data["kind"] == "bat"
     assert data["kind_display"] == "Windows 批处理"
@@ -201,6 +201,7 @@ def test_report_json_on_stderr(tmp_path, capsys):
     assert data["todos"] == []
     assert data["converted_lines"] > 0
     assert "已转换行数" not in captured.out
+    assert "[已写出]" in captured.err
 
 
 def test_report_json_print_mode(tmp_path, capsys):
@@ -295,7 +296,7 @@ def test_diff_in_file_mode_goes_to_stdout(tmp_path, capsys):
     path = make_bat(tmp_path)
     assert main([str(path), "--diff"]) == 0
     captured = capsys.readouterr()
-    assert "[已写出]" in captured.out
+    assert "[已写出]" in captured.err
     assert "--- demo.bat" in captured.out
     assert "+++ demo.sh" in captured.out
     assert (tmp_path / "demo.sh").is_file()
@@ -314,8 +315,8 @@ def test_dry_run_does_not_write(tmp_path, capsys):
     path = make_bat(tmp_path)
     assert main([str(path), "--dry-run"]) == 0
     captured = capsys.readouterr()
-    assert "[dry-run] 将写出" in captured.out
-    assert str(tmp_path / "demo.sh") in captured.out
+    assert "[dry-run] 将写出" in captured.err
+    assert str(tmp_path / "demo.sh") in captured.err
     assert not (tmp_path / "demo.sh").exists()
 
 
@@ -325,7 +326,7 @@ def test_dry_run_existing_with_backup_announces_backup(tmp_path, capsys):
     out_path.write_text("OLD\n", encoding="utf-8")
     assert main([str(path), "--dry-run", "--backup"]) == 0
     captured = capsys.readouterr()
-    assert "将先备份" in captured.out
+    assert "将先备份" in captured.err
     assert out_path.read_text(encoding="utf-8") == "OLD\n"
 
 
