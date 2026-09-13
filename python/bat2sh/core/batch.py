@@ -363,6 +363,7 @@ class BatchConverter:
         self._errorlevel_lines: set[int] = set()
         self._renamed_vars: dict[str, str] = {}
         self._current_command = ""
+        self._suppress_filter_fallback = False
 
     # ------------------------------------------------------------------
     # 对外入口
@@ -1096,12 +1097,22 @@ class BatchConverter:
         body = body.strip()
         suffix = ""
         if body.startswith("&&") or body.startswith("||"):
-            rhs = self._convert_line(lineno, body[2:].strip())
+            previous = self._suppress_filter_fallback
+            self._suppress_filter_fallback = True
+            try:
+                rhs = self._convert_line(lineno, body[2:].strip())
+            finally:
+                self._suppress_filter_fallback = previous
             if len(rhs) != 1 or rhs[0].lstrip().startswith("#"):
                 return None
             suffix = f" {body[:2]} " + rhs[0].strip()
         elif body.startswith("|"):
-            rhs = self._convert_simple(lineno, body[1:].strip())
+            previous = self._suppress_filter_fallback
+            self._suppress_filter_fallback = True
+            try:
+                rhs = self._convert_simple(lineno, body[1:].strip())
+            finally:
+                self._suppress_filter_fallback = previous
             if len(rhs) != 1 or rhs[0].lstrip().startswith("#"):
                 return None
             suffix = " | " + rhs[0].strip()
@@ -1915,14 +1926,26 @@ class BatchConverter:
                     line + " || true",
                 ]
             return [line]
-        return self._convert_simple_no_pipe(lineno, text)
+        results = self._convert_simple_no_pipe(lineno, text)
+        if (
+            len(results) == 1
+            and not self._suppress_filter_fallback
+            and len(_split_logical(text)) == 1
+            and len(_split_sequential(text)) == 1
+            and self._is_filter_segment(results[0])
+        ):
+            return [
+                self._c("# bat 过滤语义：未匹配不终止脚本"),
+                results[0] + " || true",
+            ]
+        return results
 
     @staticmethod
     def _is_filter_segment(body: str) -> bool:
         stripped = body.strip()
         if not stripped:
             return False
-        return stripped.split(None, 1)[0] == "grep"
+        return stripped.split(None, 1)[0].lower() == "grep"
 
     @staticmethod
     def _pipeline_segment_unsafe(segment: str) -> bool:
@@ -1939,7 +1962,12 @@ class BatchConverter:
                 if part in ("&&", "||"):
                     bodies.append(part)
                     continue
-                seg_lines = self._convert_line(lineno, part.strip())
+                previous = self._suppress_filter_fallback
+                self._suppress_filter_fallback = True
+                try:
+                    seg_lines = self._convert_line(lineno, part.strip())
+                finally:
+                    self._suppress_filter_fallback = previous
                 if (
                     len(seg_lines) != 1
                     or not seg_lines[0].strip()

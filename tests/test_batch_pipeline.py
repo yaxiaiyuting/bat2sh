@@ -46,3 +46,27 @@ def test_set_prefix_display_gets_fallback(convert_bat, bash_run):
     assert 'env | grep -E "^MY_VAR" || true' in out
     proc = bash_run(out)
     assert proc.returncode == 0, proc.stderr
+
+
+def test_bare_findstr_gets_fallback(convert_bat):
+    out, _ = convert_bat("@echo off\nfindstr x data.txt\n")
+    assert 'grep x "data.txt" || true' in out
+    assert "# bat 过滤语义：未匹配不终止脚本" in out
+
+
+def test_bare_grep_gets_fallback(convert_bat):
+    out, _ = convert_bat("@echo off\ngrep x data.txt\n")
+    assert "grep x data.txt || true" in out
+
+
+def test_logical_chain_with_grep_has_no_fallback(convert_bat):
+    out, _ = convert_bat("@echo off\nfindstr x data.txt && echo found\n")
+    assert 'grep x "data.txt" && echo "found"' in out
+    assert "|| true" not in out
+
+
+def test_bare_filter_runtime_continues(convert_bat, bash_run):
+    out, _ = convert_bat("@echo off\nfindstr zzz /dev/null\necho after\n")
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "after\n"
