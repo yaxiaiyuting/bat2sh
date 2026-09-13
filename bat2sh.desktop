@@ -14,4 +14,4 @@ Categories=Development;Utility;TextTools;
 Keywords=shell;bash;batch;powershell;convert;脚本;转换;
 StartupNotify=true
 StartupWMClass=bat2sh
-MimeType=application/x-shellscript;
+MimeType=application/x-bat2sh-batch;application/x-bat2sh-powershell;application/x-bat;application/x-powershell;

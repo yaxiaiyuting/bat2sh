@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <!-- bat2sh 专用 MIME 类型。
+       通过 <sub-class-of> 继承系统既有类型，不抢占：
+       共享 MIME 数据库中 .bat/.cmd 已属 application/x-bat，
+       .ps1 已属 application/x-powershell。 -->
+  <mime-type type="application/x-bat2sh-batch">
+    <comment>Windows 批处理脚本（bat2sh）</comment>
+    <comment xml:lang="en">Windows batch script (bat2sh)</comment>
+    <glob pattern="*.bat"/>
+    <glob pattern="*.cmd"/>
+    <sub-class-of type="application/x-bat"/>
+  </mime-type>
+  <mime-type type="application/x-bat2sh-powershell">
+    <comment>PowerShell 脚本（bat2sh）</comment>
+    <comment xml:lang="en">PowerShell script (bat2sh)</comment>
+    <glob pattern="*.ps1"/>
+    <sub-class-of type="application/x-powershell"/>
+  </mime-type>
+</mime-info>
