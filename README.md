@@ -409,9 +409,10 @@ echo "清理完成"
 
 1. **`goto`/标签控制流**：仅 `call :label` 子程序会被重构为函数。普通 `goto` 跳转、
    循环式 goto、跨标签 fall-through 无法等价转换 → `# TODO`。
-2. **`for /f`、`for /r`**：`for /f "tokens=*" %%i in ('cmd')`（或无选项）已转换为
-   `while IFS= read -r i; do ... done < <(cmd)`；带 `delims`/`tokens`（非 `*`）/`skip`/
-   `eol`/`usebackq` 选项、字符串/文件解析仍整块注释为 TODO。`for /r` 递归遍历仍 TODO
+2. **`for /f`、`for /r`**：**支持**无选项形式 `for /f %%a in ('命令')`（等价写法
+   `"tokens=*"`）→ `while IFS= read -r a; do ... done < <(命令)`。**不支持**：带
+   `delims`/`tokens`（非 `*`）/`skip`/`eol`/`usebackq` 选项，以及字符串字面量
+   `("文本")`、文件解析 `(file.txt)` 形式 → 整行 `# TODO`。`for /r` 递归遍历仍 TODO
    （提示改用 `find`）。无选项时 cmd 默认只取每行第一个 token，转换按整行近似并告警。
 3. **延迟展开 `!var!`**：尽力转 `${var}`，但循环内赋值语义不同，需复核。
 4. **`set /a`**：多表达式（逗号）、复杂位运算仅部分支持；`!`→`~` 为近似。
@@ -446,11 +447,14 @@ echo "清理完成"
 
 ### 8.2 PowerShell
 
-1. **对象管道**：`Where-Object` 的简单条件（单个属性或 `$_` 的 `-eq`/`-ne`/`-like`/
-   `-match`）已近似转换为 `grep`，并在生成脚本中以 `# 近似: ...` 行内注释标明；
-   `-gt`/`-lt`、多条件（`-and`/`-or`）、方法调用等复杂条件，以及 `ForEach-Object`、
+1. **对象管道**：`Where-Object` 仅**文件/文本类管道**（`Get-ChildItem`/`Get-Item`/
+   `Get-Content` 等）的简单条件（单个属性或 `$_` 的 `-eq`/`-ne`/`-like`/`-match`）
+   可近似转换为 `grep`，并在生成脚本中以 `# 近似: ...` 行内注释标明；注意它按
+   **整行文本**匹配，无法还原 `$_.Prop` 属性语义。**进程/对象类管道**
+   （如 `Get-Process | Where-Object { $_.CPU -gt 10 }`）、`-gt`/`-lt` 数值比较、
+   多条件（`-and`/`-or`）、方法调用等复杂条件，以及 `ForEach-Object`、
    `Select-Object`（除 `-First/-Last`）、`Group-Object`、`Get-Member`、
-   `Format-Table/List`、`ConvertTo/From-Json` 等仍依赖对象模型 → TODO
+   `Format-Table/List`、`ConvertTo/From-Json` 等仍依赖对象模型 → 整行 `# TODO`
    （建议改用 `grep/awk/jq`）。
 2. **`try/catch/finally`**（部分自动转换）：try 体只有单条命令且 catch 无类型时转换为
    `if ! cmd; then ...; fi`；多命令、带类型 catch 仍为"结构保留 + TODO"。
@@ -489,7 +493,14 @@ echo "清理完成"
 8. **数组与哈希表**：`@{...}`、`.Keys/.Values`、对象数组属性访问无法等价；普通数组
    会转成 bash 数组（`"${arr[@]}"`）。
 9. **`Read-Host -AsSecureString`**：转为 `read -s`，但返回的是纯文本而非安全字符串。
-10. **`$?`/`$LASTEXITCODE`**：在 bash 中 `$?` 语义更窄，多条命令后需重新获取。
+10. **`$?`/`$LASTEXITCODE`**：bash 的 `$?` 只反映紧邻上一条命令的退出码（读一次即被
+    后续命令覆盖），而 PowerShell 的 `$LASTEXITCODE` 可重复读取，直接映射存在语义
+    偏差。默认策略 `warn`：含 `$LASTEXITCODE` 的语句整行替换为 `# TODO`，条件行生成
+    `if [[ false ]]; then  # TODO ...` 占位，不生成可能误导的引用。可选策略 `map`
+    （CLI：`--last-exit-code map`；GUI：设置 →「$LASTEXITCODE 策略」）近似映射为
+    bash `$?`：首次引用处插入 `__bat2sh_rc=$?` 捕获，后续引用统一读
+    `${__bat2sh_rc}`；跨函数/跨作用域时自动退回 `warn` 并告警。两种策略都建议对
+    关键退出码判断手工复核。
 11. **`$env:NAME`**：常见变量映射为近似值（`$env:TEMP`→`${TMPDIR:-/tmp}`、
     `$env:APPDATA`→`${XDG_CONFIG_HOME:-$HOME/.config}` 等）并告警；未收录变量原样
     保留为 `${NAME}` 并告警——strict 模式（`set -u`）下变量未设置会直接报错，
