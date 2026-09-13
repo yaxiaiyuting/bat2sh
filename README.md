@@ -473,6 +473,10 @@ echo "清理完成"
 ## 10. 开发与测试
 
 ```bash
+# 安装测试依赖并运行完整测试套件
+pip install -e .[test]
+pytest
+
 # 冒烟测试（无 GUI）
 ./scripts/bat2sh-dev --cli examples/hello.bat --print
 # 语法校验生成的脚本
@@ -480,6 +484,10 @@ echo "清理完成"
 # GUI 无显示环境自测（需要 PySide6）
 QT_QPA_PLATFORM=offscreen python -c "from bat2sh.gui.app import run_gui"
 ```
+
+测试覆盖转换器回归（批处理 / PowerShell）、编码检测、CLI 退出码与 examples 冒烟。
+CI 由 GitHub Actions 在 Python 3.11 / 3.12 / 3.13 / 3.14 上运行 `pytest`，
+配置见 `.github/workflows/test.yml`。
 
 ## 11. 许可
 
