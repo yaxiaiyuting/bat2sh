@@ -248,6 +248,7 @@ bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
 | `Invoke-WebRequest -Uri U -OutFile F` | `curl -L [-o F] U` |
 | `Expand-Archive` / `Compress-Archive` | `unzip` / `zip -r` |
 | `Get/Start/Stop/Restart-Service` | `systemctl status/start/stop/restart` |
+| `@"..."@` / `@'...'@` here-string | `cat <<EOF`（插值）/ `cat <<'EOF'`（字面量）；赋值形式 `x=$(cat <<EOF ... )`（见 §8.2） |
 | `if ($x -eq "y") {...} elseif ... else ...` | `if [[ "${x:-}" = "y" ]]; then ... elif ... else ... fi` |
 | `-eq/-ne/-gt/-lt/-ge/-le/-like/-match/-and/-or/-not` | `=`/`!=`/`-gt`/`-lt`/`-ge`/`-le`/`==`（glob）/`=~`/`&&`/`\|\|`/`!`（`[[ ]]` 内） |
 | `foreach ($i in $list) {...}`、`1..10`、`Get-ChildItem ...` | `for i in ...; do ...; done`、`$(seq 1 10)`、数组展开 |
@@ -455,8 +456,10 @@ echo "清理完成"
    未扫描到定义时生成 `# TODO`，命名风格不符合启发式（如全小写）的自定义函数
    会被当作外部命令原样保留。
 6. **模块、配置文件、执行策略、远程、作业、事件日志、注册表、WMI/CIM** → TODO。
-7. **字符串/布尔差异**：PowerShell 插值、`-f` 格式运算符、here-string、反引号转义、
-   空字符串与 0 的真值判断与 bash 不同；here-string 与 `-f` 会标 TODO。
+7. **字符串/布尔差异**：`-f` 格式运算符、反引号转义、空字符串与 0 的真值判断与 bash
+   不同。here-string 已转换为 heredoc：`@'...'@` 使用引号定界符，`@"..."@` 使用插值
+   定界符并尽力转换变量，但反斜杠/反引号转义语义不同（告警）；赋值形式生成
+   `x=$(cat <<EOF ... )`，结尾换行会被命令替换去掉（告警）。`-f` 仍标 TODO。
 8. **数组与哈希表**：`@{...}`、`.Keys/.Values`、对象数组属性访问无法等价；普通数组
    会转成 bash 数组（`"${arr[@]}"`）。
 9. **`Read-Host -AsSecureString`**：转为 `read -s`，但返回的是纯文本而非安全字符串。

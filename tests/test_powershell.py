@@ -294,19 +294,69 @@ def test_where_object_pipeline_bash_n(convert_ps, bash_check):
 # ----------------------------------------------------------------------
 # here-string（阶段 3 的 2.3 目标）
 # ----------------------------------------------------------------------
-def test_here_string_standalone_todo(convert_ps):
+def test_here_string_literal_standalone(convert_ps, bash_check):
     out, report = convert_ps("@'\nno $expand here\n'@\n")
-    assert "# TODO: here-string 开始（手动检查）" in out
-    assert "# no $expand here" in out
-    assert report.todo_count == 1
-
-
-def test_here_string_assignment_current_behavior(convert_ps):
-    # 锁定当前行为：赋值形式的 here-string 未被识别，生成的 bash 与语义不符（阶段 3 修复）
-    out, report = convert_ps('$text = @"\nhello $name\n"@\nWrite-Host $text\n')
-    assert 'text="@\\""' in out
+    assert "cat <<'__BAT2SH_EOF__'" in out
+    assert "no $expand here" in out
     assert report.todo_count == 0
-    assert report.warning_count >= 1
+    assert report.warning_count == 0
+    bash_check(out)
+
+
+def test_here_string_interpolated_standalone(convert_ps, bash_check):
+    out, report = convert_ps('@"\nhello $name\n"@\n')
+    assert "cat <<__BAT2SH_EOF__" in out
+    assert "hello ${name}" in out
+    assert report.todo_count == 0
+    assert report.warning_count == 1
+    bash_check(out)
+
+
+def test_here_string_assignment_literal(convert_ps, bash_check, bash_run):
+    out, report = convert_ps("$text = @'\nline1\nline2\n'@\nWrite-Host $text\n")
+    assert "text=$(cat <<'__BAT2SH_EOF__'" in out
+    assert "\n)\n" in out
+    assert report.warning_count == 1
+    assert "去掉结尾换行" in report.warnings[0].message
+    bash_check(out)
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "line1\nline2\n"
+
+
+def test_here_string_assignment_interpolated(convert_ps, bash_check, bash_run):
+    out, report = convert_ps(
+        '$name = "World"\n$text = @"\nhello $name\ncost $5\n"@\nWrite-Host $text\n'
+    )
+    assert "text=$(cat <<__BAT2SH_EOF__" in out
+    assert "hello ${name}" in out
+    assert "cost \\$5" in out
+    assert report.warning_count == 2
+    bash_check(out)
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "hello World\ncost $5\n"
+
+
+def test_here_string_inside_function_delimiter_at_column_zero(convert_ps, bash_check):
+    out, report = convert_ps('function Show-Text {\n@"\nhello $name\n"@\n}\n')
+    assert "    cat <<__BAT2SH_EOF__" in out
+    assert "\n__BAT2SH_EOF__\n" in out
+    assert report.warning_count == 1
+    bash_check(out)
+
+
+def test_here_string_delimiter_collision(convert_ps, bash_check):
+    out, _ = convert_ps("@'\n__BAT2SH_EOF__\n'@\n")
+    assert "cat <<'__BAT2SH_EOF___'" in out
+    assert "\n__BAT2SH_EOF___\n" in out
+    bash_check(out)
+
+
+def test_here_string_unclosed_warns(convert_ps):
+    out, report = convert_ps('@"\nhello\n')
+    assert "# TODO: here-string 未闭合" in out
+    assert report.warning_count == 1
 
 
 # ----------------------------------------------------------------------

@@ -64,6 +64,11 @@ class PowerShellConverter:
         self._needs_nullglob = False
         self._needs_join_path = False
         self._here_end: str | None = None
+        self._here_lines: list[str] = []
+        self._here_lineno = 0
+        self._here_interpolate = False
+        self._here_mode = "standalone"
+        self._here_target = ""
         self._block_comment = False
         self._param_buffer: list[str] | None = None
         self._array_vars: set[str] = set()
@@ -506,16 +511,22 @@ class PowerShellConverter:
     # 分发
     # ------------------------------------------------------------------
     def _convert_line(self, lineno: int, raw: str) -> list[str]:
-        text = raw.strip()
-        # here-string
         if self._here_end is not None:
-            if text == self._here_end:
-                self._here_end = None
-            return [self._c("# " + text)]
-        if re.match(r"^@([\"'])\s*$", text):
-            self._here_end = text[1] + "@"
-            self._todo(lineno, text, "here-string 无法自动转换")
-            return [self._c("# TODO: here-string 开始（手动检查）")]
+            return self._collect_here_line(lineno, raw)
+        text = raw.strip()
+        m = re.match(r'^(?:\$([A-Za-z_]\w*)\s*=\s*)?@(["\'])\s*$', text)
+        if m:
+            self._here_lineno = lineno
+            self._here_end = m.group(2) + "@"
+            self._here_interpolate = m.group(2) == '"'
+            self._here_lines = []
+            if m.group(1):
+                self._here_mode = "assign"
+                self._here_target = self._var_map.get(m.group(1).lower(), m.group(1))
+            else:
+                self._here_mode = "standalone"
+                self._here_target = ""
+            return []
         # 块注释
         if self._block_comment:
             if "#>" in text:
@@ -566,6 +577,58 @@ class PowerShellConverter:
         text = statements[0]
 
         return self._convert_statement(lineno, text)
+
+    def _collect_here_line(self, lineno: int, raw: str) -> list[str]:
+        if raw.strip() != self._here_end:
+            self._here_lines.append(raw)
+            return []
+        marker = '@"' if self._here_interpolate else "@'"
+        content = self._here_lines
+        self._here_end = None
+        self._here_lines = []
+        lines = self._emit_here_string(content, marker)
+        self._here_mode = "standalone"
+        self._here_target = ""
+        return lines
+
+    def _emit_here_string(self, content: list[str], marker: str) -> list[str]:
+        delimiter = "__BAT2SH_EOF__"
+        while any(line == delimiter for line in content):
+            delimiter += "_"
+        if self._here_interpolate:
+            open_token = f"<<{delimiter}"
+        else:
+            open_token = f"<<'{delimiter}'"
+        body: list[str]
+        if self._here_interpolate:
+            body = []
+            for line in content:
+                converted = self._replace_vars(line, self._here_lineno)
+                converted = converted.replace("`", "\\`")
+                converted = re.sub(r"\$(?![{(])", r"\\$", converted)
+                body.append(converted)
+            self._warn(
+                self._here_lineno,
+                "here-string 的反斜杠/反引号转义语义与 PowerShell 不同，请核对",
+                marker + "（here-string）",
+            )
+        else:
+            body = list(content)
+        lines: list[str] = []
+        if self._here_mode == "assign":
+            lines.append(self._c(f"{self._here_target}=$(cat {open_token}"))
+            self._warn(
+                self._here_lineno,
+                "赋值形式的 here-string 使用命令替换，会去掉结尾换行，请核对",
+                marker + "（here-string）",
+            )
+        else:
+            lines.append(self._c(f"cat {open_token}"))
+        lines.extend(body)
+        lines.append(delimiter)
+        if self._here_mode == "assign":
+            lines.append(self._c(")"))
+        return lines
 
     @staticmethod
     def _split_statements(text: str) -> list[str]:
@@ -2254,6 +2317,15 @@ class PowerShellConverter:
     # 收尾
     # ------------------------------------------------------------------
     def _finish(self) -> None:
+        if self._here_end is not None:
+            self._warn(
+                self._here_lineno,
+                "here-string 未找到结束标记，内容已丢弃，请人工检查",
+                self._here_end,
+            )
+            self._out.append(self._c("# TODO: here-string 未闭合，请人工检查"))
+            self._here_end = None
+            self._here_lines = []
         while self._stack:
             block = self._stack.pop()
             if block.kind == "comment":
