@@ -572,7 +572,7 @@ class BatchConverter:
         text = re.sub(r"%%%([A-Za-z_][A-Za-z0-9_]*)%%%", indirect_repl, text)
         text = re.sub(r"%%([A-Za-z_][A-Za-z0-9_]*)%%", escaped_percent_repl, text)
         text = re.sub(r"%%([A-Za-z])", loop_repl, text)
-        text = text.replace("%%", "%")
+        text = text.replace("%%", _LITERAL_PERCENT)
 
         # %~ 修饰符（%~dp0 / %~f1 / %%~nxF ...）
         text = re.sub(r"%~([dfnpx]*)([0-9*A-Za-z])", lambda m: self._modifier(m, lineno, text), text)
@@ -2047,12 +2047,12 @@ class BatchConverter:
         m = re.match(r"(?i)^/a\s+(.*)$", args, re.S)
         if m:
             spec, _quote = strip_outer_quotes(m.group(1).strip())
+            spec = spec.replace(_LITERAL_PERCENT, "%")
             assign = re.match(r"^([\w.]+)\s*([+\-*/%]?=)\s*(.*)$", spec, re.S)
             if assign:
                 return self._set_arithmetic(lineno, assign, original)
             # 无赋值：cmd 会显示表达式/变量的当前数值
-            expr = self._expand_vars(spec, lineno)
-            return f"echo $(( {expr} ))"
+            return f"echo $(( {spec} ))"
         m = re.match(r"(?i)^/p\s+(.*)$", args)
         if m:
             spec = m.group(1).strip()
@@ -2084,7 +2084,6 @@ class BatchConverter:
         name = sanitize_identifier(m.group(1))
         op = m.group(2)
         expr = m.group(3).strip()
-        expr = self._expand_vars(expr, lineno)
         if "!" in expr:
             expr = expr.replace("!", "~")
             self._warn(lineno, "set /a 的按位取反 ! 已转换为 ~", original, category="variables")
