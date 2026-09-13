@@ -47,6 +47,40 @@ from .theme import apply_theme, system_is_dark
 SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1", ".psm1")
 
 
+def collect_script_paths(
+    paths: list[Path],
+    suffixes: tuple[str, ...] = SCRIPT_SUFFIXES,
+    limit: int = 500,
+) -> list[Path]:
+    """收集可转换脚本路径；每个目录最多取 limit 个（按路径排序）。"""
+    collected: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            candidates: list[Path] = []
+            for child in sorted(path.rglob("*")):
+                if child.is_file() and child.suffix.lower() in suffixes:
+                    candidates.append(child)
+                if len(candidates) >= limit:
+                    break
+            collected.extend(candidates)
+        elif path.is_file() and path.suffix.lower() in suffixes:
+            collected.append(path)
+    return collected
+
+
+def filter_new_paths(existing: set[Path], candidates: list[Path]) -> list[Path]:
+    """按 ``resolve()`` 去重，返回不在 existing 中的新路径；不修改传入集合。"""
+    seen = set(existing)
+    fresh: list[Path] = []
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        fresh.append(candidate)
+    return fresh
+
+
 @dataclass
 class SourceFile:
     path: Path
@@ -301,24 +335,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def add_paths(self, paths: list[Path], select_last: bool = True) -> int:
         existing = {entry.path.resolve() for entry in self.files}
-        added = 0
-        for path in paths:
-            candidates: list[Path] = []
-            if path.is_dir():
-                for child in sorted(path.rglob("*")):
-                    if child.is_file() and child.suffix.lower() in SCRIPT_SUFFIXES:
-                        candidates.append(child)
-                    if len(candidates) >= 500:
-                        break
-            elif path.is_file() and path.suffix.lower() in SCRIPT_SUFFIXES:
-                candidates.append(path)
-            for candidate in candidates:
-                resolved = candidate.resolve()
-                if resolved in existing:
-                    continue
-                existing.add(resolved)
-                self.files.append(SourceFile(path=candidate, kind=detect_kind(candidate)))
-                added += 1
+        new_paths = filter_new_paths(existing, collect_script_paths(paths))
+        for candidate in new_paths:
+            self.files.append(SourceFile(path=candidate, kind=detect_kind(candidate)))
+        added = len(new_paths)
         if added:
             self._refresh_list()
             if select_last:

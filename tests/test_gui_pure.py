@@ -6,7 +6,12 @@ from bat2sh.core.engine import output_path_for
 from bat2sh.core.settings import ConvertSettings
 from bat2sh.core.types import ConvertReport, SourceKind
 from bat2sh.gui.dialogs import build_diff_html
-from bat2sh.gui.main_window import SourceFile, entry_to_result
+from bat2sh.gui.main_window import (
+    SourceFile,
+    collect_script_paths,
+    entry_to_result,
+    filter_new_paths,
+)
 
 
 def test_build_diff_html_contains_table_and_names():
@@ -61,3 +66,37 @@ def test_entry_to_result_passthrough(tmp_path):
     assert result.encoding == "gbk"
     assert result.text == "echo ok\n"
     assert result.report is report
+
+
+def test_collect_script_paths_filters_by_suffix(tmp_path):
+    for name in ("a.bat", "b.CMD", "c.ps1", "d.txt"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    got = collect_script_paths([tmp_path])
+    assert sorted(p.name for p in got) == ["a.bat", "b.CMD", "c.ps1"]
+
+
+def test_collect_script_paths_sorted_and_limited(tmp_path):
+    for name in ("c.bat", "a.bat", "b.bat"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    got = collect_script_paths([tmp_path], limit=2)
+    assert [p.name for p in got] == ["a.bat", "b.bat"]
+
+
+def test_collect_script_paths_single_file_and_missing(tmp_path):
+    script = tmp_path / "solo.bat"
+    script.write_text("", encoding="utf-8")
+    other = tmp_path / "note.txt"
+    other.write_text("", encoding="utf-8")
+    assert collect_script_paths([script]) == [script]
+    assert collect_script_paths([tmp_path / "missing.bat", other]) == []
+
+
+def test_filter_new_paths_dedupes_resolved_and_keeps_order(tmp_path):
+    target = tmp_path / "a.bat"
+    target.write_text("", encoding="utf-8")
+    alias = tmp_path / "sub" / ".." / "a.bat"
+    existing = set()
+    got = filter_new_paths(existing, [target, alias])
+    assert got == [target]
+    assert existing == set()
+    assert filter_new_paths({target.resolve()}, [target]) == []
