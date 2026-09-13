@@ -10,6 +10,6 @@ pkgbase = bat2sh
 	depends = hicolor-icon-theme
 	options = !strip
 	source = bat2sh-1.1.2.tar.gz::https://github.com/yaxiaiyuting/bat2sh/archive/refs/tags/v1.1.2.tar.gz
-	sha256sums = 76a9d606668e04431f88f89698c674d67f1883b9768e538e4261382da9fc14de
+	sha256sums = 777eaa00f700917d38acc9650d9b49106f0e545a71d8465ee6789436b14417d4
 
 pkgname = bat2sh

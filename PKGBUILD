@@ -10,7 +10,7 @@ depends=('python' 'pyside6' 'hicolor-icon-theme')
 makedepends=()
 options=('!strip')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('76a9d606668e04431f88f89698c674d67f1883b9768e538e4261382da9fc14de')
+sha256sums=('777eaa00f700917d38acc9650d9b49106f0e545a71d8465ee6789436b14417d4')
 
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"
