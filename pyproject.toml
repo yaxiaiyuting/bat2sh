@@ -12,6 +12,9 @@ license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "bat2sh contributors" }]
 dependencies = ["PySide6>=6.5"]
 
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
 [project.scripts]
 bat2sh = "bat2sh.__main__:main"
 
@@ -23,3 +26,9 @@ where = ["python"]
 
 [tool.setuptools.package-data]
 bat2sh = ["data/*.svg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["python"]
+# 避免在仓库根目录留下 .pytest_cache（.gitignore 暂未收录）
+addopts = "-p no:cacheprovider"
