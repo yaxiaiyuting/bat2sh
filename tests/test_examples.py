@@ -105,4 +105,5 @@ def test_examples_sources_are_untouched_baseline():
         "deploy.sh",
         "hello.bat",
         "hello.sh",
+        "stress_test.bat",
     ]
