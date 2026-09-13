@@ -350,6 +350,8 @@ class BatchConverter:
         self._stack: list[_Block] = []
         self._loop_vars: list[str] = []
         self._labels: set[str] = set()
+        self._call_targets: set[str] = set()
+        self._goto_targets: set[str] = set()
         self._function_mode = False
         self._current_func: str | None = None
         self._needs_script_dir = False
@@ -575,8 +577,17 @@ class BatchConverter:
                 continue
             if re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", stripped):
                 self._labels.add(stripped[1:].lower())
-            if re.match(r"(?i)^call\s+:", stripped):
+            call = re.match(r"(?i)^call\s+:([\w.\-]+)", stripped)
+            if call:
                 self._function_mode = True
+                self._call_targets.add(call.group(1).lower())
+            jump = re.match(r"(?i)^goto\s+:?([\w.\-]+)\s*$", stripped)
+            if jump and jump.group(1).lower() != "eof":
+                self._goto_targets.add(jump.group(1).lower())
+            if re.match(r"(?i)^@?\s*if\b", stripped):
+                for target in re.findall(r"(?i)\bgoto\s+:?([\w.\-]+)", stripped):
+                    if target.lower() != "eof":
+                        self._goto_targets.add(target.lower())
             if re.match(r"(?i)^setlocal\b.*enabledelayedexpansion", stripped):
                 self._delayed_expansion = True
             if (
@@ -1012,6 +1023,17 @@ class BatchConverter:
                 "",
                 "control_flow",
             )
+        key = name.lower()
+        if key in self._goto_targets and key not in self._call_targets:
+            out: list[str] = []
+            if self._current_func:
+                self._trim_function_tail()
+                self._func_out.append("}")
+                self._func_out.append("")
+                self._current_func = None
+                self._bat2sh_status_valid = False
+            out.append(self._c(f"# :{name}（goto 目标，不函数化，主流程继续）"))
+            return out
         if not self._function_mode:
             return [self._c(f"# :{name}（标签，未使用，保留为注释）")]
         # 进入函数时 errorlevel 来自调用方，静态不可知，保守作废状态快照。
