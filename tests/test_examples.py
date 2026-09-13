@@ -101,9 +101,20 @@ def test_examples_sources_are_untouched_baseline():
         "backup.sh",
         "cleanup.ps1",
         "cleanup.sh",
+        "deepseek_bat_20260913_faa286.bat",
         "deploy.bat",
         "deploy.sh",
         "hello.bat",
         "hello.sh",
         "stress_test.bat",
+        "stress_test.sh",
     ]
+
+
+def test_extreme_stress_script_converts_to_valid_syntax(bash_check):
+    path = EXAMPLES_DIR / "deepseek_bat_20260913_faa286.bat"
+    result = convert_file(path, ConvertSettings(), write=False)
+    assert result.error == ""
+    assert result.text.strip()
+    assert "未通过 bash -n" not in result.text
+    bash_check(result.text)

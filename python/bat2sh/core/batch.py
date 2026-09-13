@@ -334,7 +334,43 @@ class BatchConverter:
             else:
                 self.report.unchanged_lines += 1
         self._finish()
-        return self._compose()
+        output = self._compose()
+        return self._ensure_block_bodies(output)
+
+    def _ensure_block_bodies(self, output: str) -> str:
+        """bash 不允许空/仅注释的 then/do/函数/组块体；为这类块补一行 ``:``。"""
+        result: list[str] = []
+        stack: list[list] = []
+        for line in output.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                result.append(line)
+                continue
+            indent = line[: len(line) - len(line.lstrip())]
+            if stripped.endswith("() {") or stripped.endswith("; do") or stripped == "{":
+                stack.append([False])
+            elif stripped.endswith("; then"):
+                if stripped.startswith("elif") and stack:
+                    if not stack[-1][0]:
+                        result.append(indent + ":")
+                    stack[-1][0] = False
+                else:
+                    stack.append([False])
+            elif stripped == "else":
+                if stack and not stack[-1][0]:
+                    result.append(indent + ":")
+                if stack:
+                    stack[-1][0] = False
+            elif stripped == "fi" or stripped.startswith("done") or stripped.startswith("}"):
+                if stack and not stack[-1][0]:
+                    result.append(indent + ":")
+                if stack:
+                    stack.pop()
+            elif stripped:
+                for entry in stack:
+                    entry[0] = True
+            result.append(line)
+        return "\n".join(result)
 
     # ------------------------------------------------------------------
     # 基础工具
@@ -574,7 +610,7 @@ class BatchConverter:
 
         m = re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", text)
         if m:
-            return self._label_line(m.group(1))
+            return self._label_line(lineno, m.group(1))
         if text.startswith("::"):
             body = text[2:].strip()
             return [self._c("# " + body if body else "#")]
@@ -795,7 +831,14 @@ class BatchConverter:
     # ------------------------------------------------------------------
     # 标签 / goto / call / exit
     # ------------------------------------------------------------------
-    def _label_line(self, name: str) -> list[str]:
+    def _label_line(self, lineno: int, name: str) -> list[str]:
+        if self._stack:
+            return self._todo_block_line(
+                lineno,
+                f"标签 :{name} 位于控制块内，无法自动转换（bat 危险写法）",
+                "",
+                "control_flow",
+            )
         if not self._function_mode:
             return [self._c(f"# :{name}（标签，未使用，保留为注释）")]
         # 进入函数时 errorlevel 来自调用方，静态不可知，保守作废状态快照。
@@ -1692,9 +1735,11 @@ class BatchConverter:
         if not text or text in (".", "(", ")"):
             command = "echo"
         elif is_fully_quoted(text):
+            if text.startswith('"'):
+                text = text.replace("`", "\\`")
             command = f"echo {text}"
         elif "$(" in text:
-            command = f'echo "{text}"'
+            command = f'echo "{text.replace("`", "\\`")}"'
         else:
             command = f"echo {dq(text)}"
         return command.replace(_DOLLAR_PLACEHOLDER, "\\$")
@@ -2160,13 +2205,14 @@ class BatchConverter:
     # 收尾
     # ------------------------------------------------------------------
     def _finish(self) -> None:
+        bucket = self._func_out if (self._function_mode and self._current_func) else self._out
         while self._stack:
             block = self._stack.pop()
             if block.kind == "comment":
                 continue
             self._warn(0, f"{block.kind} 块未正常闭合，已自动补全", category="misc")
             if block.close_word:
-                self._out.append(block.close_word)
+                bucket.append(block.close_word)
         if self._current_func:
             self._trim_function_tail()
             self._func_out.append("}")
