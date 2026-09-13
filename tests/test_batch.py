@@ -94,6 +94,32 @@ def test_set_a_compound(convert_bat):
     assert "x=$(( x + (1) ))" in out
 
 
+def test_set_a_quoted_expression(convert_bat):
+    out, report = convert_bat('@echo off\nset /a "COMPLEX=(10+20)*3/2-5"\n')
+    assert "COMPLEX=$(( (10+20)*3/2-5 ))" in out
+    assert "_a__COMPLEX" not in out
+    assert report.warning_count == 0
+
+
+def test_set_a_quoted_with_spaces(convert_bat):
+    out, report = convert_bat('@echo off\nset /a "TOTAL = 2 + 3"\n')
+    assert "TOTAL=$(( 2 + 3 ))" in out
+    assert report.warning_count == 0
+
+
+def test_set_a_quoted_runs_in_bash(convert_bat, bash_run):
+    out, _ = convert_bat('@echo off\nset /a "COMPLEX=(10+20)*3/2-5"\necho %COMPLEX%\n')
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "40\n"
+
+
+def test_set_a_without_assignment_prints_value(convert_bat):
+    out, report = convert_bat("@echo off\nset /a TOTAL\n")
+    assert "echo $(( TOTAL ))" in out
+    assert report.warning_count == 0
+
+
 def test_set_p_read_guarded_for_set_e(convert_bat):
     out, report = convert_bat("@echo off\nset /p NAME=请输入名字: \n")
     assert 'read -rp "请输入名字:" NAME || true' in out

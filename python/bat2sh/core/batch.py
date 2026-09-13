@@ -1383,9 +1383,15 @@ class BatchConverter:
         return (f"grep {fixed_text}{opt_text}".rstrip() + f" {pattern} {files_text}").strip()
 
     def cmd_set(self, lineno: int, args: str, original: str) -> str | None:
-        m = re.match(r"(?i)^/a\s+([\w.]+)\s*([+\-*/%]?=)\s*(.*)$", args)
+        m = re.match(r"(?i)^/a\s+(.*)$", args, re.S)
         if m:
-            return self._set_arithmetic(lineno, m, original)
+            spec, _quote = strip_outer_quotes(m.group(1).strip())
+            assign = re.match(r"^([\w.]+)\s*([+\-*/%]?=)\s*(.*)$", spec, re.S)
+            if assign:
+                return self._set_arithmetic(lineno, assign, original)
+            # 无赋值：cmd 会显示表达式/变量的当前数值
+            expr = self._expand_vars(spec, lineno)
+            return f"echo $(( {expr} ))"
         m = re.match(r"(?i)^/p\s+(.*)$", args)
         if m:
             spec = m.group(1).strip()
