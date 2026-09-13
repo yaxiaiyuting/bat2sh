@@ -336,6 +336,58 @@ def test_redirect_order_preserved(convert_bat):
 
 
 # ----------------------------------------------------------------------
+# 括号块 ( ... )
+# ----------------------------------------------------------------------
+def test_paren_block_with_redirect(convert_bat, bash_run, tmp_path):
+    out, report = convert_bat("@echo off\n(echo 输出到文件) > redirect.txt\n")
+    assert '{ echo "输出到文件"; } >redirect.txt' in out
+    assert report.warning_count == 0
+    proc = bash_run(f"cd {tmp_path}\n" + out + "\ncat redirect.txt")
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "输出到文件\n"
+
+
+def test_paren_block_multiline(convert_bat, bash_check):
+    out, report = convert_bat("@echo off\n(\n    echo a\n    echo b\n) > out.txt\n")
+    assert "\n{\n" in out
+    assert "} >out.txt" in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_paren_block_multiple_commands(convert_bat, bash_run, tmp_path):
+    out, report = convert_bat("@echo off\n(echo a & echo b) > out.txt\n")
+    assert '{ echo "a"; echo "b"; } >out.txt' in out
+    assert report.warning_count == 0
+    proc = bash_run(f"cd {tmp_path}\n" + out + "\ncat out.txt")
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "a\nb\n"
+
+
+def test_paren_block_with_pipe(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\n(echo a & echo b) | grep b\n")
+    assert '{ echo "a"; echo "b"; } | grep b' in out
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "b\n"
+
+
+def test_paren_block_multiline_with_pipe(convert_bat, bash_check):
+    out, _ = convert_bat("@echo off\n(\n    echo a\n    echo b\n) | grep b\n")
+    assert "} | grep b" in out
+    bash_check(out)
+
+
+def test_paren_block_inline_open_with_later_close(convert_bat, bash_check):
+    out, report = convert_bat("@echo off\n(echo a\n    echo b) > out.txt\n")
+    assert "\n{\n" in out
+    assert "} >out.txt" in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+# ----------------------------------------------------------------------
 # for
 # ----------------------------------------------------------------------
 def test_for_l(convert_bat):

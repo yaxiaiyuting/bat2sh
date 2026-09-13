@@ -342,6 +342,11 @@ class BatchConverter:
         if text.startswith(")"):
             return self._close_block_line(lineno, text)
 
+        if self._stack and self._stack[-1].kind == "group" and self._stack[-1].paren_depth > 0:
+            split = self._group_close_split(text)
+            if split is not None:
+                return self._close_group_inline(lineno, split, text)
+
         m = re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", text)
         if m:
             return self._label_line(m.group(1))
@@ -365,8 +370,11 @@ class BatchConverter:
             return [self._c("# 注意: echo on 在 bash 中无对应行为，已忽略")]
 
         if text == "(":
-            self._stack.append(_Block("group", ""))
-            return []
+            opener = self._c("{")
+            self._stack.append(_Block("group", "}"))
+            return [opener]
+        if text.startswith("("):
+            return self._convert_paren_block(lineno, text)
 
         if re.match(r"(?i)^if[\s(]", text):
             return self._convert_if(lineno, text)
@@ -397,6 +405,14 @@ class BatchConverter:
 
     def _close_block_line(self, lineno: int, text: str) -> list[str]:
         rest = text[1:].strip()
+        if self._stack and self._stack[-1].kind == "group":
+            tail_text = self._convert_group_tail(lineno, rest)
+            if tail_text is None:
+                self._warn(lineno, "括号块结束符后的内容无法自动转换，已忽略", text, category="misc")
+                tail_text = ""
+            self._pop_group_block()
+            suffix = f" {tail_text}" if tail_text else ""
+            return [self._c("}" + suffix)]
         if not rest:
             return self._pop_block(lineno)
         low = rest.lower()
@@ -437,6 +453,102 @@ class BatchConverter:
             self._stack.append(_Block("else", "fi"))
             return [else_line]
         return self._pop_block(lineno)
+
+    def _group_close_split(self, text: str) -> tuple[str, str] | None:
+        """在组块内容行内查找配对的 ``)``；返回 (块内文本, 块后文本)，未闭合返回 None。"""
+        block = self._stack[-1]
+        depth = block.paren_depth
+        quote = ""
+        for index, char in enumerate(text):
+            if quote:
+                if char == quote:
+                    quote = ""
+                continue
+            if char in "\"'":
+                quote = char
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    block.paren_depth = 0
+                    return text[:index], text[index + 1:]
+        block.paren_depth = depth
+        return None
+
+    def _close_group_inline(self, lineno: int, split: tuple[str, str], text: str) -> list[str]:
+        before, tail = split
+        lines: list[str] = []
+        if before.strip():
+            lines.extend(self._convert_line(lineno, before.strip()))
+        tail_text = self._convert_group_tail(lineno, tail.strip())
+        if tail_text is None:
+            self._warn(lineno, "括号块结束符后的内容无法自动转换，已忽略", text, category="misc")
+            tail_text = ""
+        self._pop_group_block()
+        suffix = f" {tail_text}" if tail_text else ""
+        lines.append(self._c("}" + suffix))
+        return lines
+
+    def _pop_group_block(self) -> None:
+        self._stack.pop()
+        if self._stack and self._stack[-1].kind == "group" and self._stack[-1].paren_depth > 0:
+            self._stack[-1].paren_depth -= 1
+
+    def _convert_paren_block(self, lineno: int, text: str) -> list[str]:
+        close = find_matching(text, "(", ")")
+        opener = self._c("{")
+        if close < 0:
+            # 形如 `(echo a`：块内容与 `(` 同行，等待后续 `)` 行闭合
+            self._stack.append(_Block("group", "}"))
+            lines = [opener]
+            body = text[1:].strip()
+            if body:
+                lines.extend(self._convert_line(lineno, body))
+            return lines
+        tail_text = self._convert_group_tail(lineno, text[close + 1:].strip())
+        if tail_text is None:
+            self._todo(lineno, text, "括号块后的管道/重定向无法自动转换", category="control_flow")
+            return [self._c("# TODO: 手动检查: " + text)]
+        suffix = f" {tail_text}" if tail_text else ""
+        parts = _split_sequential(text[1:close])
+        inner: list[str] = []
+        for part in parts:
+            inner.extend(self._convert_line(lineno, part.strip()))
+        commands = [line.strip() for line in inner if line.strip()]
+        single_line = len(inner) == len(parts) and all(
+            not command.startswith("#") for command in commands
+        )
+        if single_line:
+            joined = "; ".join(commands) if commands else ":"
+            return [self._c(f"{{ {joined}; }}" + suffix)]
+        lines = [opener]
+        for command in commands:
+            lines.append(self._indent + self.settings.indent + command)
+        lines.append(self._c("}" + suffix))
+        return lines
+
+    def _convert_group_tail(self, lineno: int, rest: str) -> str | None:
+        """把 `)` 之后的重定向/管道/逻辑连接转成可拼在 `}` 后的文本。"""
+        if not rest:
+            return ""
+        body, redirs = split_redirects(rest)
+        redir_text = self._render_redirs(redirs, lineno)
+        body = body.strip()
+        suffix = ""
+        if body.startswith("&&") or body.startswith("||"):
+            rhs = self._convert_line(lineno, body[2:].strip())
+            if len(rhs) != 1 or rhs[0].lstrip().startswith("#"):
+                return None
+            suffix = f" {body[:2]} " + rhs[0].strip()
+        elif body.startswith("|"):
+            rhs = self._convert_simple(lineno, body[1:].strip())
+            if len(rhs) != 1 or rhs[0].lstrip().startswith("#"):
+                return None
+            suffix = " | " + rhs[0].strip()
+        elif body:
+            return None
+        return (suffix + " " + redir_text).strip()
 
     # ------------------------------------------------------------------
     # 标签 / goto / call / exit
