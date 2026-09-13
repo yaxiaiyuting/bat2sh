@@ -711,6 +711,35 @@ class BatchConverter:
         text = text.replace("%*", '"$@"')
         text = re.sub(r"%([0-9])", r"${\1:-}", text)
 
+        # 字符串操作 %VAR:~N,M% / %VAR:old=new%（先子串后替换，避免 :~ 被替换式误吞）
+        def substring_repl(m: re.Match[str]) -> str:
+            raw_name = m.group(1)
+            if raw_name.upper() in rules.BATCH_ENV_MAP:
+                self._warn(
+                    lineno,
+                    f"%{raw_name}:~...% 对映射变量做子串，结果依赖 Windows 格式，请手工处理",
+                    text,
+                    category="variables",
+                )
+                return m.group(0)
+            name = sanitize_identifier(raw_name)
+            start = m.group(2)
+            offset = f" {start}" if start.startswith("-") else start
+            if m.group(3) is None:
+                return "${%s:%s}" % (name, offset)
+            return "${%s:%s:%s}" % (name, offset, m.group(3))
+
+        def replace_repl(m: re.Match[str]) -> str:
+            name = sanitize_identifier(m.group(1))
+            return "${%s/%s/%s}" % (name, m.group(2), m.group(3))
+
+        text = re.sub(
+            r"%([A-Za-z_][A-Za-z0-9_]*):~(-?\d+)(?:,(\d+))?%", substring_repl, text
+        )
+        text = re.sub(
+            r"%([A-Za-z_][A-Za-z0-9_]*):([^%*=]+?)=([^%]*)%", replace_repl, text
+        )
+
         # 延迟展开 !var!
         if self._delayed_expansion:
             def delayed_repl(m: re.Match[str]) -> str:
@@ -858,6 +887,19 @@ class BatchConverter:
                 text,
                 "warn 策略：%ERRORLEVEL% 的等价性无法保证，可改用 --last-exit-code map",
                 "errorlevel",
+            )
+
+        wildcard_op = re.search(r"%[A-Za-z_]\w*:([^%=]*)", text)
+        if (
+            wildcard_op is not None
+            and "*" in wildcard_op.group(1)
+            and not re.match(r"(?i)^(?:rem\b|::)", text)
+        ):
+            return self._todo_block_line(
+                lineno,
+                text,
+                "字符串替换的旧值含通配符（bat 贪婪匹配），bash 参数扩展语义不同，请手工处理",
+                "variables",
             )
 
         modifier = _UNSUPPORTED_MODIFIER_RE.search(text)
