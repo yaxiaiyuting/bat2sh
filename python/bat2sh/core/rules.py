@@ -110,12 +110,14 @@ BATCH_HANDLER_MAP: dict[str, str] = {
     "cipher": "cmd_todo_hint",
     "fsutil": "cmd_todo_hint",
     "takeown": "cmd_todo_hint",
-    "assoc": "cmd_todo_hint",
-    "ftype": "cmd_todo_hint",
+    "assoc": "cmd_assoc",
+    "ftype": "cmd_ftype",
     "bcdboot": "cmd_todo_hint",
     "choice": "cmd_choice",
     "ver": "cmd_ver",
     "systeminfo": "cmd_systeminfo",
+    "certutil": "cmd_certutil",
+    "driverquery": "cmd_driverquery",
 }
 
 #: 完全忽略的批处理命令：命令名 -> 生成的注释（None 表示不生成任何输出）
@@ -161,9 +163,53 @@ BATCH_TODO_COMMANDS: dict[str, str] = {
     "cipher": "EFS 加密无对应物",
     "fsutil": "文件系统工具无对应物",
     "takeown": "所有权请改用 chown",
-    "assoc": "文件关联请改用 xdg-mime",
-    "ftype": "文件关联请改用 xdg-mime",
     "bcdboot": "引导配置请改用 grub/systemd-boot",
+}
+
+#: assoc 查询的扩展名 -> MIME 类型（仅覆盖常见类型，其余保持 TODO）
+BATCH_EXT_MIME: dict[str, str] = {
+    ".txt": "text/plain",
+    ".log": "text/plain",
+    ".md": "text/markdown",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".xml": "application/xml",
+    ".json": "application/json",
+    ".csv": "text/csv",
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".mp3": "audio/mpeg",
+    ".mp4": "video/mp4",
+    ".zip": "application/zip",
+    ".gz": "application/gzip",
+    ".tar": "application/x-tar",
+    ".sh": "application/x-shellscript",
+    ".py": "text/x-python",
+}
+
+#: ftype 查询的文件类型名 -> MIME 类型（仅覆盖常见类型，其余保持 TODO）
+BATCH_FTYPE_MIME: dict[str, str] = {
+    "txtfile": "text/plain",
+    "logfile": "text/plain",
+    "markdownfile": "text/markdown",
+    "htmlfile": "text/html",
+    "xmlfile": "application/xml",
+    "jsonfile": "application/json",
+    "pdffile": "application/pdf",
+    "pngfile": "image/png",
+    "jpegfile": "image/jpeg",
+    "giffile": "image/gif",
+    "svgfile": "image/svg+xml",
+    "mp3file": "audio/mpeg",
+    "mp4file": "video/mp4",
+    "zipfile": "application/zip",
+    "gzipfile": "application/gzip",
+    "pythonfile": "text/x-python",
+    "shfile": "application/x-shellscript",
 }
 
 #: %VAR% 特殊变量映射（大写键）
@@ -187,7 +233,7 @@ BATCH_ENV_MAP: dict[str, str] = {
     "DATE": "$(date +%F)",
     "TIME": "$(date +%T)",
     "SYSTEMDRIVE": "/",
-    "SYSTEMROOT": "/",
+    "SYSTEMROOT": "${SystemRoot:-/}",
     "WINDIR": "/",
     "PROGRAMDATA": "/usr/share",
     "LOCALAPPDATA": "${XDG_DATA_HOME:-$HOME/.local/share}",

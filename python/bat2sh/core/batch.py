@@ -1869,6 +1869,86 @@ class BatchConverter:
         self._warn(lineno, "systeminfo 已转换为 uname -a，信息量不同", original, category="command")
         return "uname -a"
 
+    def cmd_certutil(self, lineno: int, args: str, original: str) -> str | None:
+        tokens = tokenize_args(args)
+        if len(tokens) < 3 or tokens[0].lower() != "-hashfile":
+            return self._todo(
+                lineno,
+                original,
+                "certutil 仅支持 -hashfile <文件> MD5/SHA256 形式",
+                category="command",
+            )
+        algorithm = tokens[2].lower()
+        mapped = {"md5": "md5sum", "sha256": "sha256sum"}.get(algorithm)
+        if mapped is None:
+            return self._todo(
+                lineno,
+                original,
+                f"certutil 哈希算法 {tokens[2]} 无法映射（仅支持 MD5/SHA256）",
+                category="command",
+            )
+        self._warn(
+            lineno,
+            f"certutil -hashfile 已转换为 {mapped}，输出格式不同（无 CertUtil 头部与指纹格式）",
+            original,
+            category="command",
+        )
+        return f"{mapped} {self._convert_path_token(tokens[1], lineno)}"
+
+    def cmd_driverquery(self, lineno: int, args: str, original: str) -> str:
+        if args.strip():
+            self._warn(
+                lineno,
+                f"driverquery 参数 {args.strip()} 已忽略（Linux 无对应过滤）",
+                original,
+                category="command",
+            )
+        self._warn(
+            lineno,
+            "driverquery 已转换为 lsmod，语义不同（仅内核模块，无驱动服务详情）",
+            original,
+            category="command",
+        )
+        return "lsmod"
+
+    def cmd_assoc(self, lineno: int, args: str, original: str) -> str | None:
+        token = args.strip()
+        if not token or "=" in token:
+            return self._todo(
+                lineno, original, "assoc 仅支持查询单个扩展名（assoc .ext）", category="command"
+            )
+        mime = rules.BATCH_EXT_MIME.get(token.lower())
+        if mime is None:
+            return self._todo(
+                lineno, original, f"扩展名 {token} 无 MIME 映射", category="command"
+            )
+        self._warn(
+            lineno,
+            "assoc 已转换为 xdg-mime query default，输出为 .desktop 名称而非命令",
+            original,
+            category="command",
+        )
+        return f"xdg-mime query default {mime}"
+
+    def cmd_ftype(self, lineno: int, args: str, original: str) -> str | None:
+        token = args.strip().strip('"')
+        if not token or "=" in token:
+            return self._todo(
+                lineno, original, "ftype 仅支持查询单个文件类型名（ftype name）", category="command"
+            )
+        mime = rules.BATCH_FTYPE_MIME.get(token.lower())
+        if mime is None:
+            return self._todo(
+                lineno, original, f"文件类型 {token} 无 MIME 映射", category="command"
+            )
+        self._warn(
+            lineno,
+            "ftype 已转换为 xdg-mime query default，输出为 .desktop 名称而非命令",
+            original,
+            category="command",
+        )
+        return f"xdg-mime query default {mime}"
+
     def cmd_choice(self, lineno: int, args: str, original: str) -> str:
         self._todo(lineno, original, "choice 请改用 read -r -n 1 或 zenity", category="command")
         return ""
