@@ -253,3 +253,57 @@ def test_time_in_for_f_command_todo(convert_bat):
     out, report = convert_bat(text)
     assert report.todo_count == 1
     assert "$(date" not in out
+
+
+def test_choice_basic_maps_to_read(convert_bat):
+    out, report = convert_bat("@echo off\nchoice /c YN /t 1 /d Y\n")
+    assert "read -r -n 1 -t 1" in out
+    assert any("choice" in d.message for d in report.warnings)
+    assert report.todo_count == 0
+
+
+def test_choice_with_prompt_maps(convert_bat):
+    out, _ = convert_bat('@echo off\nchoice /c YN /m "继续?"\n')
+    assert "read -r -n 1" in out
+    assert '-p "继续?"' in out
+    assert " -t " not in out
+
+
+def test_choice_followed_by_errorlevel_todo(convert_bat):
+    text = "@echo off\nchoice /c YN /t 5 /d Y\necho 选择了 %ERRORLEVEL%\n"
+    out, report = convert_bat(text)
+    assert report.todo_count >= 1
+    assert "read -r" not in out
+
+
+def test_simple_pipeline_converts(convert_bat):
+    out, report = convert_bat("@echo off\ntasklist | findstr explorer\n")
+    assert "ps aux | grep explorer" in out
+    assert report.todo_count == 0
+
+
+def test_pipeline_with_redirect_todo(convert_bat):
+    out, report = convert_bat("@echo off\ndir 2>nul | findstr x\n")
+    assert report.todo_count == 1
+    assert "# TODO" in out
+    assert "grep" not in out
+
+
+def test_multistage_pipeline_todo(convert_bat):
+    out, report = convert_bat("@echo off\ndir | findstr a | findstr b\n")
+    assert report.todo_count == 1
+    assert "# TODO" in out
+
+
+def test_pipeline_with_ampersand_todo(convert_bat):
+    out, report = convert_bat("@echo off\ndir | findstr x && echo ok\n")
+    assert report.todo_count == 1
+    assert "# TODO" in out
+
+
+def test_pipeline_inside_for_f_command_todo(convert_bat):
+    text = "@echo off\nfor /f \"delims=\" %%i in ('dir ^| findstr x') do echo %%i\n"
+    out, report = convert_bat(text)
+    assert report.todo_count == 1
+    assert "# TODO" in out
+    assert "grep" not in out

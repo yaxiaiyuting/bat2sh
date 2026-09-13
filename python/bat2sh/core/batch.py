@@ -290,6 +290,7 @@ class BatchConverter:
         self._needs_nullglob = False
         self._bat2sh_status_valid = False
         self._errorlevel_captured = False
+        self._errorlevel_lines: set[int] = set()
         self._current_command = ""
 
     # ------------------------------------------------------------------
@@ -391,7 +392,7 @@ class BatchConverter:
         return result
 
     def _prescan(self, logical: list[tuple[int, str]]) -> None:
-        for _, line in logical:
+        for number, line in logical:
             stripped = line.strip()
             if not stripped:
                 continue
@@ -401,6 +402,10 @@ class BatchConverter:
                 self._function_mode = True
             if re.match(r"(?i)^setlocal\b.*enabledelayedexpansion", stripped):
                 self._delayed_expansion = True
+            if _ERRORLEVEL_VAR_RE.search(stripped) or re.match(
+                r"(?i)^@?\s*if\s+(?:/i\s+)?(?:not\s+)?errorlevel\b", stripped
+            ):
+                self._errorlevel_lines.add(number)
 
     def _compose(self) -> str:
         header = ["#!/usr/bin/env bash"]
@@ -1280,6 +1285,10 @@ class BatchConverter:
                 return self._for_todo_lines(
                     lineno, text, body, "for /f 命令中的 %ERRORLEVEL% 无法保证捕获时机，请手工处理"
                 )
+            if len(_split_pipeline(raw)) > 1:
+                return self._for_todo_lines(
+                    lineno, text, body, "for /f 的命令包含管道，输出格式无法保证，请手工处理"
+                )
             todo_mark = len(self.report.todos)
             command_lines = self._convert_simple_no_pipe(lineno, raw)
             if (
@@ -1514,16 +1523,33 @@ class BatchConverter:
     # ------------------------------------------------------------------
     def _convert_simple(self, lineno: int, text: str) -> list[str]:
         pipe_parts = _split_pipeline(text)
-        if len(pipe_parts) > 1:
+        if len(pipe_parts) > 2:
+            self._todo(lineno, text, "多级管道（超过两级）无法保证输出语义，请手工处理", category="pipeline")
+            return [self._c("# TODO: 手动检查: " + text)]
+        if len(pipe_parts) == 2:
+            if any(self._pipeline_segment_unsafe(part) for part in pipe_parts):
+                self._todo(lineno, text, "管道中包含重定向或 & 连接，无法自动转换", category="pipeline")
+                return [self._c("# TODO: 手动检查: " + text)]
             bodies: list[str] = []
             for seg in pipe_parts:
                 seg_lines = self._convert_simple_no_pipe(lineno, seg.strip())
-                if len(seg_lines) != 1:
+                if (
+                    len(seg_lines) != 1
+                    or not seg_lines[0].strip()
+                    or seg_lines[0].lstrip().startswith("#")
+                ):
                     self._todo(lineno, text, "复杂管道无法自动转换", category="pipeline")
                     return [self._c("# TODO: 手动检查: " + text)]
                 bodies.append(seg_lines[0].strip())
             return [self._indent + " | ".join(bodies)]
         return self._convert_simple_no_pipe(lineno, text)
+
+    @staticmethod
+    def _pipeline_segment_unsafe(segment: str) -> bool:
+        if "&" in segment:
+            return True
+        _body, redirs = split_redirects(segment)
+        return bool(redirs)
 
     def _convert_simple_no_pipe(self, lineno: int, text: str) -> list[str]:
         parts = _split_sequential(text)
@@ -2078,8 +2104,43 @@ class BatchConverter:
         return f"xdg-mime query default {mime}"
 
     def cmd_choice(self, lineno: int, args: str, original: str) -> str:
-        self._todo(lineno, original, "choice 请改用 read -r -n 1 或 zenity", category="command")
-        return ""
+        if any(line > lineno for line in self._errorlevel_lines):
+            return self._todo(
+                lineno,
+                original,
+                "后续语句依赖 %ERRORLEVEL%（choice 返回选项序号），read 无法保留该退出码语义，请手工处理",
+                category="command",
+            )
+        tokens = tokenize_args(args)
+        timeout: str | None = None
+        prompt: str | None = None
+        i = 0
+        while i < len(tokens):
+            low = tokens[i].lower()
+            if low in ("/c", "/d", "/cs") and i + 1 < len(tokens):
+                i += 2
+                continue
+            if low == "/t" and i + 1 < len(tokens):
+                timeout = tokens[i + 1]
+                i += 2
+                continue
+            if low == "/m" and i + 1 < len(tokens):
+                prompt = strip_outer_quotes(tokens[i + 1])[0]
+                i += 2
+                continue
+            i += 1
+        command = "read -r -n 1"
+        if prompt is not None:
+            command += f" -p {dq(prompt)}"
+        if timeout is not None:
+            command += f" -t {timeout}"
+        self._warn(
+            lineno,
+            "choice 已转换为 read：/c 键值校验与 /d 默认选项无法模拟，超时后行为可能不同，请核对",
+            original,
+            category="command",
+        )
+        return command
 
     def cmd_if_unsupported(self, lineno: int, args: str, original: str) -> None:  # pragma: no cover
         return None
