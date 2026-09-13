@@ -1908,8 +1908,21 @@ class BatchConverter:
                 ):
                     return self._pipeline_todo(lineno, text, "复杂管道无法自动转换")
                 bodies.append(seg_lines[0].strip())
-            return [self._indent + " | ".join(bodies)]
+            line = self._indent + " | ".join(bodies)
+            if self._is_filter_segment(bodies[-1]):
+                return [
+                    self._c("# bat 过滤语义：未匹配不终止脚本"),
+                    line + " || true",
+                ]
+            return [line]
         return self._convert_simple_no_pipe(lineno, text)
+
+    @staticmethod
+    def _is_filter_segment(body: str) -> bool:
+        stripped = body.strip()
+        if not stripped:
+            return False
+        return stripped.split(None, 1)[0] == "grep"
 
     @staticmethod
     def _pipeline_segment_unsafe(segment: str) -> bool:
@@ -2403,7 +2416,7 @@ class BatchConverter:
             else:
                 if not args.strip():
                     return "env"
-                return "env | grep -E " + dq("^" + re.escape(args.strip()))
+                return "env | grep -E " + dq("^" + re.escape(args.strip())) + " || true"
         raw_var = var.strip()
         name = self._variable_name(raw_var, lineno, original)
         value = convert_backslashes(self._expand_vars(value.rstrip(), lineno))
