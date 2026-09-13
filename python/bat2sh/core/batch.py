@@ -2344,6 +2344,7 @@ class BatchConverter:
         pattern = None
         files: list[str] = []
         fixed = False
+        regex = False
         for token in tokens:
             low = token.lower()
             if low == "/i":
@@ -2356,7 +2357,7 @@ class BatchConverter:
                 opts += "r"
                 self._warn(lineno, "findstr /s（递归）已转换为 grep -r", original, category="command")
             elif low == "/r":
-                pass
+                regex = True
             elif low.startswith("/c:"):
                 fixed = True
                 pattern = token[3:]
@@ -2367,11 +2368,16 @@ class BatchConverter:
             else:
                 files.append(token)
         opt_text = f"-{opts} " if opts else ""
-        fixed_text = "-F " if fixed else ""
+        if regex:
+            mode_text = "-E "
+        elif fixed:
+            mode_text = "-F "
+        else:
+            mode_text = ""
         files_text = " ".join(self._convert_path_token(t, lineno) for t in files)
         self._warn(lineno, "findstr 已转换为 grep，正则语法可能存在差异", original, category="command")
         pattern = pattern or '""'
-        return (f"grep {fixed_text}{opt_text}".rstrip() + f" {pattern} {files_text}").strip()
+        return (f"grep {mode_text}{opt_text}".rstrip() + f" {pattern} {files_text}").strip()
 
     def cmd_sort(self, lineno: int, args: str, original: str) -> str | None:
         tokens = tokenize_args(args)
