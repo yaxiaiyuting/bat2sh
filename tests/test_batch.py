@@ -89,12 +89,46 @@ def test_if_compare(convert_bat):
     assert 'if [ "${A}" = "B" ]; then' in out
 
 
-def test_if_exist_glob_warns(convert_bat):
+def test_if_exist_glob_uses_compgen(convert_bat, bash_check):
     out, report = convert_bat("@echo off\nif exist *.log echo found\n")
+    assert 'if compgen -G "*.log" > /dev/null; then' in out
+    assert report.warning_count == 0
+    bash_check(out)
+
+
+def test_if_exist_glob_with_directory_prefix(convert_bat, bash_run, tmp_path):
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "a.log").write_text("x\n", encoding="utf-8")
+    out, report = convert_bat("@echo off\nif exist build\\*.log echo found\n")
+    assert 'compgen -G "build/*.log"' in out
+    assert report.warning_count == 0
+    proc = bash_run(f"cd {tmp_path}\n" + out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "found\n"
+
+
+def test_if_not_exist_glob_negates_compgen(convert_bat, bash_run, tmp_path):
+    out, report = convert_bat("@echo off\nif not exist *.log echo none\n")
+    assert 'if ! compgen -G "*.log" > /dev/null; then' in out
+    assert report.warning_count == 0
+    proc = bash_run(f"cd {tmp_path}\n" + out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "none\n"
+
+
+def test_if_exist_quoted_glob_stays_literal(convert_bat):
+    out, report = convert_bat('@echo off\nif exist "*.log" echo yes\n')
     assert '[ -e "*.log" ]' in out
+    assert "compgen" not in out
+    assert report.warning_count == 0
+
+
+def test_if_exist_glob_unsafe_pattern_falls_back(convert_bat):
+    out, report = convert_bat("@echo off\nif exist $(x)*.log echo yes\n")
+    assert "compgen" not in out
+    assert "[ -e " in out
     assert report.warning_count == 1
     assert report.warnings[0].category == "glob"
-    assert "if exist 支持通配符" in report.warnings[0].message
 
 
 def test_if_exist_plain_no_glob_warning(convert_bat):
