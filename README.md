@@ -446,6 +446,13 @@ echo "清理完成"
 14. **旧版 bash（<4.4）与 `set -u`**：`shopt -s nullglob` 让空 glob 产生空数组后，
     `"${arr[@]}"` 在 bash 4.4 以前会报 `unbound variable`。转换器面向 bash 5.x；
     如需兼容 RHEL7/macOS 自带旧 bash，请手工改为 `${arr[@]+"${arr[@]}"}`。
+15. **`equ`/`neq` 按操作数形式分派数值/字符串比较**：两侧都是纯数字字面量时生成
+    `-eq`/`-ne`；任一侧带引号、或为裸的非数字字面量（如 `abc`）时生成字符串比较
+    `=`/`!=`，避免 bash 报 `integer expression expected`。**变量引用（如 `%X%`）
+    无法静态判定，按 cmd 的数值语义生成 `-eq`/`-ne`**——若运行时值非数字，bash 会
+    报整数错误（与 cmd 的 `Invalid number` 行为近似）；需要字符串比较时请象 cmd 一样
+    显式加引号（`if "%X%" equ "%Y%"`）。`lss`/`leq`/`gtr`/`geq` 始终为数值比较
+    （cmd 语义），字符串排序请手工改写。
 
 ### 8.2 PowerShell
 
