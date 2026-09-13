@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 from .. import APP_DISPLAY_NAME, APP_ID, __version__
 from ..core.settings import load_settings
-from .main_window import MainWindow
+from .main_window import SCRIPT_SUFFIXES, MainWindow
 from .theme import apply_theme
 
 
@@ -19,6 +19,19 @@ def bundled_icon() -> QIcon:
     if path.exists():
         return QIcon(str(path))
     return QIcon.fromTheme("text-x-script")
+
+
+def script_paths_from_argv(argv: list[str]) -> list[Path]:
+    """从启动参数中提取脚本路径。
+
+    跳过 ``argv[0]``（程序名）、以 ``-`` 开头的选项以及后缀不符的参数；
+    路径不存在时由 :meth:`MainWindow.add_paths` 静默忽略。
+    """
+    return [
+        Path(arg)
+        for arg in argv[1:]
+        if not arg.startswith("-") and Path(arg).suffix.lower() in SCRIPT_SUFFIXES
+    ]
 
 
 def run_gui(argv: list[str] | None = None) -> int:
@@ -34,8 +47,8 @@ def run_gui(argv: list[str] | None = None) -> int:
     settings = load_settings()
     apply_theme(app, settings.theme)
     window = MainWindow(settings)
-    file_args = [arg for arg in args[1:] if not arg.startswith("-")]
-    if file_args:
-        window.open_paths([Path(arg) for arg in file_args])
+    file_paths = script_paths_from_argv(args)
+    if file_paths:
+        window.open_paths(file_paths)
     window.show()
     return app.exec()
