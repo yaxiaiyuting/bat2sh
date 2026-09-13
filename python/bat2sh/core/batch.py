@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from . import rules
 from .settings import ConvertSettings
+from .suggestions import suggest_pipeline
 from .types import ConvertReport, Diagnostic, SourceKind
 from .utils import (
     convert_backslashes,
@@ -369,6 +370,15 @@ class BatchConverter:
             block.paren_depth = 1
             self._stack.append(block)
         return lines
+
+    def _pipeline_todo(self, lineno: int, text: str, hint: str) -> list[str]:
+        self._todo(lineno, text, hint, category="pipeline")
+        suggestion = suggest_pipeline(text)
+        if not suggestion:
+            return [self._c("# TODO: 手动检查: " + text)]
+        lines = ["# TODO: 复杂管道需手动重写"]
+        lines.extend("#" + line for line in suggestion)
+        return [self._c(line) for line in lines]
 
     def _logical_lines(self, text: str) -> list[tuple[int, str]]:
         result: list[tuple[int, str]] = []
@@ -1524,12 +1534,14 @@ class BatchConverter:
     def _convert_simple(self, lineno: int, text: str) -> list[str]:
         pipe_parts = _split_pipeline(text)
         if len(pipe_parts) > 2:
-            self._todo(lineno, text, "多级管道（超过两级）无法保证输出语义，请手工处理", category="pipeline")
-            return [self._c("# TODO: 手动检查: " + text)]
+            return self._pipeline_todo(
+                lineno, text, "多级管道（超过两级）无法保证输出语义，请手工处理"
+            )
         if len(pipe_parts) == 2:
             if any(self._pipeline_segment_unsafe(part) for part in pipe_parts):
-                self._todo(lineno, text, "管道中包含重定向或 & 连接，无法自动转换", category="pipeline")
-                return [self._c("# TODO: 手动检查: " + text)]
+                return self._pipeline_todo(
+                    lineno, text, "管道中包含重定向或 & 连接，无法自动转换"
+                )
             bodies: list[str] = []
             for seg in pipe_parts:
                 seg_lines = self._convert_simple_no_pipe(lineno, seg.strip())
@@ -1538,8 +1550,7 @@ class BatchConverter:
                     or not seg_lines[0].strip()
                     or seg_lines[0].lstrip().startswith("#")
                 ):
-                    self._todo(lineno, text, "复杂管道无法自动转换", category="pipeline")
-                    return [self._c("# TODO: 手动检查: " + text)]
+                    return self._pipeline_todo(lineno, text, "复杂管道无法自动转换")
                 bodies.append(seg_lines[0].strip())
             return [self._indent + " | ".join(bodies)]
         return self._convert_simple_no_pipe(lineno, text)

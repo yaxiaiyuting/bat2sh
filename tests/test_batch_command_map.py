@@ -286,7 +286,12 @@ def test_pipeline_with_redirect_todo(convert_bat):
     out, report = convert_bat("@echo off\ndir 2>nul | findstr x\n")
     assert report.todo_count == 1
     assert "# TODO" in out
-    assert "grep" not in out
+    executable = [
+        line
+        for line in out.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert not any("grep" in line for line in executable)
 
 
 def test_multistage_pipeline_todo(convert_bat):
