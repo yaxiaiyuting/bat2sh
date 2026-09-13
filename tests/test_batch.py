@@ -444,6 +444,40 @@ def test_echo_dot_with_redirect_binds_to_echo(convert_bat):
     assert report.warning_count == 0
 
 
+# ----------------------------------------------------------------------
+# ^ 转义
+# ----------------------------------------------------------------------
+def test_caret_escaped_special_chars_in_echo(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho 特殊字符: ^& ^| ^< ^> ^^ %%\n")
+    assert report.warning_count == 0
+    assert 'echo "特殊字符: & | < > ^ %"' in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "特殊字符: & | < > ^ %\n"
+
+
+def test_caret_escaped_ampersand_runs_in_bash(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho a^&b\n")
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "a&b\n"
+
+
+def test_caret_escaped_exclamation(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho 感叹号: ^!\n")
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "感叹号: !\n"
+
+
+def test_caret_inside_quotes_stays_literal(convert_bat):
+    out, report = convert_bat('@echo off\necho "a^&b"\n')
+    assert 'echo "a^&b"' in out
+    assert report.warning_count == 0
+
+
 def test_echo_escapes_literal_dollar(convert_bat, bash_run):
     out, report = convert_bat("@echo off\necho 价格 $100\n")
     assert 'echo "价格 \\$100"' in out

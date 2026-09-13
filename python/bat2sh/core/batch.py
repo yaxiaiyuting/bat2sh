@@ -41,6 +41,53 @@ def _normalize_echo_blank(text: str) -> str:
     return m.group(1) + " " + m.group(3)
 
 
+#: `^X` 转义的目标字符 -> 占位符（避免被分词/重定向解析拆开，输出前还原）
+_CARET_ESCAPES = {
+    "&": "\ue101",
+    "|": "\ue102",
+    "<": "\ue103",
+    ">": "\ue104",
+    "^": "\ue105",
+    "!": "\ue106",
+}
+_CARET_RESTORES = {placeholder: char for char, placeholder in _CARET_ESCAPES.items()}
+
+
+def _protect_carets(text: str) -> str:
+    """把引号外的 ``^X`` 替换为占位符；引号内的 ``^`` 是字面字符，保持原样。"""
+    out: list[str] = []
+    quote = ""
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if quote:
+            out.append(char)
+            if char == quote:
+                quote = ""
+            index += 1
+            continue
+        if char in "\"'":
+            quote = char
+            out.append(char)
+            index += 1
+            continue
+        if char == "^" and index + 1 < len(text):
+            placeholder = _CARET_ESCAPES.get(text[index + 1])
+            if placeholder:
+                out.append(placeholder)
+                index += 2
+                continue
+        out.append(char)
+        index += 1
+    return "".join(out)
+
+
+def _restore_carets(line: str) -> str:
+    for placeholder, char in _CARET_RESTORES.items():
+        line = line.replace(placeholder, char)
+    return line
+
+
 def _split_sequential(text: str) -> list[str]:
     """按顶层单个 ``&`` 切分命令（保留 &&、||、管道与重定向中的 &）。"""
     parts: list[str] = []
@@ -387,7 +434,9 @@ class BatchConverter:
         if re.match(r"(?i)^exit\b", text):
             return self._convert_exit(lineno, text)
 
-        return self._convert_simple(lineno, text)
+        protected = _protect_carets(text)
+        result = self._convert_simple(lineno, protected)
+        return [_restore_carets(line) for line in result]
 
     # ------------------------------------------------------------------
     # 块闭合
