@@ -211,7 +211,7 @@ def test_report_json_print_mode(tmp_path, capsys):
     assert data["todo_count"] == 1
     todo = data["todos"][0]
     assert todo["line"] == 2
-    assert todo["category"] == ""
+    assert todo["category"] == "control_flow"
     assert todo["original"].startswith("for /f")
     assert todo["message"]
 
