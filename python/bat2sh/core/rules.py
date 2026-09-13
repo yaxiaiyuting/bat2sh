@@ -397,7 +397,6 @@ PS_AUTOMATIC_VARS: dict[str, str] = {
     "pscommandpath": "${BASH_SOURCE[0]}",
     "pwd": "$(pwd)",
     "home": "${HOME}",
-    "lastExitcode": "$?",
     "true": "true",
     "false": "false",
     "null": '""',

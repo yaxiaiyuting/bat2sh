@@ -251,6 +251,19 @@ def test_lastexitcode_warns_semantics(convert_ps):
     assert 'echo "${LASTEXITCODE}"' in out
 
 
+def test_lastexitcode_in_condition_warns(convert_ps):
+    out, report = convert_ps("if ($LASTEXITCODE -eq 0) { Write-Host 'ok' }\n")
+    assert report.warning_count == 1
+    assert report.warnings[0].category == "errorlevel"
+    assert "LASTEXITCODE" in report.warnings[0].message
+
+
+def test_lastexitcode_key_is_not_camelcase():
+    from bat2sh.core import rules
+
+    assert "lastExitcode" not in rules.PS_AUTOMATIC_VARS
+
+
 def test_question_mark_warns_semantics(convert_ps):
     out, report = convert_ps('if ($?) { Write-Host "ok" }\n')
     assert report.warning_count == 1
