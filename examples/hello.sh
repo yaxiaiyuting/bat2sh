@@ -13,5 +13,5 @@ if [ -e "config.ini" ]; then
 else
     echo "未找到 config.ini，使用默认配置"
 fi
-read -rp "Press Enter to continue..."
+read -rp "Press Enter to continue..." || true
 exit 0
