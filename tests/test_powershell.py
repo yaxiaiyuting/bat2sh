@@ -139,6 +139,25 @@ def test_join_path_helper(convert_ps):
     assert "Join-Path" in report.warnings[0].message
 
 
+def test_join_path_helper_supports_backslash_absolute(convert_ps):
+    out, _ = convert_ps('$p = Join-Path "a" "C:\\x"\n')
+    assert "== [A-Za-z]:\\\\*" in out
+
+
+def test_join_path_helper_absolute_child_resets(convert_ps, bash_run):
+    out, _ = convert_ps('$p = Join-Path "a" "/abs"\n')
+    start = out.index("__bat2sh_join_path() {")
+    end = out.index("\n}\n", start) + 3
+    script = (
+        out[start:end]
+        + '\n__bat2sh_join_path "a" "/abs"; echo\n'
+        + '__bat2sh_join_path "a" "C:\\x"; echo\n'
+    )
+    proc = bash_run(script)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines() == ["/abs", "C:\\x"]
+
+
 # ----------------------------------------------------------------------
 # 环境变量
 # ----------------------------------------------------------------------

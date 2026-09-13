@@ -68,3 +68,16 @@ def bash_check():
         )
 
     return _check
+
+
+@pytest.fixture(scope="session")
+def bash_run():
+    """在 bash 中执行脚本文本，返回 CompletedProcess。"""
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("未找到 bash，跳过脚本执行")
+
+    def _run(text: str) -> subprocess.CompletedProcess:
+        return subprocess.run([bash], input=text, capture_output=True, text=True)
+
+    return _run

@@ -202,7 +202,10 @@ class PowerShellConverter:
             header.append("__bat2sh_join_path() {")
             header.append('    local __result="" __part')
             header.append('    for __part in "$@"; do')
-            header.append('        if [[ "${__part}" == /* || "${__part}" == [A-Za-z]:/* ]]; then')
+            header.append(
+                '        if [[ "${__part}" == /* || "${__part}" == [A-Za-z]:/*'
+                ' || "${__part}" == [A-Za-z]:\\\\* ]]; then'
+            )
             header.append('            __result="${__part}"')
             header.append('        elif [[ -z "${__result}" || "${__result}" == */ ]]; then')
             header.append('            __result="${__result}${__part}"')
