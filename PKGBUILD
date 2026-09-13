@@ -6,10 +6,9 @@ pkgdesc="将 Windows 批处理 (.bat/.cmd) 与 PowerShell (.ps1) 脚本转换为
 arch=('any')
 url="https://github.com/yaxiaiyuting/bat2sh"
 license=('AGPL-3.0-or-later')
-depends=('python' 'pyside6')
+depends=('python' 'pyside6' 'hicolor-icon-theme')
 makedepends=()
 options=('!strip')
-install="${pkgname}.install"
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('b076b7800d977b9aef34efb68c6ee2d5ae2eb4dfee9cd38c93568cacd6487e26')
 
