@@ -452,3 +452,53 @@ def test_loop_var_unsupported_modifier_is_todo(convert_bat):
     out, report = convert_bat(text)
     assert report.todo_count == 1
     assert "${f}" not in out
+
+
+def test_if_command_with_redirect_is_todo(convert_bat, bash_check):
+    out, report = convert_bat("@echo off\nif errorlevel 1 echo errorlevel >= 1\n")
+    assert report.todo_count >= 1
+    assert "# TODO" in out
+    bash_check(out)
+
+
+def test_if_command_without_redirect_still_converts(convert_bat):
+    out, _ = convert_bat("@echo off\nmkdir out\nif errorlevel 1 echo failed\n")
+    assert "if ! mkdir -p out; then" in out
+    assert 'echo "failed"' in out
+
+
+def test_echo_and_chain_segmented(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho D && echo E\n")
+    assert 'echo "D" && echo "E"' in out
+    assert report.todo_count == 0
+    proc = bash_run(out)
+    assert proc.stdout.splitlines() == ["D", "E"]
+
+
+def test_echo_or_chain_segmented(convert_bat, bash_run):
+    out, _ = convert_bat("@echo off\nfalse || echo B\n")
+    assert 'false || echo "B"' in out
+    proc = bash_run(out)
+    assert proc.stdout.strip() == "B"
+
+
+def test_echo_and_or_chain(convert_bat, bash_run):
+    out, _ = convert_bat("@echo off\necho D && echo E || echo F\n")
+    assert 'echo "D" && echo "E" || echo "F"' in out
+    proc = bash_run(out)
+    assert proc.stdout.splitlines() == ["D", "E"]
+
+
+def test_group_and_chain_still_valid(convert_bat, bash_check):
+    out, _ = convert_bat("@echo off\n(echo G) && (echo H)\n")
+    assert "&&" in out
+    assert "(echo" not in out
+    bash_check(out)
+
+
+def test_echo_with_parenthesized_condition_chain(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho 条件执行: (echo C) && (echo D)\n")
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert "条件执行: (echo C)" in proc.stdout
+    assert "D" in proc.stdout

@@ -226,6 +226,66 @@ def _split_sequential(text: str) -> list[str]:
     return [p for p in parts if p.strip()]
 
 
+def _split_logical(text: str) -> list[str]:
+    """按顶层 ``&&`` / ``||`` 切分为 [片段, 运算符, 片段...]；引号与转义内不切。"""
+    parts: list[str] = []
+    buf: list[str] = []
+    quote = ""
+    index = 0
+    n = len(text)
+    while index < n:
+        char = text[index]
+        if quote:
+            buf.append(char)
+            if char == quote:
+                quote = ""
+            index += 1
+            continue
+        if char in "\"'":
+            quote = char
+            buf.append(char)
+            index += 1
+            continue
+        if char == "^" and index + 1 < n:
+            buf.append(text[index : index + 2])
+            index += 2
+            continue
+        if char in "&|" and index + 1 < n and text[index + 1] == char:
+            parts.append("".join(buf))
+            parts.append(char + char)
+            buf = []
+            index += 2
+            continue
+        buf.append(char)
+        index += 1
+    parts.append("".join(buf))
+    return parts
+
+
+def _has_unquoted_redirect(text: str) -> bool:
+    """检测引号/转义之外的 ``>``、``<``、``|``。"""
+    quote = ""
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if quote:
+            if char == quote:
+                quote = ""
+            index += 1
+            continue
+        if char in "\"'":
+            quote = char
+            index += 1
+            continue
+        if char == "^" and index + 1 < len(text):
+            index += 2
+            continue
+        if char in "<>|":
+            return True
+        index += 1
+    return False
+
+
 def _split_pipeline(text: str) -> list[str]:
     """按顶层单个 ``|`` 切分管道（保留 ||）。"""
     parts: list[str] = []
@@ -1052,6 +1112,14 @@ class BatchConverter:
             negate = True
             rest = rest[3:].lstrip()
 
+        if _has_unquoted_redirect(rest):
+            return self._todo_block_line(
+                lineno,
+                text,
+                "if 的命令部分包含未转义的 >/<，语义歧义（重定向或字面量），无法自动转换",
+                "control_flow",
+            )
+
         errorlevel = (
             re.match(r"(?i)^errorlevel\s+(-?\d+)\s*(.*)$", rest) if not is_elif else None
         )
@@ -1716,6 +1784,23 @@ class BatchConverter:
         return bool(redirs)
 
     def _convert_simple_no_pipe(self, lineno: int, text: str) -> list[str]:
+        logical_parts = _split_logical(text)
+        if len(logical_parts) > 1:
+            bodies: list[str] = []
+            for part in logical_parts:
+                if part in ("&&", "||"):
+                    bodies.append(part)
+                    continue
+                seg_lines = self._convert_line(lineno, part.strip())
+                if (
+                    len(seg_lines) != 1
+                    or not seg_lines[0].strip()
+                    or seg_lines[0].lstrip().startswith("#")
+                ):
+                    self._todo(lineno, text, "命令连接（&&/||）无法全部自动转换", category="command")
+                    return [self._c("# TODO: 手动检查: " + text)]
+                bodies.append(seg_lines[0].strip())
+            return [self._indent + " ".join(bodies)]
         parts = _split_sequential(text)
         if len(parts) > 1:
             out: list[str] = []
