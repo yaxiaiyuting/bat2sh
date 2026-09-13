@@ -238,6 +238,53 @@ def test_if_string_compare_with_spaces_stays_string(convert_bat):
     assert 'if [ "${MY_VAR}" = "Hello World" ]; then' in out
 
 
+def test_if_equ_quoted_operands_use_string_compare(convert_bat, bash_run):
+    out, report = convert_bat('@echo off\nif "%STR1%" equ "%STR2%" echo same\n')
+    assert 'if [ "${STR1}" = "${STR2}" ]; then' in out
+    assert report.warning_count == 0
+    proc = bash_run("STR1=abc STR2=abc\n" + out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "same\n"
+    assert proc.stderr == ""
+
+
+def test_if_equ_quoted_strings_differ_no_runtime_error(convert_bat, bash_run):
+    out, _ = convert_bat('@echo off\nif "%STR1%" equ "%STR2%" echo same\n')
+    proc = bash_run("STR1=abc STR2=xyz\n" + out)
+    assert proc.stdout == ""
+    assert "整数" not in proc.stderr
+    assert "integer expression" not in proc.stderr
+
+
+def test_if_equ_unquoted_variables_stay_numeric(convert_bat):
+    out, _ = convert_bat("@echo off\nif %N1% equ %N2% echo same\n")
+    assert 'if [ "${N1}" -eq "${N2}" ]; then' in out
+
+
+def test_if_neq_unquoted_variables_stay_numeric(convert_bat):
+    out, _ = convert_bat("@echo off\nif %X% neq %Y% echo diff\n")
+    assert 'if [ "${X}" -ne "${Y}" ]; then' in out
+
+
+def test_if_equ_numeric_literals_use_numeric_compare(convert_bat):
+    out, _ = convert_bat("@echo off\nif 1 equ 1 echo same\n")
+    assert "if [ 1 -eq 1 ]; then" in out
+
+
+def test_if_equ_bare_word_operands_use_string_compare(convert_bat):
+    out, _ = convert_bat("@echo off\nif abc equ abc echo same\n")
+    assert 'if [ "abc" = "abc" ]; then' in out
+
+
+def test_if_neq_quoted_operands_use_string_compare(convert_bat, bash_run):
+    out, _ = convert_bat('@echo off\nif "%S1%" neq "%S2%" echo diff\n')
+    assert 'if [ "${S1}" != "${S2}" ]; then' in out
+    proc = bash_run("S1=abc S2=xyz\n" + out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "diff\n"
+    assert proc.stderr == ""
+
+
 def test_if_exist_glob_uses_compgen(convert_bat, bash_check):
     out, report = convert_bat("@echo off\nif exist *.log echo found\n")
     assert 'if compgen -G "*.log" > /dev/null; then' in out

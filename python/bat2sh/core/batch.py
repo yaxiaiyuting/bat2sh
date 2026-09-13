@@ -89,6 +89,19 @@ def _restore_placeholders(line: str) -> str:
     return line.replace(_LITERAL_PERCENT, "%")
 
 
+_VARIABLE_MARKER = re.compile(r"[%!]")
+
+
+def _is_string_operand(token: str) -> bool:
+    """equ/neq 的操作数是否按字符串比较：带引号，或裸的非数字字面量（无变量引用）。"""
+    inner, quote = strip_outer_quotes(token)
+    if quote:
+        return True
+    if _VARIABLE_MARKER.search(inner):
+        return False
+    return re.fullmatch(r"-?\d+", inner) is None
+
+
 def _split_sequential(text: str) -> list[str]:
     """按顶层单个 ``&`` 切分命令（保留 &&、||、管道与重定向中的 &）。"""
     parts: list[str] = []
@@ -829,8 +842,13 @@ class BatchConverter:
             re.I | re.S,
         )
         if m:
+            op_token = m.group(2).lower()
             left = self._convert_operand(m.group(1), lineno)
-            op = rules.BATCH_TEST_OPERATORS.get(m.group(2).lower(), "=")
+            op = rules.BATCH_TEST_OPERATORS.get(op_token, "=")
+            if op_token in ("equ", "neq") and (
+                _is_string_operand(m.group(1)) or _is_string_operand(m.group(3))
+            ):
+                op = "=" if op_token == "equ" else "!="
             right = self._convert_operand(m.group(3), lineno)
             test = f"{left} {op} {right}"
             if negate:
