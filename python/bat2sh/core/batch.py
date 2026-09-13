@@ -708,7 +708,7 @@ class BatchConverter:
         # %~ 修饰符（%~dp0 / %~f1 / %%~nxF ...）
         text = re.sub(r"%~([dfnpx]*)([0-9*A-Za-z])", lambda m: self._modifier(m, lineno, text), text)
         # %* / %N（cmd 缺参=空串；set -u 下用 ${N:-}）
-        text = text.replace("%*", '"$@"')
+        text = text.replace("%*", "$*")
         text = re.sub(r"%([0-9])", r"${\1:-}", text)
 
         # 字符串操作 %VAR:~N,M% / %VAR:old=new%（先子串后替换，避免 :~ 被替换式误吞）
@@ -1842,6 +1842,8 @@ class BatchConverter:
             token,
             category="glob",
         )
+        if token == "$*":
+            return '"$@"'
         return dq(token)
 
     def _collection_token_display(self, token: str) -> str:
