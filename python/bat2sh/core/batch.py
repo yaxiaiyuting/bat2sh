@@ -327,6 +327,7 @@ class _Block:
     loop_var: str = ""
     paren_depth: int = 1
     loop_vars: list[str] = field(default_factory=list)
+    guard_close: str = ""
 
 
 @dataclass
@@ -959,9 +960,14 @@ class BatchConverter:
         for name in names:
             if name in self._loop_vars:
                 self._loop_vars.remove(name)
+        lines: list[str] = []
         if block.close_word:
-            return [self._c(block.close_word)]
-        return []
+            lines.append(self._c(block.close_word))
+        if block.guard_close:
+            if self._stack:
+                self._stack.pop()
+            lines.append(self._c(block.guard_close))
+        return lines
 
     def _close_block_line(self, lineno: int, text: str) -> list[str]:
         rest = text[1:].strip()
@@ -1724,6 +1730,12 @@ class BatchConverter:
                 category="control_flow",
             )
 
+        guard_open: list[str] = []
+        guard_close = ""
+        if file_target is not None:
+            guard_open.append(self._indent + f"if [ -r {file_target} ]; then")
+            self._stack.append(_Block("if", ""))
+            guard_close = "fi"
         header = self._indent + f"while {ifs}read -r {' '.join(read_vars)}; do"
         if command is not None:
             body_source = (
@@ -1735,7 +1747,7 @@ class BatchConverter:
         else:
             close_word = f"done < {file_target}"
         self._loop_vars.extend(loop_vars)
-        block = _Block("for", close_word)
+        block = _Block("for", close_word, guard_close=guard_close)
         block.loop_vars = list(loop_vars)
         self._stack.append(block)
         first_var = loop_vars[0]
@@ -1753,7 +1765,7 @@ class BatchConverter:
             guard = self._c(f'[ -z "${first_var}" ] && continue')
         trim_var = loop_vars[-1]
         trim = self._c(f"{trim_var}=\"${{{trim_var}%$'\\r'}}\"")
-        prelude = [header, trim, guard]
+        prelude = [*guard_open, header, trim, guard]
 
         body = body.strip()
         if body.startswith("("):
@@ -1772,6 +1784,9 @@ class BatchConverter:
             for name in loop_vars:
                 self._loop_vars.remove(name)
             lines.append(self._indent + close_word)
+            if block.guard_close:
+                self._stack.pop()
+                lines.append(self._c(block.guard_close))
             return lines
         if not body:
             return list(prelude)
@@ -1781,6 +1796,9 @@ class BatchConverter:
         for name in loop_vars:
             self._loop_vars.remove(name)
         lines.append(self._indent + close_word)
+        if block.guard_close:
+            self._stack.pop()
+            lines.append(self._c(block.guard_close))
         return lines
 
     @staticmethod
@@ -2672,6 +2690,8 @@ class BatchConverter:
             self._warn(0, f"{block.kind} 块未正常闭合，已自动补全", category="misc")
             if block.close_word:
                 bucket.append(block.close_word)
+            if block.guard_close:
+                bucket.append(block.guard_close)
         if self._current_func:
             self._trim_function_tail()
             self._func_out.append("}")
