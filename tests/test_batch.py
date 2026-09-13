@@ -687,6 +687,15 @@ def test_pipeline_with_findstr(convert_bat):
     assert report.warning_count == 1  # findstr 近似转换告警
 
 
+def test_more_plus_n_warning_wording(convert_bat):
+    out, report = convert_bat("@echo off\nsort a.txt | more +1\n")
+    messages = [d.message for d in report.warnings]
+    assert any(
+        "more +1 参数语义不同（Linux 版无 +1 跳过首行），请核对" == m for m in messages
+    )
+    assert not any("未知命令 'more'" in m for m in messages)
+
+
 def test_bash_n_on_complex_script(convert_bat, bash_check):
     text = (
         "@echo off\n"

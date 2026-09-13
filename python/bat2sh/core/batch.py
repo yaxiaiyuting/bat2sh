@@ -1231,6 +1231,15 @@ class BatchConverter:
             else:
                 self._todo(lineno, text, "Windows 可执行文件在 Linux 无对应物", category="command")
                 line = None
+        elif first == "more" and re.match(r"^\+\d+", rest):
+            plus_n = re.match(r"^(\+\d+)", rest).group(1)
+            self._warn(
+                lineno,
+                f"more {plus_n} 参数语义不同（Linux 版无 {plus_n} 跳过首行），请核对",
+                text,
+                category="command",
+            )
+            line = expanded
         elif first in rules.BATCH_POSIX_KEEP:
             line = expanded
         else:
