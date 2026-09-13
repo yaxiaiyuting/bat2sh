@@ -27,6 +27,7 @@ class CodeEditor(QPlainTextEdit):
         self.updateRequest.connect(self._update_line_area)
         self.cursorPositionChanged.connect(self._highlight_current_line)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.setAcceptDrops(False)  # 文件拖放统一交给 MainWindow 处理
         font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         if font.pointSize() < 10:
             font.setPointSize(10)
