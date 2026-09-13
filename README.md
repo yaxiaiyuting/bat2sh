@@ -143,7 +143,10 @@ bat2sh a.bat b.ps1  # 启动并载入文件
 bat2sh --cli input.bat -o output.sh        # 单文件
 bat2sh --cli a.bat b.ps1 --outdir build/   # 多文件到指定目录
 bat2sh --cli a.bat --print                 # 只打印到 stdout，不写文件
+bat2sh --cli a.bat --diff                  # 打印源文件与结果的 unified diff
+bat2sh --cli a.bat --dry-run               # 只显示将写出的文件，不落盘
 bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
+bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出（stderr）
 ```
 
 | 参数 | 说明 |
@@ -159,11 +162,16 @@ bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
 | `--encoding` | 强制输入编码（默认自动检测） |
 | `--no-overwrite` | 输出已存在时拒绝覆盖 |
 | `--print` | 输出到 stdout |
-| `--report` | 打印转换报告 |
+| `--diff` | 打印源文件与转换结果的 unified diff（`--print` 时走 stderr） |
+| `--dry-run` | 只显示将写出的文件，不实际写盘、不改权限 |
+| `--report` | 打印转换报告（纯文本，stderr） |
+| `--report-json` | 以 JSON 格式打印转换报告（stderr，与 `--report` 互斥） |
 | `--fail-on-todo` | 存在 TODO 时返回 3 |
 | `-q, --quiet` | 静默 |
 
 退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在 TODO。
+`--diff` 在普通文件模式下输出到 stdout、`--print` 模式下输出到 stderr；报告类参数始终输出到 stderr。
+`--print` 与 `--dry-run` 同时给出时，`--print` 优先，`--dry-run` 被忽略。
 
 ### 4.3 设置项
 
