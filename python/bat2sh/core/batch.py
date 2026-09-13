@@ -96,6 +96,7 @@ def _restore_placeholders(line: str) -> str:
 
 _VARIABLE_MARKER = re.compile(r"[%!]")
 _ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
+_DELAYED_ERRORLEVEL_RE = re.compile(r"!ERRORLEVEL!", re.I)
 _DATE_TIME_VAR_RE = re.compile(r"(?<!%)%(?:DATE|TIME)%(?!%)", re.I)
 _IF_COMPARE_RE = re.compile(
     r'^\s*("(?:[^"]*)"|\S+?)\s*(===|==|equ|neq|lss|leq|gtr|geq)\s*'
@@ -311,7 +312,10 @@ class BatchConverter:
             if (
                 self.settings.last_exit_code == "map"
                 and not self._errorlevel_captured
-                and _ERRORLEVEL_VAR_RE.search(line)
+                and (
+                    _ERRORLEVEL_VAR_RE.search(line)
+                    or (self._delayed_expansion and _DELAYED_ERRORLEVEL_RE.search(line))
+                )
                 and self._has_effectful_command(produced)
             ):
                 self._errorlevel_captured = True
@@ -513,8 +517,12 @@ class BatchConverter:
                 self._function_mode = True
             if re.match(r"(?i)^setlocal\b.*enabledelayedexpansion", stripped):
                 self._delayed_expansion = True
-            if _ERRORLEVEL_VAR_RE.search(stripped) or re.match(
-                r"(?i)^@?\s*if\s+(?:/i\s+)?(?:not\s+)?errorlevel\b", stripped
+            if (
+                _ERRORLEVEL_VAR_RE.search(stripped)
+                or (self._delayed_expansion and _DELAYED_ERRORLEVEL_RE.search(stripped))
+                or re.match(
+                    r"(?i)^@?\s*if\s+(?:/i\s+)?(?:not\s+)?errorlevel\b", stripped
+                )
             ):
                 self._errorlevel_lines.add(number)
 
@@ -582,7 +590,21 @@ class BatchConverter:
 
         # 延迟展开 !var!
         if self._delayed_expansion:
-            text = re.sub(r"!([A-Za-z_]\w*)!", r"${\1}", text)
+            def delayed_repl(m: re.Match[str]) -> str:
+                name = m.group(1)
+                if name.upper() == "ERRORLEVEL":
+                    if self.settings.last_exit_code == "map":
+                        return "${__bat2sh_rc}"
+                    self._warn(
+                        lineno,
+                        "!ERRORLEVEL! 的转换可能不完全等价",
+                        text,
+                        category="variables",
+                    )
+                    return "${ERRORLEVEL}"
+                return "${%s}" % name
+
+            text = re.sub(r"!([A-Za-z_]\w*)!", delayed_repl, text)
 
         # %NAME%
         def env_repl(m: re.Match[str]) -> str:
@@ -697,7 +719,10 @@ class BatchConverter:
 
         if (
             self.settings.last_exit_code != "map"
-            and _ERRORLEVEL_VAR_RE.search(text)
+            and (
+                _ERRORLEVEL_VAR_RE.search(text)
+                or (self._delayed_expansion and _DELAYED_ERRORLEVEL_RE.search(text))
+            )
             and not re.match(r"(?i)^(?:rem\b|::)", text)
         ):
             return self._todo_block_line(
@@ -1399,7 +1424,9 @@ class BatchConverter:
             raw = source[1:-1].strip()
             if not raw:
                 return self._for_todo_lines(lineno, text, body, "for /f 的 '命令' 为空，请手工转换")
-            if _ERRORLEVEL_VAR_RE.search(raw):
+            if _ERRORLEVEL_VAR_RE.search(raw) or (
+                self._delayed_expansion and _DELAYED_ERRORLEVEL_RE.search(raw)
+            ):
                 return self._for_todo_lines(
                     lineno, text, body, "for /f 命令中的 %ERRORLEVEL% 无法保证捕获时机，请手工处理"
                 )

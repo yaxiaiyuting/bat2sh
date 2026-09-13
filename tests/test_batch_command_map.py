@@ -312,3 +312,39 @@ def test_pipeline_inside_for_f_command_todo(convert_bat):
     assert report.todo_count == 1
     assert "# TODO" in out
     assert "grep" not in out
+
+
+def test_delayed_errorlevel_warn_is_todo(convert_bat):
+    text = "@echo off\nsetlocal enabledelayedexpansion\nif !ERRORLEVEL! neq 0 echo fail\n"
+    out, report = convert_bat(text)
+    assert report.todo_count >= 1
+    assert "${ERRORLEVEL}" not in out
+    assert "__bat2sh_rc" not in out
+
+
+def test_delayed_errorlevel_map_uses_rc(convert_bat):
+    text = "@echo off\nsetlocal enabledelayedexpansion\nif !ERRORLEVEL! neq 0 echo fail\n"
+    out, report = convert_bat(text, last_exit_code="map")
+    assert "${__bat2sh_rc}" in out
+    assert "__bat2sh_rc=$?" in out
+    assert report.todo_count == 0
+
+
+def test_delayed_variable_still_expands(convert_bat):
+    text = '@echo off\nsetlocal enabledelayedexpansion\nset "X=1"\necho !X!\n'
+    out, _ = convert_bat(text)
+    assert 'echo "${X}"' in out
+    assert "!X!" not in out
+
+
+def test_delayed_errorlevel_map_runs(convert_bat, bash_run):
+    text = (
+        "@echo off\nsetlocal enabledelayedexpansion\ncmd /c exit 3\n"
+        "if !ERRORLEVEL! neq 0 echo failed\necho done\n"
+    )
+    out, report = convert_bat(text, last_exit_code="map", strict_mode=False)
+    assert report.todo_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert "failed" in proc.stdout
+    assert "done" in proc.stdout
