@@ -27,6 +27,8 @@ from .utils import (
     tokenize_args,
 )
 
+_DOLLAR_PLACEHOLDER = "\ue000"
+
 
 def _split_sequential(text: str) -> list[str]:
     """按顶层单个 ``&`` 切分命令（保留 &&、||、管道与重定向中的 &）。"""
@@ -995,6 +997,8 @@ class BatchConverter:
         redir_text = self._render_redirs(redirs, lineno)
         if not body.strip():
             return [self._c(redir_text)] if redir_text else []
+        if re.match(r"(?i)^@?\s*echo(?:\s|$)", body):
+            body = body.replace("$", _DOLLAR_PLACEHOLDER)
         expanded = self._expand_vars(body, lineno)
         tokens = tokenize_args(expanded)
         if not tokens:
@@ -1094,12 +1098,14 @@ class BatchConverter:
     def cmd_echo(self, lineno: int, args: str, original: str) -> str:
         text = convert_backslashes(self._expand_vars(args, lineno))
         if not text or text in (".", "(", ")"):
-            return "echo"
-        if is_fully_quoted(text):
-            return f"echo {text}"
-        if "$(" in text:
-            return f'echo "{text}"'
-        return f"echo {dq(text)}"
+            command = "echo"
+        elif is_fully_quoted(text):
+            command = f"echo {text}"
+        elif "$(" in text:
+            command = f'echo "{text}"'
+        else:
+            command = f"echo {dq(text)}"
+        return command.replace(_DOLLAR_PLACEHOLDER, "\\$")
 
     def cmd_pause(self, lineno: int, args: str, original: str) -> str:
         return guard_read('read -rp "Press Enter to continue..."', self.settings.strict_mode)

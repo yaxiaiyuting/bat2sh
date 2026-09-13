@@ -198,6 +198,32 @@ def test_echo_star_is_literal_no_nullglob(convert_bat):
     assert report.warning_count == 0
 
 
+def test_echo_escapes_literal_dollar(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho 价格 $100\n")
+    assert 'echo "价格 \\$100"' in out
+    assert report.warning_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "价格 $100\n"
+
+
+def test_echo_keeps_generated_variable_expansion(convert_bat, bash_run):
+    out, _ = convert_bat("@echo off\nset NAME=World\necho 你好 %NAME%\n")
+    assert 'echo "你好 ${NAME}"' in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "你好 World\n"
+
+
+def test_echo_escapes_user_braced_and_command_dollar(convert_bat, bash_run):
+    out, _ = convert_bat("@echo off\necho ${HOME}\necho $(date)\n")
+    assert 'echo "\\${HOME}"' in out
+    assert 'echo "\\$(date)"' in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "${HOME}\n$(date)\n"
+
+
 def test_for_nested_inner_loop_quotes_variable(convert_bat):
     out, report = convert_bat(
         "@echo off\nfor %%a in (*.txt) do (\n    for %%b in (%%a) do (\n"
