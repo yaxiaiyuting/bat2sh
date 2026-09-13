@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence
+from PySide6.QtCore import QProcess, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QSplitter,
@@ -41,12 +44,13 @@ from ..core.engine import (
 from ..core.recent import load_recent, save_recent, update_recent_list
 from ..core.settings import ConvertSettings, save_settings
 from ..core.types import ConvertReport, SourceKind, report_blocks
-from .dialogs import AboutDialog, DiffDialog, ReportDialog, SettingsDialog
+from .dialogs import AboutDialog, DiffDialog, ReportDialog, RunConfirmDialog, SettingsDialog
 from .editor import CodeEditor
 from .highlighter import highlighter_for
 from .theme import apply_theme, system_is_dark
 
 SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1", ".psm1")
+RUN_TIMEOUT_MS = 30_000
 
 
 def collect_script_paths(
@@ -83,6 +87,14 @@ def filter_new_paths(existing: set[Path], candidates: list[Path]) -> list[Path]:
     return fresh
 
 
+def needs_todo_confirmation(report: ConvertReport | None) -> bool:
+    return bool(report is not None and report.todo_count)
+
+
+def todo_display_lines(report: ConvertReport) -> list[str]:
+    return [diagnostic.format() for diagnostic in report.todos]
+
+
 @dataclass
 class SourceFile:
     path: Path
@@ -117,6 +129,10 @@ class MainWindow(QMainWindow):
         self._loading = False
         self._source_highlighter = None
         self._output_highlighter = None
+        self._run_process: QProcess | None = None
+        self._run_timer: QTimer | None = None
+        self._run_tmp_path: Path | None = None
+        self._run_timeout_hit = False
         app = QApplication.instance()
         self.dark = system_is_dark(app) if app is not None else False
 
@@ -177,6 +193,10 @@ class MainWindow(QMainWindow):
             "批量转换", self._icon("run-build", std.SP_FileDialogDetailedView),
             "Ctrl+Shift+R", self.batch_convert, "转换并保存列表中的全部文件",
         )
+        self.action_run = self._make_action(
+            "转换并运行", self._icon("media-playback-start", std.SP_MediaPlay),
+            "Ctrl+Shift+Return", self.run_current, "转换并在内嵌面板中运行（30 秒超时）",
+        )
         self.action_diff = self._make_action(
             "预览差异", self._icon("document-preview", std.SP_FileDialogContentsView),
             "Ctrl+D", self.open_diff, "对比源文件与转换结果",
@@ -230,6 +250,7 @@ class MainWindow(QMainWindow):
             self.action_convert,
             self.action_save,
             self.action_batch,
+            self.action_run,
             None,
             self.action_diff,
             self.action_report,
@@ -255,7 +276,39 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 1)
         splitter.setSizes([280, 620, 620])
-        self.setCentralWidget(splitter)
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.addWidget(splitter, 1)
+        layout.addWidget(self._build_run_panel())
+        self.setCentralWidget(container)
+
+    def _build_run_panel(self) -> QWidget:
+        self.run_panel = QGroupBox("运行输出")
+        layout = QVBoxLayout(self.run_panel)
+        header = QHBoxLayout()
+        self.run_status_label = QLabel("尚未运行")
+        self.run_status_label.setStyleSheet("color: palette(mid);")
+        self.run_toggle_button = QToolButton()
+        self.run_toggle_button.setText("展开")
+        self.run_toggle_button.setCheckable(True)
+        self.run_toggle_button.toggled.connect(self._toggle_run_panel)
+        header.addWidget(self.run_status_label, 1)
+        header.addWidget(self.run_toggle_button)
+        layout.addLayout(header)
+        self.run_output = QPlainTextEdit()
+        self.run_output.setReadOnly(True)
+        self.run_output.setPlaceholderText("运行输出将显示在这里")
+        self.run_output.setMinimumHeight(120)
+        self.run_output.setMaximumHeight(300)
+        self.run_output.hide()
+        layout.addWidget(self.run_output)
+        return self.run_panel
+
+    def _toggle_run_panel(self, expanded: bool) -> None:
+        self.run_output.setVisible(expanded)
+        self.run_toggle_button.setText("折叠" if expanded else "展开")
 
     def _build_left_panel(self) -> QWidget:
         box = QGroupBox("待转换文件")
@@ -590,6 +643,132 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"批量转换完成：成功 {saved} 个，失败 {len(errors)} 个")
 
     # ------------------------------------------------------------------
+    # 转换并运行
+    # ------------------------------------------------------------------
+    def run_current(self) -> None:
+        entry = self.current
+        if entry is None:
+            QMessageBox.information(self, "转换并运行", "请先打开并选择一个文件。")
+            return
+        if self._run_is_active():
+            QMessageBox.information(self, "转换并运行", "已有脚本正在运行，请等待其结束。")
+            return
+        if not entry.output_text or self.output_editor.toPlainText() != entry.output_text:
+            self.convert_current()
+        if not entry.output_text.strip():
+            QMessageBox.warning(self, "转换并运行", "转换结果为空，无法执行。")
+            return
+        if needs_todo_confirmation(entry.report):
+            body = "\n".join(todo_display_lines(entry.report))
+            todo_dialog = RunConfirmDialog(
+                "存在无法自动转换的语句",
+                f"以下 {entry.report.todo_count} 处需要人工检查，执行结果可能不正确：",
+                body,
+                "仍要执行",
+                self,
+            )
+            if todo_dialog.exec() != QDialog.DialogCode.Accepted:
+                self.status_label.setText("已取消执行")
+                return
+        preview_dialog = RunConfirmDialog(
+            "执行确认",
+            f"将执行以下脚本（工作目录：{entry.path.parent}）：",
+            entry.output_text,
+            "执行",
+            self,
+        )
+        if preview_dialog.exec() != QDialog.DialogCode.Accepted:
+            self.status_label.setText("已取消执行")
+            return
+        self._start_run(entry)
+
+    def _start_run(self, entry: SourceFile) -> None:
+        try:
+            with NamedTemporaryFile(
+                "w", suffix=".sh", delete=False, encoding="utf-8"
+            ) as handle:
+                handle.write(entry.output_text)
+        except OSError as exc:
+            QMessageBox.critical(self, "执行失败", f"无法创建临时脚本: {exc}")
+            return
+        self._run_tmp_path = Path(handle.name)
+        self._run_timeout_hit = False
+        process = QProcess(self)
+        process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        process.setWorkingDirectory(str(entry.path.parent))
+        process.setProgram("bash")
+        process.setArguments([str(self._run_tmp_path)])
+        process.readyReadStandardOutput.connect(self._on_run_output)
+        process.finished.connect(self._on_run_finished)
+        process.errorOccurred.connect(self._on_run_process_error)
+        self._run_process = process
+        self._run_timer = QTimer(self)
+        self._run_timer.setSingleShot(True)
+        self._run_timer.timeout.connect(self._on_run_timeout)
+        self.run_output.clear()
+        self.run_toggle_button.setChecked(True)
+        self.run_status_label.setText(f"运行中：{entry.path.name}")
+        self.status_label.setText(f"正在运行 {entry.path.name} …")
+        self._run_timer.start(RUN_TIMEOUT_MS)
+        process.start()
+
+    def _on_run_output(self) -> None:
+        process = self._run_process
+        if process is None:
+            return
+        data = bytes(process.readAllStandardOutput())
+        if not data:
+            return
+        self.run_output.moveCursor(QTextCursor.MoveOperation.End)
+        self.run_output.insertPlainText(data.decode("utf-8", errors="replace"))
+        self.run_output.ensureCursorVisible()
+
+    def _on_run_finished(self, exit_code: int, exit_status) -> None:
+        if self._run_timer is not None:
+            self._run_timer.stop()
+        self._on_run_output()
+        if self._run_timeout_hit:
+            summary = f"运行超时（{RUN_TIMEOUT_MS // 1000} 秒），已终止"
+        elif exit_status == QProcess.ExitStatus.CrashExit:
+            summary = f"进程被强制终止（退出码 {exit_code}）"
+        else:
+            summary = f"运行结束：退出码 {exit_code}"
+        self.run_status_label.setText(summary)
+        self.status_label.setText(summary)
+        self.run_output.appendPlainText(f"[{summary}]")
+        self._cleanup_run_tmp()
+
+    def _on_run_timeout(self) -> None:
+        process = self._run_process
+        if process is None or process.state() == QProcess.ProcessState.NotRunning:
+            return
+        self._run_timeout_hit = True
+        process.kill()
+
+    def _on_run_process_error(self, error) -> None:
+        if error != QProcess.ProcessError.FailedToStart:
+            return
+        if self._run_timer is not None:
+            self._run_timer.stop()
+        summary = "启动失败：无法执行 bash"
+        self.run_status_label.setText(summary)
+        self.status_label.setText(summary)
+        self.run_output.appendPlainText(f"[{summary}]")
+        self._cleanup_run_tmp()
+
+    def _run_is_active(self) -> bool:
+        process = self._run_process
+        return process is not None and process.state() != QProcess.ProcessState.NotRunning
+
+    def _cleanup_run_tmp(self) -> None:
+        if self._run_tmp_path is not None:
+            try:
+                self._run_tmp_path.unlink()
+            except OSError:
+                pass
+            self._run_tmp_path = None
+
+    # ------------------------------------------------------------------
     # 对话框
     # ------------------------------------------------------------------
     def open_files(self) -> None:
@@ -699,6 +878,7 @@ class MainWindow(QMainWindow):
         for action in (
             self.action_convert,
             self.action_save,
+            self.action_run,
             self.action_convert_save,
             self.action_diff,
             self.action_report,
@@ -709,5 +889,8 @@ class MainWindow(QMainWindow):
         self.action_clear.setEnabled(self.file_list.count() > 0)
 
     def closeEvent(self, event) -> None:
+        if self._run_is_active():
+            self._run_process.kill()
+        self._cleanup_run_tmp()
         save_settings(self.settings)
         super().closeEvent(event)

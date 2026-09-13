@@ -305,6 +305,37 @@ class ReportDialog(QDialog):
         layout.addWidget(buttons)
 
 
+class RunConfirmDialog(QDialog):
+    def __init__(
+        self,
+        title: str,
+        header: str,
+        body: str,
+        confirm_text: str = "执行",
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(860, 620)
+        layout = QVBoxLayout(self)
+        header_label = QLabel(header)
+        header_label.setWordWrap(True)
+        layout.addWidget(header_label)
+        self.viewer = QPlainTextEdit()
+        self.viewer.setReadOnly(True)
+        self.viewer.setPlainText(body)
+        layout.addWidget(self.viewer, 1)
+        buttons = QDialogButtonBox()
+        confirm_button = buttons.addButton(
+            confirm_text, QDialogButtonBox.ButtonRole.AcceptRole
+        )
+        buttons.addButton("取消", QDialogButtonBox.ButtonRole.RejectRole)
+        confirm_button.setDefault(True)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+
 class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
