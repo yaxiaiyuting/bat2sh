@@ -258,6 +258,7 @@ bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
 | `$x = $x + 1` | `x=$(( ${x:-0} + 1 ))` |
 | 数组 `@(...)` / `$x += item` | `x=( ... )` / `x+=( item )` |
 | `exit/return/throw/break/continue` | `exit`/`return`/`echo ... >&2; exit 1`/`break`/`continue` |
+| `Where-Object { $_.Prop -eq "v" }`（简单条件） | `grep -F 'v'`（`-like`→`grep -E` 正则、`-match`→`grep -E`；近似并加行内 `# 近似:` 注释） |
 | 管道 `\|` + `Select-String`/`Sort-Object`/`Measure-Object`/`Out-File`/`Tee-Object`/`Out-Null` | `grep`/`sort`/`wc`/`> file`/`tee`/`>/dev/null` |
 | `*exe`、`. ./x.ps1` 点源 | 去掉 `.exe`、`source ./x.sh`（告警） |
 
@@ -435,9 +436,12 @@ echo "清理完成"
 
 ### 8.2 PowerShell
 
-1. **对象管道**：`Where-Object`、`ForEach-Object`、`Select-Object`（除 `-First/-Last`）、
-   `Group-Object`、`Get-Member`、`Format-Table/List`、`ConvertTo/From-Json` 等
-   依赖对象模型 → TODO（建议改用 `grep/awk/jq`）。
+1. **对象管道**：`Where-Object` 的简单条件（单个属性或 `$_` 的 `-eq`/`-ne`/`-like`/
+   `-match`）已近似转换为 `grep`，并在生成脚本中以 `# 近似: ...` 行内注释标明；
+   `-gt`/`-lt`、多条件（`-and`/`-or`）、方法调用等复杂条件，以及 `ForEach-Object`、
+   `Select-Object`（除 `-First/-Last`）、`Group-Object`、`Get-Member`、
+   `Format-Table/List`、`ConvertTo/From-Json` 等仍依赖对象模型 → TODO
+   （建议改用 `grep/awk/jq`）。
 2. **`try/catch/finally`**：仅保留控制结构（`if true; then ... else ... fi` + 注释），
    无真正的异常语义；建议配合脚本头 `set -e` 并手工整理错误处理。
 3. **`switch`**：整块注释为 TODO。

@@ -228,26 +228,67 @@ def test_ps_date_token_mapping_unit():
 # ----------------------------------------------------------------------
 # 对象管道（阶段 3 的 2.2 目标）
 # ----------------------------------------------------------------------
-def test_where_object_pipeline_todo(convert_ps):
+def test_where_object_pipeline_eq(convert_ps):
     out, report = convert_ps(
         'Get-ChildItem "/tmp" | Where-Object { $_.Name -eq "a.txt" }\n'
     )
-    assert "# TODO: 手动检查" in out
-    assert report.todo_count == 1
-    assert "对象管道（脚本块）无法自动转换" in report.todos[0].message
+    assert "grep -F -- 'a.txt'" in out
+    assert "# 近似: 按整行文本匹配，无法还原 $_.Name 属性语义" in out
+    assert report.todo_count == 0
+    assert report.warning_count == 1
 
 
-def test_where_object_unbraced_todo(convert_ps):
+def test_where_object_pipeline_ne(convert_ps):
+    out, report = convert_ps(
+        'Get-ChildItem "/tmp" | Where-Object { $_.Name -ne "skip" }\n'
+    )
+    assert "grep -Fv -- 'skip'" in out
+    assert report.todo_count == 0
+
+
+def test_where_object_unbraced_like(convert_ps):
     out, report = convert_ps('Get-ChildItem "/tmp" | Where-Object Name -like "*.log"\n')
+    assert "grep -E -- '.*\\.log'" in out
+    assert "# 近似: 按整行文本匹配，无法还原 $_.Name 属性语义" in out
+    assert report.todo_count == 0
+
+
+def test_where_object_whole_line_match(convert_ps):
+    out, report = convert_ps(
+        'Get-Content "/tmp/a.log" | Where-Object { $_ -match "ERROR" }\n'
+    )
+    assert "grep -E -- 'ERROR'" in out
+    assert "无法还原 $_ 属性语义" in out
+    assert report.todo_count == 0
+
+
+def test_where_object_complex_todo(convert_ps):
+    out, report = convert_ps(
+        'Get-ChildItem "/tmp" | Where-Object { $_.Length -gt 10 -and $_.Name -like "*.log" }\n'
+    )
     assert "# TODO: 手动检查" in out
     assert report.todo_count == 1
 
 
-def test_where_object_standalone_double_todo(convert_ps):
-    # 锁定当前行为：独立 Where-Object 会产生两条 TODO 诊断（阶段 3 一并处理）
+def test_where_object_null_value_todo(convert_ps):
+    out, report = convert_ps(
+        'Get-ChildItem "/tmp" | Where-Object { $_.Name -eq $null }\n'
+    )
+    assert report.todo_count == 1
+
+
+def test_where_object_standalone_single_todo(convert_ps):
     out, report = convert_ps('Where-Object { $_.Name -eq "a" }\n')
     assert "# TODO: 手动检查" in out
-    assert report.todo_count == 2
+    assert report.todo_count == 1
+    assert "需要管道输入" in report.todos[0].message
+
+
+def test_where_object_pipeline_bash_n(convert_ps, bash_check):
+    out, _ = convert_ps(
+        'Get-ChildItem "/tmp" | Where-Object { $_.Name -like "*.log" }\n'
+    )
+    bash_check(out)
 
 
 # ----------------------------------------------------------------------
@@ -317,12 +358,13 @@ def test_pipeline_select_object_first(convert_ps):
     assert 'ls -la "/tmp" | head -n 3' in out
 
 
-def test_pipeline_mixed_todo(convert_ps):
+def test_pipeline_mixed_converts(convert_ps):
     out, report = convert_ps(
         'Get-ChildItem "/tmp" | Where-Object { $_ -match "log" } | Sort-Object\n'
     )
-    assert "# TODO: 手动检查" in out
-    assert report.todo_count == 1
+    assert "grep -E -- 'log' | sort" in out
+    assert report.todo_count == 0
+    assert report.warning_count == 2
 
 
 # ----------------------------------------------------------------------

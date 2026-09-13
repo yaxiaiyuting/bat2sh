@@ -26,7 +26,9 @@ from .utils import (
     needs_nullglob,
     resolve_named_args,
     sanitize_identifier,
+    simple_glob_to_regex,
     split_top_level,
+    sq,
     strip_leading_attributes,
     strip_outer_quotes,
     tokenize_args,
@@ -67,6 +69,7 @@ class PowerShellConverter:
         self._array_vars: set[str] = set()
         self._todo_reason = ""
         self._current_cmdlet = ""
+        self._pipe_comments: list[str] = []
 
     # ------------------------------------------------------------------
     # 对外入口
@@ -677,6 +680,10 @@ class PowerShellConverter:
         # 普通 cmdlet / 命令
         line = self._convert_cmdlet_line(lineno, text)
         if line is None:
+            if self.report.todos and self.report.todos[-1].message.startswith(
+                "手动检查: Where-Object"
+            ):
+                return [self._c("# TODO: 手动检查: " + text)]
             return [self._c(self._todo(lineno, text))]
         return [self._c(line)]
 
@@ -1304,9 +1311,7 @@ class PowerShellConverter:
     # ------------------------------------------------------------------
     def _emit_pipeline(self, lineno: int, text: str) -> list[str]:
         segments = [s.strip() for s in split_top_level(text, "|")]
-        if any("{" in seg for seg in segments) or any("$_" in seg for seg in segments):
-            self._todo(lineno, text, "对象管道（脚本块）无法自动转换")
-            return [self._c("# TODO: 手动检查: " + text)]
+        self._pipe_comments = []
         pieces: list[str] = []
         redirect = ""
         for index, segment in enumerate(segments):
@@ -1331,6 +1336,8 @@ class PowerShellConverter:
         line = " | ".join(pieces)
         if redirect:
             line += " " + redirect
+        if self._pipe_comments:
+            line += "  # " + "；".join(self._pipe_comments)
         return [self._c(line)]
 
     def _convert_pipe_filter(self, lineno: int, segment: str) -> tuple[str | None, bool]:
@@ -1407,11 +1414,73 @@ class PowerShellConverter:
                 if a.lower() == "-last" and i + 1 < len(args):
                     return f"tail -n {args[i + 1]}", False
             return None, False
-        if low in ("where-object", "foreach-object", "convertto-json", "convertfrom-json",
+        if low == "where-object":
+            return self._convert_where_object(lineno, segment), False
+        if low in ("foreach-object", "convertto-json", "convertfrom-json",
                    "get-member", "format-table", "format-list", "out-string", "get-unique"):
             return None, False
         converted = self._convert_cmdlet_line(lineno, segment)
         return converted, False
+
+    _WHERE_BLOCK_RE = re.compile(
+        r"(?i)^\{\s*\$_(?:\.([A-Za-z_]\w*))?\s*"
+        r"(-(?:eq|ne|like|notlike|match|notmatch))\s+"
+        r"(\"[^\"]*\"|'[^']*'|\S+?)\s*\}$"
+    )
+    _WHERE_PLAIN_RE = re.compile(
+        r"(?i)^(?:-Property\s+)?([A-Za-z_]\w*)\s*"
+        r"(-(?:eq|ne|like|notlike|match|notmatch))\s+"
+        r"(\"[^\"]*\"|'[^']*'|\S+)$"
+    )
+
+    def _convert_where_object(self, lineno: int, segment: str) -> str | None:
+        tokens = tokenize_args(segment)
+        if not tokens:
+            return None
+        args = segment[len(tokens[0]):].strip()
+        whole_line = True
+        m = self._WHERE_BLOCK_RE.match(args)
+        if m:
+            property_name = m.group(1) or ""
+            whole_line = not property_name
+            op = m.group(2).lower()
+            raw_value = m.group(3)
+        else:
+            m = self._WHERE_PLAIN_RE.match(args)
+            if not m:
+                return None
+            whole_line = False
+            property_name = m.group(1)
+            op = m.group(2).lower()
+            raw_value = m.group(3)
+        if raw_value.startswith("$"):
+            return None
+        value, _ = strip_outer_quotes(raw_value)
+        if not value:
+            return None
+        if op in ("-eq", "-ne"):
+            command = "grep -Fv" if op == "-ne" else "grep -F"
+            pattern = sq(value)
+        elif op in ("-like", "-notlike"):
+            regex = simple_glob_to_regex(value)
+            if whole_line:
+                regex = "^" + regex + "$"
+            command = "grep -Ev" if op == "-notlike" else "grep -E"
+            pattern = sq(regex)
+        else:
+            command = "grep -Ev" if op == "-notmatch" else "grep -E"
+            pattern = sq(value)
+        scope = "整行" if whole_line else f"属性 {property_name} "
+        source = "$_" if whole_line else "$_." + property_name
+        self._pipe_comments.append(
+            f"近似: 按整行文本匹配，无法还原 {source} 属性语义"
+        )
+        self._warn(
+            lineno,
+            f"Where-Object 的{scope}条件已近似转换为 {command}，无法还原对象/类型语义，请核对",
+            segment,
+        )
+        return f"{command} -- {pattern}"
 
     # ------------------------------------------------------------------
     # cmdlet 语句
@@ -1428,7 +1497,9 @@ class PowerShellConverter:
         low = name.lower()
         args = tokens[1:]
         self._current_cmdlet = low
-        if re.search(r"\$\{?\w+\}?\.[A-Z]\w*", text) or re.search(r"\]\s*::", text):
+        if low != "where-object" and (
+            re.search(r"\$\{?\w+\}?\.[A-Z]\w*", text) or re.search(r"\]\s*::", text)
+        ):
             self._todo(lineno, text, "对象属性 / .NET 静态调用无法自动转换")
             return None
         if low in rules.PS_HANDLER_MAP:
@@ -1990,7 +2061,12 @@ class PowerShellConverter:
         return None
 
     def cmd_where_object(self, lineno: int, args: list[str], original: str) -> str | None:
-        self._todo(lineno, original, "Where-Object（对象筛选）无法自动转换，请改用 grep/awk")
+        self._todo(
+            lineno,
+            original,
+            "Where-Object 需要管道输入，无法单独转换；"
+            "简单条件可写成 Get-ChildItem ... | Where-Object { $_.X -eq \"v\" }",
+        )
         return None
 
     def cmd_foreach_object(self, lineno: int, args: list[str], original: str) -> str | None:
