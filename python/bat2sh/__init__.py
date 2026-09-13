@@ -3,7 +3,7 @@
 仅依赖 Python 标准库；图形界面额外依赖 PySide6（仅在 GUI 模块导入）。
 """
 
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 
 APP_NAME = "bat2sh"
 APP_ID = "io.github.bat2sh"
