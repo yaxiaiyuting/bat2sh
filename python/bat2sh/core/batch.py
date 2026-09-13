@@ -97,6 +97,7 @@ def _restore_placeholders(line: str) -> str:
 _VARIABLE_MARKER = re.compile(r"[%!]")
 _ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
 _DELAYED_ERRORLEVEL_RE = re.compile(r"!ERRORLEVEL!", re.I)
+_UNSUPPORTED_MODIFIER_RE = re.compile(r"%~([a-zA-Z$]+)([0-9*A-Za-z])")
 _DATE_TIME_VAR_RE = re.compile(r"(?<!%)%(?:DATE|TIME)%(?!%)", re.I)
 _IF_COMPARE_RE = re.compile(
     r'^\s*("(?:[^"]*)"|\S+?)\s*(===|==|equ|neq|lss|leq|gtr|geq)\s*'
@@ -731,6 +732,22 @@ class BatchConverter:
                 text,
                 "warn 策略：%ERRORLEVEL% 的等价性无法保证，可改用 --last-exit-code map",
                 "errorlevel",
+            )
+
+        modifier = _UNSUPPORTED_MODIFIER_RE.search(text)
+        if (
+            modifier is not None
+            and not re.match(r"(?i)^(?:rem\b|::)", text)
+            and (
+                "$" in modifier.group(1)
+                or re.search(r"(?i)[satz]", modifier.group(1))
+            )
+        ):
+            return self._todo_block_line(
+                lineno,
+                text,
+                f"修饰符 {modifier.group(0)} 为 Windows 特有（短名/属性/时间/大小/路径搜索），Linux 无对应，请手工处理",
+                "params",
             )
 
         if text == "(":

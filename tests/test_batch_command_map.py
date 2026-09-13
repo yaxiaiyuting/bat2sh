@@ -6,6 +6,8 @@ import hashlib
 import re
 from pathlib import Path
 
+import pytest
+
 
 def test_certutil_md5_maps_and_runs(convert_bat, bash_run, tmp_path: Path):
     target = tmp_path / "data.txt"
@@ -415,3 +417,38 @@ def test_unicode_name_collision_warns(convert_bat):
     )
     out, report = convert_bat(text)
     assert any("重命名后同名" in d.message for d in report.warnings)
+
+
+def test_short_name_modifier_is_todo(convert_bat):
+    out, report = convert_bat("@echo off\necho 短名: %~s0\n")
+    assert report.todo_count == 1
+    assert "# TODO" in out
+    assert "%s0" not in out
+
+
+@pytest.mark.parametrize("modifier", ["a", "t", "z"])
+def test_other_unsupported_modifiers_are_todo(modifier, convert_bat):
+    out, report = convert_bat(f"@echo off\necho x: %~{modifier}0\n")
+    assert report.todo_count == 1
+    assert f"%{modifier}0" not in out
+
+
+def test_supported_modifiers_still_convert(convert_bat):
+    out, report = convert_bat("@echo off\necho %~dp0\necho %~nx0\necho %~f1\n")
+    assert report.todo_count == 0
+    assert "${SCRIPT_DIR}/" in out
+    assert '$(basename "$0")' in out
+    assert '$(readlink -f "$1")' in out
+
+
+def test_path_search_modifier_is_todo(convert_bat):
+    out, report = convert_bat("@echo off\necho %~$PATH:notepad\n")
+    assert report.todo_count == 1
+    assert "# TODO" in out
+
+
+def test_loop_var_unsupported_modifier_is_todo(convert_bat):
+    text = "@echo off\nfor %%f in (a) do echo 大小: %%~zf\n"
+    out, report = convert_bat(text)
+    assert report.todo_count == 1
+    assert "${f}" not in out
