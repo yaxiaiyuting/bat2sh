@@ -73,3 +73,12 @@ def test_save_load_delete_presets_roundtrip(tmp_path, monkeypatch):
     assert preset_to_dict(load_presets()["alpha"]) == preset_to_dict(overwritten)
     delete_preset("beta")
     assert set(load_presets()) == {"alpha"}
+
+
+def test_last_exit_code_preset_roundtrip():
+    settings = ConvertSettings(last_exit_code="map")
+    data = preset_to_dict(settings)
+    assert data["last_exit_code"] == "map"
+    assert preset_from_dict(data).last_exit_code == "map"
+    assert preset_from_dict({"last_exit_code": "bogus"}).last_exit_code == "warn"
+    assert preset_from_dict({}).last_exit_code == "warn"

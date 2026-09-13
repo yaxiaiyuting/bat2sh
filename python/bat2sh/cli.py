@@ -39,6 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-quote-vars", action="store_true", help="变量不强制加双引号")
     parser.add_argument("--no-strict", action="store_true", help="不添加 set -euo pipefail")
+    parser.add_argument(
+        "--last-exit-code",
+        choices=["warn", "map"],
+        default="warn",
+        help="处理 PowerShell $LASTEXITCODE 的策略（默认 warn）："
+        "warn = 生成 TODO 提示手工复核；"
+        "map = 近似映射为 bash $?（首次捕获到 __bat2sh_rc）",
+    )
     parser.add_argument("--encoding", help="强制指定输入编码（默认自动检测）")
     parser.add_argument("--no-overwrite", action="store_true", help="输出已存在时拒绝覆盖")
     parser.add_argument("--print", dest="print_only", action="store_true", help="只输出到 stdout，不写文件")
@@ -69,6 +77,7 @@ def settings_from_args(args: argparse.Namespace) -> ConvertSettings:
         indent=indent,
         quote_variables=not args.no_quote_vars,
         strict_mode=not args.no_strict,
+        last_exit_code=args.last_exit_code,
         overwrite=not args.no_overwrite,
     )
 

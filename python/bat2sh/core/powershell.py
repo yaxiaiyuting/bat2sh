@@ -39,6 +39,7 @@ _COMPARE_OP_RE = re.compile(r"(?<![\w-])(-eq|-ne|-gt|-lt|-ge|-le|-ceq|-cne|-ieq|
 _LIKE_OP_RE = re.compile(r"(?<![\w-])(-like|-notlike|-clike|-ilike)(?![\w-])", re.I)
 _MATCH_OP_RE = re.compile(r"(?<![\w-])(-match|-notmatch|-cmatch|-imatch)(?![\w-])", re.I)
 _LOGIC_OP_RE = re.compile(r"(?<![\w-])(-and|-or|-not|-xor)(?![\w-])", re.I)
+_LASTEXITCODE_RE = re.compile(r"(?i)\$\{LASTEXITCODE\}|\$LASTEXITCODE\b")
 
 
 @dataclass
@@ -80,6 +81,8 @@ class PowerShellConverter:
         self._try_lineno = 0
         self._try_depth = 0
         self._try_inline_pending = False
+        self._rc_captured = False
+        self._rc_scope: _Block | None = None
 
     # ------------------------------------------------------------------
     # 对外入口
@@ -333,6 +336,9 @@ class PowerShellConverter:
         if m:
             name = m.group(1)
             low = name.lower()
+            if low == "lastexitcode":
+                self._last_exit_code_safe_ref(name, result, lineno)
+                return m.end()
             if low in rules.PS_AUTOMATIC_VARS or low in rules.PS_TODO_VARS:
                 self._automatic_var(name, result, lineno)
                 return m.end()
@@ -420,13 +426,8 @@ class PowerShellConverter:
     def _automatic_var(self, name: str, result: list[str], lineno: int) -> int:
         low = name.lower()
         if low == "lastexitcode":
-            self._warn(
-                lineno,
-                "bash 的 $? 只反映紧邻上一条命令的退出码，"
-                "与 PowerShell 的 $LASTEXITCODE 语义不同，请人工确认",
-                f"${name}",
-                category="errorlevel",
-            )
+            self._last_exit_code_safe_ref(name, result, lineno)
+            return 1 + len(name)
         if low in rules.PS_AUTOMATIC_VARS:
             mapped = rules.PS_AUTOMATIC_VARS[low]
             result.append(mapped)
@@ -439,6 +440,148 @@ class PowerShellConverter:
             return 1 + len(name)
         result.append(self._canonical(name))
         return 1 + len(name)
+
+    def _replace_last_exit_code(self, text: str, replacement: str) -> tuple[str, bool]:
+        """替换单引号外的 $LASTEXITCODE / ${LASTEXITCODE}；返回 (文本, 是否命中)。"""
+        result: list[str] = []
+        i = 0
+        n = len(text)
+        quote = ""
+        found = False
+        while i < n:
+            c = text[i]
+            if quote == "'":
+                if c == "'" and not text.startswith("''", i):
+                    quote = ""
+                result.append(c)
+                i += 1
+                continue
+            if quote == '"':
+                if c == "`" and i + 1 < n:
+                    result.append(c)
+                    result.append(text[i + 1])
+                    i += 2
+                    continue
+                if c == '"':
+                    quote = ""
+                    result.append(c)
+                    i += 1
+                    continue
+                if c == "$":
+                    m = _LASTEXITCODE_RE.match(text, i)
+                    if m:
+                        result.append(replacement)
+                        found = True
+                        i = m.end()
+                        continue
+                result.append(c)
+                i += 1
+                continue
+            if c in "\"'":
+                quote = c
+                result.append(c)
+                i += 1
+                continue
+            if c == "$":
+                m = _LASTEXITCODE_RE.match(text, i)
+                if m:
+                    result.append(replacement)
+                    found = True
+                    i = m.end()
+                    continue
+            result.append(c)
+            i += 1
+        return "".join(result), found
+
+    def _enclosing_function_block(self) -> "_Block | None":
+        for block in reversed(self._stack):
+            if block.kind == "function":
+                return block
+        return None
+
+    def _emit_last_exit_code_warn(self, lineno: int, text: str) -> list[str]:
+        header = self._match_condition_header(text)
+        if header is not None:
+            keyword, _cond, inline, block_open = header
+            self._todo(
+                lineno,
+                text,
+                "$LASTEXITCODE 条件已置为 false（warn 策略，语义与 bash $? 不同）",
+                category="errorlevel",
+            )
+            lines = self._emit_condition_block(
+                lineno, text, keyword, "false", inline, block_open
+            )
+            if lines:
+                lines[0] += "  # TODO: 手动检查 $LASTEXITCODE 条件"
+            return lines
+        return [
+            self._c(
+                self._todo(
+                    lineno,
+                    text,
+                    "warn 策略：$LASTEXITCODE 无法安全映射，请人工处理",
+                    category="errorlevel",
+                )
+            )
+        ]
+
+    def _emit_last_exit_code_map(self, lineno: int, text: str) -> list[str]:
+        replaced, _ = self._replace_last_exit_code(text, "${__bat2sh_rc}")
+        scope = self._enclosing_function_block()
+        prefix: list[str] = []
+        if not self._rc_captured:
+            self._rc_captured = True
+            self._rc_scope = scope
+            prefix = [
+                self._c("# 近似: $LASTEXITCODE 在首次引用处捕获为 __bat2sh_rc（$? 语义相近）"),
+                self._c("__bat2sh_rc=$?"),
+            ]
+            self._warn(
+                lineno,
+                "map 策略：$LASTEXITCODE 已近似映射为 __bat2sh_rc（首次引用处捕获 $?），请人工复核",
+                text,
+                category="errorlevel",
+            )
+        elif scope is not self._rc_scope:
+            self._warn(
+                lineno,
+                "map 策略：跨函数/跨作用域的 $LASTEXITCODE 无法确定捕获点，已退回 warn",
+                text,
+                category="errorlevel",
+            )
+            return [
+                self._c(
+                    self._todo(
+                        lineno,
+                        text,
+                        "跨作用域，已退回 warn",
+                        category="errorlevel",
+                    )
+                )
+            ]
+        return prefix + self._convert_statement(lineno, replaced)
+
+    def _last_exit_code_safe_ref(self, name: str, result: list[str], lineno: int) -> None:
+        """语句级拦截之外的兜底（如 here-string 插值）：安全引用 + 告警。"""
+        if self.settings.last_exit_code == "map":
+            result.append("${__bat2sh_rc:-}")
+            self._warn(
+                lineno,
+                "map 策略：此处（如 here-string 插值）无法插入 __bat2sh_rc 捕获，"
+                "已用安全引用 ${__bat2sh_rc:-}，请人工确认",
+                f"${name}",
+                category="errorlevel",
+            )
+        else:
+            result.append("${LASTEXITCODE:-}")
+            self._warn(
+                lineno,
+                "warn 策略：此处（如 here-string 插值）无法整行替换为 TODO，"
+                "已用安全空值 ${LASTEXITCODE:-}，请人工确认",
+                f"${name}",
+                category="errorlevel",
+            )
 
     def _convert_subexpression(self, inner: str, lineno: int) -> str:
         inner = inner.strip()
@@ -744,6 +887,12 @@ class PowerShellConverter:
         # 注释
         if text.startswith("#"):
             return [self._c(text)]
+
+        _, has_last_exit = self._replace_last_exit_code(text, "")
+        if has_last_exit:
+            if self.settings.last_exit_code == "map":
+                return self._emit_last_exit_code_map(lineno, text)
+            return self._emit_last_exit_code_warn(lineno, text)
 
         # 块头
         header = self._match_condition_header(text)

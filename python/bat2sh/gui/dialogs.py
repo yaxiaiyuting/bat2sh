@@ -107,6 +107,11 @@ class SettingsDialog(QDialog):
         self.strict_check = QCheckBox("严格模式：脚本开头添加 set -euo pipefail")
         form.addRow("", self.strict_check)
 
+        self.last_exit_combo = QComboBox()
+        self.last_exit_combo.addItem("warn（保守，生成 TODO）", "warn")
+        self.last_exit_combo.addItem("map（近似映射为 $?）", "map")
+        form.addRow("$LASTEXITCODE 策略", self.last_exit_combo)
+
         self.theme_combo = QComboBox()
         self.theme_combo.addItem("跟随系统", "system")
         self.theme_combo.addItem("浅色", "light")
@@ -149,6 +154,8 @@ class SettingsDialog(QDialog):
         self.indent_combo.setCurrentIndex(max(0, index))
         self.quote_check.setChecked(settings.quote_variables)
         self.strict_check.setChecked(settings.strict_mode)
+        exit_index = self.last_exit_combo.findData(settings.last_exit_code)
+        self.last_exit_combo.setCurrentIndex(max(0, exit_index))
         theme_index = self.theme_combo.findData(settings.theme)
         self.theme_combo.setCurrentIndex(max(0, theme_index))
 
@@ -203,6 +210,7 @@ class SettingsDialog(QDialog):
             indent=INDENT_CHOICES[self.indent_combo.currentText()],
             quote_variables=self.quote_check.isChecked(),
             strict_mode=self.strict_check.isChecked(),
+            last_exit_code=self.last_exit_combo.currentData(),
             theme=self.theme_combo.currentData(),
             last_dir=self._settings.last_dir,
         )

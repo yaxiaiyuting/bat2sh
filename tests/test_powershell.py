@@ -243,19 +243,68 @@ def test_get_date_plain(convert_ps):
     assert report.warning_count == 0
 
 
-def test_lastexitcode_warns_semantics(convert_ps):
+def test_lastexitcode_default_warn_replaces_line(convert_ps, bash_check):
     out, report = convert_ps("Write-Host $LASTEXITCODE\n")
-    assert report.warning_count == 1
-    assert report.warnings[0].category == "errorlevel"
-    assert "LASTEXITCODE" in report.warnings[0].message
-    assert 'echo "${LASTEXITCODE}"' in out
+    assert report.todo_count == 1
+    assert report.todos[0].category == "errorlevel"
+    assert "LASTEXITCODE" in report.todos[0].message
+    assert "${LASTEXITCODE}" not in out
+    assert "# TODO: 手动检查: Write-Host $LASTEXITCODE" in out
+    assert report.warning_count == 0
+    bash_check(out)
 
 
-def test_lastexitcode_in_condition_warns(convert_ps):
+def test_lastexitcode_in_condition_default_warn(convert_ps, bash_check):
     out, report = convert_ps("if ($LASTEXITCODE -eq 0) { Write-Host 'ok' }\n")
+    assert report.todo_count == 1
+    assert report.todos[0].category == "errorlevel"
+    assert "${LASTEXITCODE}" not in out
+    assert "if [[ false ]]; then  # TODO: 手动检查 $LASTEXITCODE 条件" in out
+    bash_check(out)
+
+
+def test_lastexitcode_map_captures_once_and_reuses(convert_ps, bash_check):
+    out, report = convert_ps(
+        "$rc = $LASTEXITCODE\nWrite-Host $LASTEXITCODE\n", last_exit_code="map"
+    )
+    assert out.count("__bat2sh_rc=$?") == 1
+    assert "${__bat2sh_rc}" in out
+    assert "${LASTEXITCODE}" not in out
+    assert "# 近似: $LASTEXITCODE" in out
+    assert report.todo_count == 0
     assert report.warning_count == 1
-    assert report.warnings[0].category == "errorlevel"
-    assert "LASTEXITCODE" in report.warnings[0].message
+    bash_check(out)
+
+
+def test_lastexitcode_map_double_reference_same_variable(convert_ps, bash_check):
+    out, report = convert_ps(
+        "if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 2) { Write-Host 'ok' }\n",
+        last_exit_code="map",
+    )
+    assert out.count("__bat2sh_rc=$?") == 1
+    assert out.count("${__bat2sh_rc:-}") == 2
+    assert "${LASTEXITCODE}" not in out
+    bash_check(out)
+
+
+def test_lastexitcode_map_runs_under_set_u(convert_ps, bash_run):
+    out, _ = convert_ps(
+        'Write-Host "start"\nWrite-Host $LASTEXITCODE\n', last_exit_code="map"
+    )
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines() == ["start", "0"]
+
+
+def test_lastexitcode_in_condition_map(convert_ps, bash_check):
+    out, report = convert_ps(
+        "if ($LASTEXITCODE -eq 0) { Write-Host 'ok' }\n", last_exit_code="map"
+    )
+    assert "__bat2sh_rc=$?" in out
+    assert "[[ ${__bat2sh_rc:-} = 0 ]]" in out
+    assert "${LASTEXITCODE}" not in out
+    assert report.todo_count == 0
+    bash_check(out)
 
 
 def test_lastexitcode_key_is_not_camelcase():

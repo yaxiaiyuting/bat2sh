@@ -36,6 +36,7 @@ class ConvertSettings:
     indent: str = "    "
     quote_variables: bool = True
     strict_mode: bool = True
+    last_exit_code: str = "warn"  # PowerShell $LASTEXITCODE 策略: warn | map
 
     # 界面
     theme: str = "system"
@@ -50,6 +51,8 @@ class ConvertSettings:
             data["indent"] = "    "
         if data["theme"] not in THEME_CHOICES:
             data["theme"] = "system"
+        if data["last_exit_code"] not in ("warn", "map"):
+            data["last_exit_code"] = "warn"
         if not data["suffix"]:
             data["suffix"] = ".sh"
         if not data["suffix"].startswith("."):
