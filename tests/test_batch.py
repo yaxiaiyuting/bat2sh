@@ -156,6 +156,53 @@ def test_if_compare(convert_bat):
     assert 'if [ "${A}" = "B" ]; then' in out
 
 
+@pytest.mark.parametrize(
+    "op,bash_op",
+    [
+        ("gtr", "-gt"),
+        ("lss", "-lt"),
+        ("equ", "-eq"),
+        ("neq", "-ne"),
+        ("geq", "-ge"),
+        ("leq", "-le"),
+    ],
+)
+def test_if_numeric_compare_operators(convert_bat, bash_check, op, bash_op):
+    out, report = convert_bat(
+        f"@echo off\nset /a NUM1=10\nset /a NUM2=3\nif %NUM1% {op} %NUM2% echo yes\n"
+    )
+    assert f'if [ "${{NUM1}}" {bash_op} "${{NUM2}}" ]; then' in out
+    assert not any("未知命令" in d.message for d in report.warnings)
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_if_numeric_compare_runs_in_bash(convert_bat, bash_run):
+    out, _ = convert_bat(
+        "@echo off\nset /a NUM1=10\nset /a NUM2=3\nif %NUM1% gtr %NUM2% echo 大于\n"
+    )
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "大于\n"
+
+
+def test_if_numeric_compare_with_paren_blocks(convert_bat, bash_check):
+    out, report = convert_bat(
+        "@echo off\nset /a NUM1=10\nset /a NUM2=3\n"
+        "if %NUM1% lss %NUM2% (echo 小于) else (echo 不小于)\n"
+    )
+    assert 'if [ "${NUM1}" -lt "${NUM2}" ]; then' in out
+    assert 'echo "小于"' in out
+    assert 'echo "不小于"' in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_if_string_compare_with_spaces_stays_string(convert_bat):
+    out, _ = convert_bat('@echo off\nif "%MY_VAR%"=="Hello World" echo 相等\n')
+    assert 'if [ "${MY_VAR}" = "Hello World" ]; then' in out
+
+
 def test_if_exist_glob_uses_compgen(convert_bat, bash_check):
     out, report = convert_bat("@echo off\nif exist *.log echo found\n")
     assert 'if compgen -G "*.log" > /dev/null; then' in out

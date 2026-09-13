@@ -245,8 +245,8 @@ BATCH_POSIX_KEEP: set[str] = {
 BATCH_TEST_OPERATORS: dict[str, str] = {
     "==": "=",
     "===": "=",
-    "equ": "=",
-    "neq": "!=",
+    "equ": "-eq",
+    "neq": "-ne",
     "lss": "-lt",
     "leq": "-le",
     "gtr": "-gt",

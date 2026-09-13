@@ -640,10 +640,10 @@ class BatchConverter:
             return "[ 0 -eq 1 ]", m.group(1)
 
         m = re.match(
-            r'^\s*("(?:[^"]*)"|\S+?)\s*(==|===|equ|neq|lss|leq|gtr|geq)\s*'
-            r'("(?:[^"]*)"|\S+?)\s*(.*)$',
+            r'^\s*("(?:[^"]*)"|\S+?)\s*(===|==|equ|neq|lss|leq|gtr|geq)\s*'
+            r'("(?:[^"]*)"|\S+)(?:\s+(.*))?$',
             expr,
-            re.I,
+            re.I | re.S,
         )
         if m:
             left = self._convert_operand(m.group(1), lineno)
@@ -652,7 +652,7 @@ class BatchConverter:
             test = f"{left} {op} {right}"
             if negate:
                 test = f"! {test}"
-            return f"[ {test} ]", m.group(4)
+            return f"[ {test} ]", (m.group(4) or "")
 
         self._warn(lineno, "无法解析的 if 条件，已生成 TODO", expr, category="control_flow")
         return "[ 0 -eq 1 ]", "( # TODO: 手动检查条件: " + expr + " )"
