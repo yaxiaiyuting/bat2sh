@@ -1016,6 +1016,12 @@ class BatchConverter:
             for part in parts:
                 out.extend(self._convert_simple_no_pipe(lineno, part.strip()))
             return out
+        # rem 注释：整行（含 `&` 分隔出来的片段、for /f 内层命令）都按注释处理，
+        # 不再落入“未知命令”。cmd 的 rem 会吞掉行内其余内容，重定向符也不例外。
+        m = re.match(r"(?i)^rem(?:\s+(.*))?$", text.strip())
+        if m:
+            comment = m.group(1) or ""
+            return [self._c("# " + comment if comment else "#")]
         body, redirs = split_redirects(text)
         redir_text = self._render_redirs(redirs, lineno)
         if not body.strip():

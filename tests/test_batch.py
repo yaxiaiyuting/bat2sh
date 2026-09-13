@@ -27,6 +27,47 @@ def test_strict_off_omits_set_e(convert_bat):
 
 
 # ----------------------------------------------------------------------
+# 注释（rem）
+# ----------------------------------------------------------------------
+def test_rem_line_becomes_bash_comment(convert_bat):
+    out, report = convert_bat("@echo off\nrem 这是一行注释\necho hi\n")
+    assert "# 这是一行注释" in out
+    assert report.warning_count == 0
+
+
+def test_rem_is_case_insensitive(convert_bat):
+    out, report = convert_bat("@echo off\nREM 大写注释\n")
+    assert "# 大写注释" in out
+    assert report.warning_count == 0
+
+
+def test_rem_without_text_becomes_empty_comment(convert_bat):
+    out, report = convert_bat("@echo off\nrem\nrem   \n")
+    assert out.rstrip().endswith("#\n#")
+    assert report.warning_count == 0
+
+
+def test_rem_inside_if_block(convert_bat):
+    out, report = convert_bat("@echo off\nif 1==1 (\n    rem 块内注释\n    echo hi\n)\n")
+    assert "# 块内注释" in out
+    assert report.warning_count == 0
+
+
+def test_rem_after_ampersand_is_not_unknown_command(convert_bat):
+    out, report = convert_bat("@echo off\necho hi & rem tail\n")
+    assert "# tail" in out
+    assert not any("未知命令" in d.message for d in report.warnings)
+
+
+def test_rem_inside_for_f_source_becomes_todo(convert_bat):
+    out, report = convert_bat(
+        "@echo off\nfor /f \"tokens=*\" %%a in ('rem comment') do echo %%a\n"
+    )
+    assert "# TODO: 手动检查: for /f" in out
+    assert not any("未知命令" in d.message for d in report.warnings)
+
+
+# ----------------------------------------------------------------------
 # 变量与 set
 # ----------------------------------------------------------------------
 def test_set_and_echo(convert_bat):
