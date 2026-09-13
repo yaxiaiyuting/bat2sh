@@ -1,0 +1,25 @@
+# 构建产物
+pkg/
+src/
+*.pkg.tar.zst
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 编辑器/系统文件
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# 补丁备份
+*.orig
+*.rej
+
+# 本地配置
+PKGBUILD.bak
+*.tar.gz
+*.bad-*
+build/

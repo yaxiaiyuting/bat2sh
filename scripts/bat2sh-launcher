@@ -1,0 +1,4 @@
+#!/bin/sh
+# bat2sh 启动器（安装版使用 /usr/lib/bat2sh 中的模块）
+export PYTHONPATH="/usr/lib/bat2sh${PYTHONPATH:+:$PYTHONPATH}"
+exec /usr/bin/python -m bat2sh "$@"

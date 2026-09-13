@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=bat2sh 脚本转换器
+Name[en]=bat2sh Script Converter
+GenericName=脚本转换工具
+GenericName[en]=Script converter
+Comment=将 Windows 批处理与 PowerShell 脚本转换为 Bash
+Comment[en]=Convert Windows batch and PowerShell scripts to Bash
+Exec=bat2sh %F
+TryExec=bat2sh
+Icon=bat2sh
+Terminal=false
+Categories=Development;Utility;TextTools;
+Keywords=shell;bash;batch;powershell;convert;脚本;转换;
+StartupNotify=true
+StartupWMClass=bat2sh
+MimeType=application/x-shellscript;

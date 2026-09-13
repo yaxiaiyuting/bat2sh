@@ -1,0 +1,1268 @@
+"""Windows 批处理 (.bat/.cmd) -> Bash 转换器。
+
+设计为"逐逻辑行转换 + 块结构栈"：
+* ``^`` 续行先合并为逻辑行；
+* ``if (...)`` / ``for ... do (...)`` 用栈跟踪缩进，行尾 ``)`` 负责闭合；
+* 无法自动转换的命令生成 ``# TODO: 手动检查: ...``。
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+from . import rules
+from .settings import ConvertSettings
+from .types import ConvertReport, Diagnostic, SourceKind
+from .utils import (
+    convert_backslashes,
+    dq,
+    find_matching,
+    guard_read,
+    is_fully_quoted,
+    needs_nullglob,
+    sanitize_identifier,
+    split_redirects,
+    strip_outer_quotes,
+    tokenize_args,
+)
+
+
+def _split_sequential(text: str) -> list[str]:
+    """按顶层单个 ``&`` 切分命令（保留 &&、||、管道与重定向中的 &）。"""
+    parts: list[str] = []
+    buf: list[str] = []
+    quote = ""
+    prev = ""
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            buf.append(c)
+            if c == quote:
+                quote = ""
+            i += 1
+            continue
+        if c in "\"'":
+            quote = c
+            buf.append(c)
+            i += 1
+            continue
+        if c == "&":
+            if i + 1 < len(text) and text[i + 1] == "&":
+                buf.append("&&")
+                i += 2
+                continue
+            if prev in "<>":
+                buf.append(c)
+                i += 1
+                continue
+            parts.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(c)
+        if not c.isspace():
+            prev = c
+        i += 1
+    parts.append("".join(buf))
+    return [p for p in parts if p.strip()]
+
+
+def _split_pipeline(text: str) -> list[str]:
+    """按顶层单个 ``|`` 切分管道（保留 ||）。"""
+    parts: list[str] = []
+    buf: list[str] = []
+    quote = ""
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            buf.append(c)
+            if c == quote:
+                quote = ""
+            i += 1
+            continue
+        if c in "\"'":
+            quote = c
+            buf.append(c)
+            i += 1
+            continue
+        if c == "|":
+            if i + 1 < len(text) and text[i + 1] == "|":
+                buf.append("||")
+                i += 2
+                continue
+            parts.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(c)
+        i += 1
+    parts.append("".join(buf))
+    return [p for p in parts if p.strip()]
+
+
+@dataclass
+class _Block:
+    kind: str          # if / else / for / group / comment
+    close_word: str = "fi"
+    loop_var: str = ""
+    paren_depth: int = 1
+
+
+class BatchConverter:
+    """把批处理脚本转换为 bash 脚本。"""
+
+    def __init__(self, settings: ConvertSettings, source_name: str = "input.bat"):
+        self.settings = settings
+        self.source_name = source_name
+        self.report = ConvertReport(source=source_name, kind=SourceKind.BATCH)
+        self._out: list[str] = []
+        self._func_out: list[str] = []
+        self._stack: list[_Block] = []
+        self._loop_vars: list[str] = []
+        self._labels: set[str] = set()
+        self._function_mode = False
+        self._current_func: str | None = None
+        self._needs_script_dir = False
+        self._delayed_expansion = False
+        self._needs_nullglob = False
+        self._current_command = ""
+
+    # ------------------------------------------------------------------
+    # 对外入口
+    # ------------------------------------------------------------------
+    def convert(self, text: str) -> str:
+        logical = self._logical_lines(text)
+        self.report.total_lines = len(logical)
+        self._prescan(logical)
+        for start, line in logical:
+            produced = self._convert_line(start, line)
+            bucket = self._func_out if (self._function_mode and self._current_func) else self._out
+            bucket.extend(produced)
+            if not line.strip():
+                continue
+            if produced and any(
+                p.strip() and not p.lstrip().startswith("#") for p in produced
+            ):
+                self.report.converted_lines += 1
+            else:
+                self.report.unchanged_lines += 1
+        self._finish()
+        return self._compose()
+
+    # ------------------------------------------------------------------
+    # 基础工具
+    # ------------------------------------------------------------------
+    @property
+    def _indent(self) -> str:
+        depth = len(self._stack) + (1 if self._current_func else 0)
+        return self.settings.indent * depth
+
+    def _c(self, content: str) -> str:
+        return self._indent + content if content else ""
+
+    def _warn(self, lineno: int, message: str, original: str = "") -> None:
+        self.report.warnings.append(Diagnostic(lineno, message, original))
+
+    def _todo(self, lineno: int, original: str, hint: str = "") -> str:
+        message = f"手动检查: {original}"
+        if hint:
+            message += f"（{hint}）"
+        self.report.todos.append(Diagnostic(lineno, message, original))
+        comment = "# TODO: 手动检查: " + original
+        return comment
+
+    def _logical_lines(self, text: str) -> list[tuple[int, str]]:
+        result: list[tuple[int, str]] = []
+        buf = ""
+        start = 0
+        for number, raw in enumerate(text.split("\n"), start=1):
+            line = raw.rstrip("\r")
+            if buf:
+                line = buf + line
+                buf = ""
+            else:
+                start = number
+            stripped = line.rstrip()
+            m = re.search(r"(\^+)$", stripped)
+            if m and len(m.group(1)) % 2 == 1:
+                buf = stripped[:-1]
+                continue
+            result.append((start, line))
+        if buf:
+            result.append((start, buf))
+        return result
+
+    def _prescan(self, logical: list[tuple[int, str]]) -> None:
+        for _, line in logical:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", stripped):
+                self._labels.add(stripped[1:].lower())
+            if re.match(r"(?i)^call\s+:", stripped):
+                self._function_mode = True
+            if re.match(r"(?i)^setlocal\b.*enabledelayedexpansion", stripped):
+                self._delayed_expansion = True
+
+    def _compose(self) -> str:
+        header = ["#!/usr/bin/env bash"]
+        header.append(f"# 由 bat2sh 自动转换生成，源文件: {self.source_name}")
+        header.append("# 带有 # TODO 标记的行无法自动转换，请人工检查")
+        if self.settings.strict_mode:
+            header.append("set -euo pipefail")
+        if self._needs_nullglob:
+            header.append("# 检测到通配符匹配：已启用 nullglob，无匹配时循环体不执行")
+            header.append("shopt -s nullglob")
+        if self._needs_script_dir:
+            header.append('SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"')
+        header.append("")
+        chunks = ["\n".join(header)]
+        if self._func_out:
+            chunks.append("\n".join(self._func_out).rstrip())
+        body = "\n".join(self._out).strip("\n")
+        if body:
+            chunks.append(body)
+        return "\n".join(chunks).rstrip() + "\n"
+
+    # ------------------------------------------------------------------
+    # 变量展开
+    # ------------------------------------------------------------------
+    def _expand_vars(self, text: str, lineno: int) -> str:
+        # 循环变量 %%i
+        def loop_repl(m: re.Match[str]) -> str:
+            ch = m.group(1).lower()
+            if ch in self._loop_vars:
+                return "${%s}" % ch
+            self._warn(lineno, f"循环变量 %%{m.group(1)} 出现在 for 循环之外", text)
+            return "%" + m.group(1)
+
+        text = re.sub(r"%%([A-Za-z])", loop_repl, text)
+        text = text.replace("%%", "%")
+
+        # %~ 修饰符（%~dp0 / %~f1 / %%~nxF ...）
+        text = re.sub(r"%~([dfnpx]*)([0-9*A-Za-z])", lambda m: self._modifier(m, lineno, text), text)
+        # %* / %N
+        text = text.replace("%*", '"$@"')
+        text = re.sub(r"%([0-9])", r"$\1", text)
+
+        # 延迟展开 !var!
+        if self._delayed_expansion:
+            text = re.sub(r"!([A-Za-z_]\w*)!", r"${\1}", text)
+
+        # %NAME%
+        def env_repl(m: re.Match[str]) -> str:
+            name = m.group(1)
+            upper = name.upper()
+            if upper in rules.BATCH_ENV_MAP:
+                if upper in rules.BATCH_ENV_WARN:
+                    self._warn(lineno, f"%{name}% 的转换可能不完全等价", text)
+                return rules.BATCH_ENV_MAP[upper]
+            return "${%s}" % name
+
+        text = re.sub(r"%([A-Za-z_][A-Za-z0-9_]*)%", env_repl, text)
+        return text
+
+    def _modifier(self, m: re.Match[str], lineno: int, original: str) -> str:
+        mods = m.group(1)
+        target = m.group(2)
+        if target == "*":
+            return '"$@"'
+        if target.isalpha():
+            var = target.lower()
+            if var in self._loop_vars:
+                if "n" in mods and "x" in mods:
+                    return f'$(basename "${{{var}}}")'
+                if "f" in mods:
+                    return f'$(readlink -f "${{{var}}}")'
+                return f"${{{var}}}"
+            self._warn(lineno, f"循环变量 %~{mods}{target} 不在 for 循环上下文中", original)
+            return "%" + target
+        if target == "0":
+            if "d" in mods or "p" in mods:
+                self._needs_script_dir = True
+                return "${SCRIPT_DIR}/"
+            if "f" in mods:
+                return '$(readlink -f "$0")'
+            if "n" in mods and "x" in mods:
+                return '$(basename "$0")'
+            return '"$0"'
+        arg = target
+        if not mods:
+            return f"${arg}"
+        if "f" in mods:
+            return f'$(readlink -f "${arg}")'
+        if "n" in mods and "x" in mods:
+            return f'$(basename "${arg}")'
+        self._warn(lineno, f"参数修饰符 %~{mods}{target} 无法自动转换，已按 ${target} 处理", original)
+        return f"${arg}"
+
+    # ------------------------------------------------------------------
+    # 分发
+    # ------------------------------------------------------------------
+    def _convert_line(self, lineno: int, raw: str) -> list[str]:
+        # 注释块内：原样注释直到括号配平
+        for block in reversed(self._stack):
+            if block.kind == "comment":
+                if raw.strip().startswith(")"):
+                    block.paren_depth -= 1
+                    if block.paren_depth <= 0:
+                        self._stack.pop()
+                    return []
+                if raw.strip().endswith("("):
+                    block.paren_depth += 1
+                return [self._c("# " + raw.strip())]
+            break
+
+        text = raw.strip()
+        if not text:
+            return [""]
+
+        if text.startswith(")"):
+            return self._close_block_line(lineno, text)
+
+        m = re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", text)
+        if m:
+            return self._label_line(m.group(1))
+        if text.startswith("::"):
+            body = text[2:].strip()
+            return [self._c("# " + body if body else "#")]
+        m = re.match(r"(?i)^rem(?:\s+(.*))?$", text)
+        if m:
+            body = m.group(1) or ""
+            return [self._c("# " + body if body else "#")]
+
+        if text.startswith("@"):
+            text = text[1:].strip()
+            if not text:
+                return []
+
+        lower = text.lower()
+        if lower in ("echo off", "echo  off"):
+            return []
+        if lower == "echo on":
+            return [self._c("# 注意: echo on 在 bash 中无对应行为，已忽略")]
+
+        if text == "(":
+            self._stack.append(_Block("group", ""))
+            return []
+
+        if re.match(r"(?i)^if[\s(]", text):
+            return self._convert_if(lineno, text)
+        if re.match(r"(?i)^for\s", text):
+            return self._convert_for(lineno, text)
+        if re.match(r"(?i)^goto\b", text):
+            return self._convert_goto(lineno, text)
+        if re.match(r"(?i)^call\b", text):
+            return self._convert_call(lineno, text)
+        if re.match(r"(?i)^exit\b", text):
+            return self._convert_exit(lineno, text)
+
+        return self._convert_simple(lineno, text)
+
+    # ------------------------------------------------------------------
+    # 块闭合
+    # ------------------------------------------------------------------
+    def _pop_block(self, lineno: int) -> list[str]:
+        if not self._stack:
+            self._warn(lineno, "多余的 ')'", "")
+            return [self._c("# 多余的 ')'，已忽略")]
+        block = self._stack.pop()
+        if block.loop_var and block.loop_var in self._loop_vars:
+            self._loop_vars.remove(block.loop_var)
+        if block.close_word:
+            return [self._c(block.close_word)]
+        return []
+
+    def _close_block_line(self, lineno: int, text: str) -> list[str]:
+        rest = text[1:].strip()
+        if not rest:
+            return self._pop_block(lineno)
+        low = rest.lower()
+        if low.startswith("else"):
+            after = rest[4:].strip()
+            if after.lower().startswith("if"):
+                if self._stack:
+                    self._stack.pop()
+                else:
+                    self._warn(lineno, "多余的 'else'", text)
+                return self._convert_if(lineno, "if " + after[2:].strip(), is_elif=True)
+            # ) else (
+            if self._stack:
+                self._stack.pop()
+            else:
+                self._warn(lineno, "多余的 'else'", text)
+            else_line = self._c("else")
+            if after.startswith("("):
+                inner = after[1:]
+                close = find_matching(after, "(", ")")
+                if close > 0:
+                    body = after[1:close]
+                    tail = after[close + 1:].strip()
+                    if tail:
+                        self._warn(lineno, f"else 块后的内容被忽略: {tail}", text)
+                    self._stack.append(_Block("else", "fi"))
+                    lines = [else_line]
+                    if body.strip():
+                        lines.extend(self._convert_line(lineno, body))
+                    self._stack.pop()
+                    lines.append(self._c("fi"))
+                    return lines
+                self._stack.append(_Block("else", "fi"))
+                lines = [else_line]
+                if inner.strip():
+                    lines.extend(self._convert_line(lineno, inner))
+                return lines
+            self._stack.append(_Block("else", "fi"))
+            return [else_line]
+        return self._pop_block(lineno)
+
+    # ------------------------------------------------------------------
+    # 标签 / goto / call / exit
+    # ------------------------------------------------------------------
+    def _label_line(self, name: str) -> list[str]:
+        if not self._function_mode:
+            return [self._c(f"# :{name}（标签，未使用，保留为注释）")]
+        out: list[str] = []
+        if self._current_func:
+            self._trim_function_tail()
+            out.append("}")
+            out.append("")
+        func = "label_" + sanitize_identifier(name)
+        self._current_func = func
+        out.append(f"{func}() {{")
+        return out
+
+    def _trim_function_tail(self) -> None:
+        while self._func_out and not self._func_out[-1].strip():
+            self._func_out.pop()
+
+    def _convert_goto(self, lineno: int, text: str) -> list[str]:
+        m = re.match(r"(?i)^goto\s+:?([\w.\-]+)\s*$", text)
+        if m and m.group(1).lower() == "eof":
+            # 批处理的 goto :eof 不修改 errorlevel；函数内用 return 保留上一条命令的退出码，
+            # 这样 ``if errorlevel`` 改写出的 ``if ! func; then`` 才能真正捕获失败。
+            return [self._c("return" if self._current_func else "exit 0")]
+        if self._function_mode:
+            self._todo(lineno, text, "goto 跨函数跳转无法自动重构，请手动改为函数调用或循环")
+        else:
+            self._todo(lineno, text, "goto 控制流无法自动转换，请手动重构")
+        return [self._c("# TODO: 手动检查: " + text)]
+
+    def _convert_call(self, lineno: int, text: str) -> list[str]:
+        m = re.match(r"(?i)^call\s+:([\w.\-]+)\s*(.*)$", text)
+        if m:
+            func = "label_" + sanitize_identifier(m.group(1))
+            args = self._expand_vars(convert_backslashes(m.group(2).strip()), lineno)
+            return [self._c((func + " " + args).strip())]
+        m = re.match(r"(?i)^call\s+(.+)$", text)
+        if not m:
+            return []
+        parts = tokenize_args(m.group(1))
+        if not parts:
+            return []
+        script, q = strip_outer_quotes(parts[0])
+        rest = " ".join(
+            tokenize_args(self._expand_vars(convert_backslashes(" ".join(parts[1:])), lineno))
+        )
+        if script.lower().endswith((".bat", ".cmd")):
+            converted = re.sub(r"(?i)\.(bat|cmd)$", ".sh", convert_backslashes(script))
+            self._warn(
+                lineno,
+                f"call 已转换为执行同名 bash 脚本 {converted}，请确认该文件已转换",
+                text,
+            )
+            return [self._c(f'bash "{converted}" {rest}'.rstrip())]
+        self._todo(lineno, text, "call 目标不是批处理脚本，请手动处理")
+        return [self._c("# TODO: 手动检查: " + text)]
+
+    def _convert_exit(self, lineno: int, text: str) -> list[str]:
+        m = re.match(r"(?i)^exit(?:\s+/b)?(?:\s+(-?\d+))?\s*$", text)
+        code = m.group(1) if m else None
+        is_b = bool(re.search(r"(?i)/b\b", text))
+        in_func = self._current_func is not None
+        keyword = "return" if (is_b and in_func) else "exit"
+        if code is not None:
+            return [self._c(f"{keyword} {code}")]
+        return [self._c(f"{keyword} $?")]
+
+    # ------------------------------------------------------------------
+    # if
+    # ------------------------------------------------------------------
+    def _convert_if(self, lineno: int, text: str, is_elif: bool = False) -> list[str]:
+        rest = text.strip()[2:].lstrip()
+        if rest.lower().startswith("/i"):
+            rest = rest[2:].lstrip()
+            self._warn(lineno, "if /i（忽略大小写）无法在 [ ] 中实现，已按区分大小写处理", text)
+        negate = False
+        m = re.match(r"(?i)^not\s+", rest)
+        if m:
+            negate = True
+            rest = rest[m.end():]
+        elif rest.lower().startswith("not("):
+            negate = True
+            rest = rest[3:].lstrip()
+
+        errorlevel = (
+            re.match(r"(?i)^errorlevel\s+(-?\d+)\s*(.*)$", rest) if not is_elif else None
+        )
+        merged = None
+        if errorlevel is not None and errorlevel.group(2).strip():
+            merged = self._errorlevel_condition(lineno, int(errorlevel.group(1)), negate, text)
+        if merged is not None:
+            cond = merged
+            remainder = errorlevel.group(2)
+        else:
+            cond, remainder = self._parse_condition(lineno, rest, negate)
+        keyword = "elif" if is_elif else "if"
+        remainder = remainder.strip()
+
+        if remainder.startswith("("):
+            close = find_matching(remainder, "(", ")")
+            if close < 0:
+                body = remainder[1:].strip()
+                header = self._c(f"{keyword} {cond}; then")
+                self._stack.append(_Block("if", "fi"))
+                lines = [header]
+                if body:
+                    lines.extend(self._convert_line(lineno, body))
+                return lines
+            body = remainder[1:close]
+            tail = remainder[close + 1:].strip()
+            base = self._indent
+            header = base + f"{keyword} {cond}; then"
+            self._stack.append(_Block("if", "fi"))
+            lines = [header]
+            if body.strip():
+                lines.extend(self._convert_line(lineno, body))
+            if tail.lower().startswith("else"):
+                after = tail[4:].strip()
+                if after.lower().startswith("if"):
+                    self._stack.pop()
+                    lines.extend(self._convert_if(lineno, "if " + after[2:].strip(), is_elif=True))
+                    return lines
+                lines.append(base + "else")
+                if after.startswith("("):
+                    close2 = find_matching(after, "(", ")")
+                    inner2 = after[1:close2] if close2 > 0 else after[1:]
+                    if inner2.strip():
+                        lines.extend(self._convert_line(lineno, inner2))
+                elif after:
+                    lines.extend(self._convert_line(lineno, after))
+                self._stack.pop()
+                lines.append(self._c("fi"))
+                return lines
+            if tail:
+                self._warn(lineno, f"if 块后存在未识别内容: {tail}", text)
+            self._stack.pop()
+            lines.append(self._c("fi"))
+            return lines
+
+        if not remainder:
+            self._warn(lineno, "if 没有可执行的语句", text)
+            return [self._c("# TODO: 手动检查: " + text)]
+
+        header = self._c(f"{keyword} {cond}; then")
+        self._stack.append(_Block("if", "fi"))
+        inner = self._convert_line(lineno, remainder)
+        self._stack.pop()
+        lines = [header]
+        lines.extend(inner)
+        lines.append(self._c("fi"))
+        return lines
+
+    def _parse_condition(self, lineno: int, expr: str, negate: bool) -> tuple[str, str]:
+        m = re.match(r'(?i)^exist\s+(".*?"|\S+)\s*(.*)$', expr)
+        if m:
+            target = self._convert_path_token(m.group(1), lineno)
+            test = f"-e {target}"
+            if negate:
+                test = f"! {test}"
+            return f"[ {test} ]", m.group(2)
+
+        m = re.match(r"(?i)^defined\s+([\w.]+)\s*(.*)$", expr)
+        if m:
+            name = sanitize_identifier(m.group(1))
+            test = f'-z "${{{name}:-}}"' if negate else f'-n "${{{name}:-}}"'
+            return f"[ {test} ]", m.group(2)
+
+        m = re.match(r"(?i)^errorlevel\s+(-?\d+)\s*(.*)$", expr)
+        if m:
+            threshold = m.group(1)
+            op = "-lt" if negate else "-ge"
+            self._warn(lineno, "$? 只能反映紧邻上一条命令的退出码，请检查语句顺序", expr)
+            return f"[ $? {op} {threshold} ]", m.group(2)
+
+        m = re.match(r"(?i)^cmdextversion\s+\S+\s*(.*)$", expr)
+        if m:
+            self._warn(lineno, "cmdextversion 在 Linux 无对应检查，恒为假", expr)
+            return "[ 0 -eq 1 ]", m.group(1)
+
+        m = re.match(
+            r'^\s*("(?:[^"]*)"|\S+?)\s*(==|===|equ|neq|lss|leq|gtr|geq)\s*'
+            r'("(?:[^"]*)"|\S+?)\s*(.*)$',
+            expr,
+            re.I,
+        )
+        if m:
+            left = self._convert_operand(m.group(1), lineno)
+            op = rules.BATCH_TEST_OPERATORS.get(m.group(2).lower(), "=")
+            right = self._convert_operand(m.group(3), lineno)
+            test = f"{left} {op} {right}"
+            if negate:
+                test = f"! {test}"
+            return f"[ {test} ]", m.group(4)
+
+        self._warn(lineno, "无法解析的 if 条件，已生成 TODO", expr)
+        return "[ 0 -eq 1 ]", "( # TODO: 手动检查条件: " + expr + " )"
+
+    def _active_bucket(self) -> list[str]:
+        if self._function_mode and self._current_func:
+            return self._func_out
+        return self._out
+
+    def _take_previous_command(self) -> str | None:
+        """取出并移除最近生成的一条可作 if 条件的简单命令。"""
+        bucket = self._active_bucket()
+        for index in range(len(bucket) - 1, -1, -1):
+            line = bucket[index].strip()
+            if not line or line.startswith("#"):
+                continue
+            if line in ("fi", "else", "done", "esac", "}") or line.endswith(
+                ("{", "(", "|", "&", "&&", "||", ";")
+            ):
+                return None
+            del bucket[index]
+            return line
+        return None
+
+    def _restore_command(self, command: str) -> None:
+        self._active_bucket().append(self._c(command))
+
+    def _errorlevel_condition(
+        self, lineno: int, threshold: int, negate: bool, original: str
+    ) -> str | None:
+        """把 ``if errorlevel N`` 改写为直接作用于上一条命令的条件。
+
+        改写后命令作为 if 条件执行，函数处于条件上下文，函数体内的
+        ``set -e`` 不会在失败时直接终止脚本。无法安全合并时返回 None，
+        由 :meth:`_parse_condition` 回退为 ``$?`` 比较并给出原有警告。
+        """
+        previous = self._take_previous_command()
+        if previous is None:
+            return None
+        if threshold <= 0:
+            # errorlevel 0 / 负数恒为真（或恒为假），命令仍需执行。
+            self._restore_command(previous)
+            return "true" if not negate else "false"
+        if threshold != 1:
+            self._warn(
+                lineno,
+                f"if {'not ' if negate else ''}errorlevel {threshold} 已按命令成功/失败近似，"
+                "无法表达精确退出码阈值，请核对",
+                original,
+            )
+        return previous if negate else f"! {previous}"
+
+    def _convert_operand(self, token: str, lineno: int) -> str:
+        inner, quote = strip_outer_quotes(token)
+        expanded = convert_backslashes(self._expand_vars(inner, lineno))
+        if re.fullmatch(r"-?\d+", expanded):
+            return expanded
+        if quote or self.settings.quote_variables or re.search(r"[\s$&|()<>]", expanded):
+            return dq(expanded)
+        return expanded
+
+    def _convert_path_token(self, token: str, lineno: int) -> str:
+        inner, _ = strip_outer_quotes(token)
+        return dq(convert_backslashes(self._expand_vars(inner, lineno)))
+
+    # ------------------------------------------------------------------
+    # for
+    # ------------------------------------------------------------------
+    def _convert_for(self, lineno: int, text: str) -> list[str]:
+        m = re.match(
+            r"(?i)^for\s+(.*?)%%~?([a-z])\s+in\s+\((.*)\)\s+do\s*(.*)$",
+            text.strip(),
+            re.S,
+        )
+        if not m:
+            self._todo(lineno, text, "无法解析的 for 语句")
+            return [self._c("# TODO: 手动检查: " + text)]
+        opts = m.group(1).strip()
+        var = m.group(2).lower()
+        set_text = m.group(3).strip()
+        body = m.group(4).strip()
+        opts_lower = opts.lower()
+
+        if "/f" in opts_lower or "/r" in opts_lower:
+            hint = "for /f 请改用 while read 或 $(...) 命令替换" if "/f" in opts_lower else "for /r 请改用 find"
+            self._todo(lineno, text, hint)
+            lines = [self._c("# TODO: 手动检查: " + text)]
+            if body == "(" or (body.startswith("(") and find_matching(body, "(", ")") == -1):
+                block = _Block("comment", "")
+                block.paren_depth = 1
+                self._stack.append(block)
+                inner = body[1:].strip()
+                if inner:
+                    block.paren_depth += 1
+                    lines.append(self._c("# " + inner))
+            return lines
+
+        items = self._convert_for_set(set_text, lineno)
+        if "/l" in opts_lower:
+            nums = [self._expand_vars(p.strip(), lineno) for p in set_text.split(",")]
+            if len(nums) == 2:
+                nums.append("1")
+            if len(nums) == 3:
+                items = "$(seq %s %s %s)" % (nums[0], nums[1], nums[2])
+            else:
+                items = "$(seq %s)" % nums[0]
+        elif "/d" in opts_lower:
+            if not items.endswith("*"):
+                items = items.rstrip(" *") + "/*"
+            items += "/"
+
+        self._note_glob(lineno, items, text)
+        header = self._indent + f"for {var} in {items}; do"
+        if body.startswith("("):
+            close = find_matching(body, "(", ")")
+            if close < 0:
+                self._loop_vars.append(var)
+                self._stack.append(_Block("for", "done", var))
+                lines = [header]
+                inner = body[1:].strip()
+                if inner:
+                    lines.extend(self._convert_line(lineno, inner))
+                return lines
+            inner = body[1:close]
+            self._loop_vars.append(var)
+            self._stack.append(_Block("for", "done", var))
+            lines = [header]
+            if inner.strip():
+                lines.extend(self._convert_line(lineno, inner))
+            self._stack.pop()
+            self._loop_vars.remove(var)
+            lines.append(self._indent + "done")
+            return lines
+
+        if not body:
+            self._loop_vars.append(var)
+            self._stack.append(_Block("for", "done", var))
+            return [header]
+
+        self._loop_vars.append(var)
+        self._stack.append(_Block("for", "done", var))
+        inner_lines = self._convert_line(lineno, body)
+        self._stack.pop()
+        self._loop_vars.remove(var)
+        lines = [header]
+        lines.extend(inner_lines)
+        lines.append(self._indent + "done")
+        return lines
+
+    def _convert_for_set(self, set_text: str, lineno: int) -> str:
+        expanded = self._expand_vars(set_text, lineno)
+        expanded = convert_backslashes(expanded)
+        expanded = re.sub(r"\s*[,;]\s*", " ", expanded)
+        tokens = tokenize_args(expanded)
+        fixed = [self._fix_glob_token(t) for t in tokens]
+        return " ".join(fixed).strip()
+
+    def _note_glob(self, lineno: int, snippet: str, original: str) -> None:
+        if not needs_nullglob(snippet) or self._needs_nullglob:
+            return
+        self._needs_nullglob = True
+        self._warn(
+            lineno,
+            "检测到通配符集合，已在脚本头添加 shopt -s nullglob：无匹配时循环体不执行",
+            original,
+        )
+
+    @staticmethod
+    def _fix_glob_token(token: str) -> str:
+        if not (len(token) >= 2 and token.startswith('"') and token.endswith('"')):
+            return token
+        inner = token[1:-1]
+        if not re.search(r"[*?]", inner):
+            return token
+        index = max(inner.rfind("/"), inner.rfind("\\"))
+        if index <= 0:
+            return inner
+        directory, pattern = inner[:index], inner[index + 1:]
+        return dq(directory) + "/" + pattern
+
+    # ------------------------------------------------------------------
+    # 简单命令
+    # ------------------------------------------------------------------
+    def _convert_simple(self, lineno: int, text: str) -> list[str]:
+        pipe_parts = _split_pipeline(text)
+        if len(pipe_parts) > 1:
+            bodies: list[str] = []
+            for seg in pipe_parts:
+                seg_lines = self._convert_simple_no_pipe(lineno, seg.strip())
+                if len(seg_lines) != 1:
+                    self._todo(lineno, text, "复杂管道无法自动转换")
+                    return [self._c("# TODO: 手动检查: " + text)]
+                bodies.append(seg_lines[0].strip())
+            return [self._indent + " | ".join(bodies)]
+        return self._convert_simple_no_pipe(lineno, text)
+
+    def _convert_simple_no_pipe(self, lineno: int, text: str) -> list[str]:
+        parts = _split_sequential(text)
+        if len(parts) > 1:
+            out: list[str] = []
+            for part in parts:
+                out.extend(self._convert_simple_no_pipe(lineno, part.strip()))
+            return out
+        body, redirs = split_redirects(text)
+        redir_text = self._render_redirs(redirs, lineno)
+        if not body.strip():
+            return [self._c(redir_text)] if redir_text else []
+        expanded = self._expand_vars(body, lineno)
+        tokens = tokenize_args(expanded)
+        if not tokens:
+            return []
+        raw_first = tokens[0]
+        first = raw_first.strip("\"'").lower()
+        rest = expanded[len(raw_first):].strip()
+        self._current_command = first
+
+        line: str | None
+        if first in rules.BATCH_HANDLER_MAP:
+            handler = getattr(self, rules.BATCH_HANDLER_MAP[first])
+            line = handler(lineno, rest, expanded)
+            if line is None:
+                return []
+        elif first in rules.BATCH_TODO_COMMANDS:
+            hint = rules.BATCH_TODO_COMMANDS[first]
+            self._todo(lineno, text, hint)
+            line = None
+        elif first in rules.BATCH_SIMPLE_MAP:
+            mapped = rules.BATCH_SIMPLE_MAP[first]
+            line = (mapped + " " + rest).strip()
+        elif first.endswith((".exe", ".com")) or first in rules.BATCH_EXE_MAP:
+            mapped = rules.BATCH_EXE_MAP.get(first)
+            if mapped:
+                self._warn(lineno, f"{raw_first} 已按 {mapped} 处理", text)
+                line = (mapped + " " + rest).strip()
+            else:
+                self._todo(lineno, text, "Windows 可执行文件在 Linux 无对应物")
+                line = None
+        elif first in rules.BATCH_POSIX_KEEP:
+            line = expanded
+        else:
+            self._warn(lineno, f"未知命令 {raw_first!r}，请确认 Linux 下可用", text)
+            line = expanded
+
+        if line is None:
+            result = [self._c("# TODO: 手动检查: " + text)]
+        else:
+            full = (line + (" " + redir_text if redir_text else "")).strip()
+            result = [self._c(full)]
+        return result
+
+    def _render_redirs(self, redirs: list[tuple[str, str]], lineno: int) -> str:
+        parts: list[str] = []
+        for op, target in redirs:
+            if target.startswith("&"):
+                parts.append(f"{op}{target}")
+                continue
+            inner, quote = strip_outer_quotes(target)
+            low = inner.lower()
+            if low in ("nul", "prn", "con", "aux", "com1", "lpt1"):
+                if low != "nul":
+                    self._warn(lineno, f"设备 {inner} 已替换为 /dev/null", target)
+                converted = "/dev/null"
+            else:
+                converted = convert_backslashes(self._expand_vars(inner, lineno))
+            if quote or re.search(r"\s", converted):
+                converted = dq(converted)
+            parts.append(f"{op}{converted}")
+        return " ".join(parts)
+
+    @staticmethod
+    def _split_switches(args: str) -> tuple[set[str], list[str]]:
+        flags: set[str] = set()
+        rest: list[str] = []
+        for token in tokenize_args(args):
+            if re.fullmatch(r"/[a-z]{1,3}", token, re.I):
+                flags.add(token.lower())
+            else:
+                rest.append(token)
+        return flags, rest
+
+    # ------------------------------------------------------------------
+    # 具体命令处理器
+    # ------------------------------------------------------------------
+    def cmd_noop(self, lineno: int, args: str, original: str) -> None:
+        return None
+
+    def cmd_todo_hint(self, lineno: int, args: str, original: str) -> None:
+        hint = rules.BATCH_TODO_COMMANDS.get(self._current_command, "")
+        self._todo(lineno, original, hint)
+        return None
+
+    def cmd_echo(self, lineno: int, args: str, original: str) -> str:
+        text = convert_backslashes(self._expand_vars(args, lineno))
+        if not text or text in (".", "(", ")"):
+            return "echo"
+        if is_fully_quoted(text):
+            return f"echo {text}"
+        if "$(" in text:
+            return f'echo "{text}"'
+        return f"echo {dq(text)}"
+
+    def cmd_pause(self, lineno: int, args: str, original: str) -> str:
+        return guard_read('read -rp "Press Enter to continue..."', self.settings.strict_mode)
+
+    def cmd_cls(self, lineno: int, args: str, original: str) -> str:
+        return "clear"
+
+    def cmd_cd(self, lineno: int, args: str, original: str) -> str:
+        args = re.sub(r"(?i)^/d\s*", "", args.strip())
+        if not args:
+            return "pwd"
+        return "cd " + self._convert_path_token(args, lineno)
+
+    def cmd_dir(self, lineno: int, args: str, original: str) -> str:
+        flags, paths = self._split_switches(args)
+        known = {"/b", "/s"}
+        for flag in sorted(flags - known):
+            self._warn(lineno, f"dir 开关 {flag} 已忽略", original)
+        if "/b" in flags:
+            base = "ls -1"
+        elif "/s" in flags:
+            base = "ls -laR"
+        else:
+            base = "ls -la"
+        path = " ".join(self._convert_path_token(p, lineno) for p in paths)
+        return (base + " " + path).strip()
+
+    def cmd_del(self, lineno: int, args: str, original: str) -> str:
+        flags, targets = self._split_switches(args)
+        for flag in sorted(flags - {"/q", "/f", "/s"}):
+            self._warn(lineno, f"del 开关 {flag} 未处理", original)
+        command = "rm -rf" if "/s" in flags else "rm -f"
+        paths = " ".join(self._convert_path_token(t, lineno) for t in targets)
+        return (command + " " + paths).strip()
+
+    def cmd_rmdir(self, lineno: int, args: str, original: str) -> str:
+        flags, targets = self._split_switches(args)
+        command = "rm -rf" if "/s" in flags else "rmdir"
+        for flag in sorted(flags - {"/s", "/q"}):
+            self._warn(lineno, f"rmdir 开关 {flag} 未处理", original)
+        paths = " ".join(self._convert_path_token(t, lineno) for t in targets)
+        return (command + " " + paths).strip()
+
+    def cmd_copy(self, lineno: int, args: str, original: str) -> str:
+        flags, targets = self._split_switches(args)
+        command = "cp -f" if "/y" in flags else "cp"
+        for flag in sorted(flags - {"/y", "/v"}):
+            self._warn(lineno, f"copy 开关 {flag} 未处理", original)
+        paths = " ".join(self._convert_path_token(t, lineno) for t in targets)
+        return (command + " " + paths).strip()
+
+    def cmd_move(self, lineno: int, args: str, original: str) -> str:
+        flags, targets = self._split_switches(args)
+        command = "mv -f" if "/y" in flags else "mv"
+        paths = " ".join(self._convert_path_token(t, lineno) for t in targets)
+        return (command + " " + paths).strip()
+
+    def cmd_xcopy(self, lineno: int, args: str, original: str) -> str:
+        flags, targets = self._split_switches(args)
+        if flags - {"/e", "/i", "/y", "/s", "/q", "/h", "/r", "/c", "/k"}:
+            self._warn(lineno, "xcopy 的部分开关已忽略，请检查复制行为", original)
+        paths = " ".join(self._convert_path_token(t, lineno) for t in targets)
+        return ("cp -r " + paths).strip()
+
+    def cmd_robocopy(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "robocopy 已转换为 rsync -a，请检查选项语义", original)
+        expanded = self._expand_vars(convert_backslashes(args), lineno)
+        return ("rsync -a " + expanded).strip()
+
+    def cmd_start(self, lineno: int, args: str, original: str) -> str | None:
+        tokens = tokenize_args(args)
+        wait = False
+        while tokens and tokens[0].lower().startswith("/"):
+            flag = tokens.pop(0).lower()
+            if flag == "/wait":
+                wait = True
+        if tokens and tokens[0].strip("\"'") == "":
+            tokens.pop(0)
+        if not tokens:
+            self._warn(lineno, "start 没有可启动的目标", original)
+            return None
+        target_inner, _ = strip_outer_quotes(tokens[0])
+        target = convert_backslashes(self._expand_vars(target_inner, lineno))
+        rest = " ".join(
+            tokenize_args(self._expand_vars(convert_backslashes(" ".join(tokens[1:])), lineno))
+        )
+        is_path = (
+            "\\" in tokens[0]
+            or "/" in target_inner
+            or "%" in tokens[0]
+            or ":" in target_inner
+            or target_inner.startswith(("$", "~", "./", "../"))
+            or target_inner.endswith((".txt", ".pdf", ".html", ".url", ".lnk"))
+        )
+        self._warn(lineno, "start 的语义与 xdg-open/后台执行不完全一致，请检查", original)
+        if is_path:
+            command = f"xdg-open {dq(target)}"
+            if not wait:
+                command += " &"
+            return command
+        command = (target + " " + rest).strip()
+        if wait:
+            return command
+        return f"nohup {command} >/dev/null 2>&1 &"
+
+    def cmd_timeout(self, lineno: int, args: str, original: str) -> str:
+        m = re.search(r"(?i)/t\s+(\d+)", args)
+        seconds = m.group(1) if m else "5"
+        if "/nobreak" not in args.lower():
+            self._warn(lineno, "timeout 在等待期间可按键跳过，sleep 不能，请确认", original)
+        return f"sleep {seconds}"
+
+    def cmd_ping(self, lineno: int, args: str, original: str) -> str:
+        tokens = tokenize_args(args)
+        out: list[str] = []
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+            low = token.lower()
+            if low == "-n" and i + 1 < len(tokens):
+                out.append("-c")
+                out.append(tokens[i + 1])
+                i += 2
+                continue
+            if low == "-w" and i + 1 < len(tokens):
+                try:
+                    seconds = max(1, round(int(tokens[i + 1]) / 1000))
+                except ValueError:
+                    seconds = 1
+                self._warn(lineno, "ping -w（毫秒）已转换为 -W（秒，向上取整）", original)
+                out.append("-W")
+                out.append(str(seconds))
+                i += 2
+                continue
+            if low == "-l" and i + 1 < len(tokens):
+                out.append("-s")
+                out.append(tokens[i + 1])
+                i += 2
+                continue
+            if low == "-t":
+                self._warn(lineno, "ping -t 无限 ping 在 Linux 中为默认行为", original)
+                i += 1
+                continue
+            out.append(convert_backslashes(self._expand_vars(token, lineno)))
+            i += 1
+        return ("ping " + " ".join(out)).strip()
+
+    def cmd_ipconfig(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "ipconfig 已转换为 ip addr，输出格式不同", original)
+        return "ip addr show" if "/all" in args.lower() else "ip addr"
+
+    def cmd_netstat(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "netstat 已转换为 ss，输出格式不同", original)
+        return "ss -tuln"
+
+    def cmd_tasklist(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "tasklist 已转换为 ps aux，输出格式不同", original)
+        return "ps aux"
+
+    def cmd_taskkill(self, lineno: int, args: str, original: str) -> str:
+        tokens = tokenize_args(args)
+        name = None
+        pid = None
+        i = 0
+        while i < len(tokens):
+            low = tokens[i].lower()
+            if low == "/im" and i + 1 < len(tokens):
+                name = tokens[i + 1].strip("\"'")
+                i += 2
+                continue
+            if low == "/pid" and i + 1 < len(tokens):
+                pid = tokens[i + 1]
+                i += 2
+                continue
+            i += 1
+        if pid:
+            return f"kill {pid}"
+        if name:
+            name = re.sub(r"(?i)\.exe$", "", name)
+            return f'pkill -f {dq(name)}'
+        self._warn(lineno, "无法解析 taskkill 参数", original)
+        return "pkill"
+
+    def cmd_find(self, lineno: int, args: str, original: str) -> str:
+        flags, rest = self._split_switches(args)
+        opts = ""
+        if "/i" in flags:
+            opts += "i"
+        if "/v" in flags:
+            opts += "v"
+        if "/c" in flags:
+            opts += "c"
+        if "/n" in flags:
+            opts += "n"
+        pattern = rest[0] if rest else '""'
+        files = " ".join(self._convert_path_token(t, lineno) for t in rest[1:])
+        self._warn(lineno, "find 已转换为 grep -F（字面量匹配）", original)
+        opt_text = f"-{opts} " if opts else ""
+        return (f"grep -F {opt_text}".rstrip() + " " + pattern + " " + files).strip()
+
+    def cmd_findstr(self, lineno: int, args: str, original: str) -> str:
+        tokens = tokenize_args(args)
+        opts = ""
+        pattern = None
+        files: list[str] = []
+        fixed = False
+        for token in tokens:
+            low = token.lower()
+            if low == "/i":
+                opts += "i"
+            elif low == "/v":
+                opts += "v"
+            elif low == "/n":
+                opts += "n"
+            elif low == "/s":
+                opts += "r"
+                self._warn(lineno, "findstr /s（递归）已转换为 grep -r", original)
+            elif low == "/r":
+                pass
+            elif low.startswith("/c:"):
+                fixed = True
+                pattern = token[3:]
+            elif low in ("/b", "/e", "/m", "/o", "/p", "/f:"):
+                self._warn(lineno, f"findstr 开关 {token} 未处理", original)
+            elif pattern is None:
+                pattern = token
+            else:
+                files.append(token)
+        opt_text = f"-{opts} " if opts else ""
+        fixed_text = "-F " if fixed else ""
+        files_text = " ".join(self._convert_path_token(t, lineno) for t in files)
+        self._warn(lineno, "findstr 已转换为 grep，正则语法可能存在差异", original)
+        pattern = pattern or '""'
+        return (f"grep {fixed_text}{opt_text}".rstrip() + f" {pattern} {files_text}").strip()
+
+    def cmd_set(self, lineno: int, args: str, original: str) -> str | None:
+        m = re.match(r"(?i)^/a\s+([\w.]+)\s*([+\-*/%]?=)\s*(.*)$", args)
+        if m:
+            return self._set_arithmetic(lineno, m, original)
+        m = re.match(r"(?i)^/p\s+(.*)$", args)
+        if m:
+            spec = m.group(1).strip()
+            var, _, prompt = spec.partition("=")
+            name = sanitize_identifier(var.strip().strip('"'))
+            prompt_text = convert_backslashes(self._expand_vars(prompt.strip().strip('"'), lineno))
+            return guard_read(f"read -rp {dq(prompt_text)} {name}", self.settings.strict_mode)
+        m = re.match(r'^"([^"=]+)=(.*)"\s*$', args)
+        if m:
+            var, value = m.group(1), m.group(2)
+        else:
+            m = re.match(r"^([^=]+)=(.*)$", args, re.S)
+            if m:
+                var, value = m.group(1).strip(), m.group(2)
+            else:
+                if not args.strip():
+                    return "env"
+                return "env | grep -E " + dq("^" + re.escape(args.strip()))
+        raw_var = var.strip()
+        name = sanitize_identifier(raw_var)
+        if name != raw_var:
+            self._warn(lineno, f"变量名 {raw_var!r} 已重命名为 {name}", original)
+        value = convert_backslashes(self._expand_vars(value.rstrip(), lineno))
+        if self.settings.quote_variables or value == "" or re.search(r"[\s$&|()<>]", value):
+            return f"{name}={dq(value)}"
+        return f"{name}={value}"
+
+    def _set_arithmetic(self, lineno: int, m: re.Match[str], original: str) -> str:
+        name = sanitize_identifier(m.group(1))
+        op = m.group(2)
+        expr = m.group(3).strip()
+        expr = self._expand_vars(expr, lineno)
+        if "!" in expr:
+            expr = expr.replace("!", "~")
+            self._warn(lineno, "set /a 的按位取反 ! 已转换为 ~", original)
+        if "," in expr:
+            self._warn(lineno, "set /a 多表达式（逗号）仅转换了第一部分", original)
+            expr = expr.split(",")[0]
+        if op == "=":
+            return f"{name}=$(( {expr} ))"
+        return f"{name}=$(( {name} {op[0]} ({expr}) ))"
+
+    def cmd_setx(self, lineno: int, args: str, original: str) -> str:
+        m = re.match(r'^"?([^"\s]+)"?\s+(.*)$', args.strip())
+        if not m:
+            self._todo(lineno, original, "setx 语法无法解析")
+            return ""
+        name = sanitize_identifier(m.group(1))
+        value = convert_backslashes(self._expand_vars(m.group(2).strip().strip('"'), lineno))
+        self._warn(lineno, "setx 写入的是持久环境变量，bash 中 export 仅对当前会话生效", original)
+        return f"export {name}={dq(value)}"
+
+    def cmd_shutdown(self, lineno: int, args: str, original: str) -> str:
+        low = args.lower()
+        if "/s" in low:
+            self._warn(lineno, "关机命令已转换为 systemctl poweroff", original)
+            return "systemctl poweroff"
+        if "/r" in low:
+            self._warn(lineno, "重启命令已转换为 systemctl reboot", original)
+            return "systemctl reboot"
+        if "/l" in low:
+            self._warn(lineno, "注销命令已转换为 loginctl terminate-session", original)
+            return "loginctl terminate-user \"$USER\""
+        self._warn(lineno, "无法解析 shutdown 参数", original)
+        return "systemctl poweroff"
+
+    def cmd_powershell(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确", original)
+        return ("pwsh " + args).strip()
+
+    def cmd_cmd(self, lineno: int, args: str, original: str) -> str:
+        m = re.match(r"(?i)^/c\s+(.*)$", args)
+        if m:
+            inner = self._expand_vars(m.group(1), lineno)
+            self._warn(lineno, "cmd /c 已转换为 bash -c，请检查引号嵌套", original)
+            return f"bash -c {dq(inner)}"
+        self._warn(lineno, "cmd /k 交互式命令无法自动转换", original)
+        return "bash"
+
+    def cmd_runas(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "runas 已转换为 sudo，请确认权限配置", original)
+        return ("sudo " + self._expand_vars(convert_backslashes(args), lineno)).strip()
+
+    def cmd_ver(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "ver 已转换为 uname -a", original)
+        return "uname -a"
+
+    def cmd_systeminfo(self, lineno: int, args: str, original: str) -> str:
+        self._warn(lineno, "systeminfo 已转换为 uname -a，信息量不同", original)
+        return "uname -a"
+
+    def cmd_choice(self, lineno: int, args: str, original: str) -> str:
+        self._todo(lineno, original, "choice 请改用 read -r -n 1 或 zenity")
+        return ""
+
+    def cmd_if_unsupported(self, lineno: int, args: str, original: str) -> None:  # pragma: no cover
+        return None
+
+    # ------------------------------------------------------------------
+    # 收尾
+    # ------------------------------------------------------------------
+    def _finish(self) -> None:
+        while self._stack:
+            block = self._stack.pop()
+            if block.kind == "comment":
+                continue
+            self._warn(0, f"{block.kind} 块未正常闭合，已自动补全")
+            if block.close_word:
+                self._out.append(block.close_word)
+        if self._current_func:
+            self._trim_function_tail()
+            self._func_out.append("}")
+            self._current_func = None

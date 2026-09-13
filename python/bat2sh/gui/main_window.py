@@ -1,0 +1,659 @@
+"""主窗口：文件列表 / 源预览 / 转换结果三栏布局。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSplitter,
+    QStyle,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .. import APP_DISPLAY_NAME
+from ..core.encoding import SUPPORTED_ENCODINGS, read_source
+from ..core.engine import (
+    ConversionResult,
+    convert_text,
+    detect_kind,
+    output_path_for,
+    write_output,
+)
+from ..core.settings import ConvertSettings, save_settings
+from ..core.types import ConvertReport, SourceKind
+from .dialogs import AboutDialog, DiffDialog, ReportDialog, SettingsDialog
+from .editor import CodeEditor
+from .highlighter import highlighter_for
+from .theme import apply_theme, system_is_dark
+
+SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1", ".psm1")
+
+
+@dataclass
+class SourceFile:
+    path: Path
+    kind: SourceKind
+    source_text: str = ""
+    output_text: str = ""
+    detected_encoding: str = ""
+    encoding_override: str | None = None
+    output_path: Path | None = None
+    report: ConvertReport | None = None
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, settings: ConvertSettings, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.settings = settings
+        self.files: list[SourceFile] = []
+        self.current: SourceFile | None = None
+        self._loading = False
+        self._source_highlighter = None
+        self._output_highlighter = None
+        app = QApplication.instance()
+        self.dark = system_is_dark(app) if app is not None else False
+
+        self._build_actions()
+        self._build_toolbar()
+        self._build_ui()
+        self._build_statusbar()
+        self._rebuild_highlighters()
+
+        self.resize(1500, 900)
+        self.setAcceptDrops(True)
+        self.setWindowTitle(APP_DISPLAY_NAME)
+        self._update_actions()
+
+    # ------------------------------------------------------------------
+    # 构建界面
+    # ------------------------------------------------------------------
+    def _icon(self, theme_name: str, standard: QStyle.StandardPixmap) -> QIcon:
+        return QIcon.fromTheme(theme_name, self.style().standardIcon(standard))
+
+    def _make_action(
+        self,
+        text: str,
+        icon: QIcon,
+        shortcut: str | None,
+        slot,
+        tooltip: str = "",
+    ) -> QAction:
+        action = QAction(icon, text, self)
+        if shortcut:
+            action.setShortcut(QKeySequence(shortcut))
+        action.triggered.connect(slot)
+        if tooltip:
+            action.setToolTip(tooltip)
+        action.setStatusTip(tooltip or text)
+        return action
+
+    def _build_actions(self) -> None:
+        std = QStyle.StandardPixmap
+        self.action_open = self._make_action(
+            "打开文件", self._icon("document-open", std.SP_DialogOpenButton),
+            "Ctrl+O", self.open_files, "打开 .bat/.cmd/.ps1 文件",
+        )
+        self.action_open_dir = self._make_action(
+            "打开文件夹", self._icon("folder-open", std.SP_DirOpenIcon),
+            "Ctrl+Shift+O", self.open_folder, "添加文件夹中的全部脚本",
+        )
+        self.action_convert = self._make_action(
+            "转换", self._icon("system-run", std.SP_MediaPlay),
+            "Ctrl+Return", self.convert_current, "转换当前文件（Ctrl+Enter）",
+        )
+        self.action_save = self._make_action(
+            "保存", self._icon("document-save", std.SP_DialogSaveButton),
+            "Ctrl+S", self.save_current, "保存转换结果（Ctrl+S）",
+        )
+        self.action_batch = self._make_action(
+            "批量转换", self._icon("run-build", std.SP_FileDialogDetailedView),
+            "Ctrl+Shift+R", self.batch_convert, "转换并保存列表中的全部文件",
+        )
+        self.action_diff = self._make_action(
+            "预览差异", self._icon("document-preview", std.SP_FileDialogContentsView),
+            "Ctrl+D", self.open_diff, "对比源文件与转换结果",
+        )
+        self.action_report = self._make_action(
+            "转换报告", self._icon("document-properties", std.SP_FileDialogInfoView),
+            "Ctrl+R", self.open_report, "查看当前文件的转换报告",
+        )
+        self.action_theme = self._make_action(
+            "切换主题", self._icon("weather-clear-night", std.SP_BrowserReload),
+            "Ctrl+T", self.toggle_theme, "在跟随系统 / 浅色 / 深色之间切换",
+        )
+        self.action_settings = self._make_action(
+            "设置", self._icon("configure", std.SP_ComputerIcon),
+            "Ctrl+,", self.open_settings, "转换选项",
+        )
+        self.action_about = self._make_action(
+            "关于", self._icon("help-about", std.SP_MessageBoxInformation),
+            None, self.show_about, "关于 bat2sh",
+        )
+        self.action_quit = self._make_action(
+            "退出", self._icon("application-exit", std.SP_DialogCloseButton),
+            "Ctrl+Q", self.close, "退出",
+        )
+        self.action_remove = QAction("移除所选", self)
+        self.action_remove.triggered.connect(self.remove_selected)
+        self.action_clear = QAction("清空列表", self)
+        self.action_clear.triggered.connect(self.clear_files)
+        self.action_convert_save = QAction("转换并保存", self)
+        self.action_convert_save.triggered.connect(self.convert_and_save)
+
+    def _build_toolbar(self) -> None:
+        toolbar = QToolBar("主工具栏", self)
+        toolbar.setObjectName("main-toolbar")
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
+        for action in (
+            self.action_open,
+            self.action_open_dir,
+            None,
+            self.action_convert,
+            self.action_save,
+            self.action_batch,
+            None,
+            self.action_diff,
+            self.action_report,
+            None,
+            self.action_theme,
+            self.action_settings,
+            self.action_about,
+        ):
+            if action is None:
+                toolbar.addSeparator()
+            else:
+                toolbar.addAction(action)
+
+    def _build_ui(self) -> None:
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(self._build_left_panel())
+        splitter.addWidget(self._build_source_panel())
+        splitter.addWidget(self._build_output_panel())
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(2, 1)
+        splitter.setSizes([280, 620, 620])
+        self.setCentralWidget(splitter)
+
+    def _build_left_panel(self) -> QWidget:
+        box = QGroupBox("待转换文件")
+        layout = QVBoxLayout(box)
+        self.file_list = QListWidget()
+        self.file_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self.file_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.file_list.customContextMenuRequested.connect(self._show_list_menu)
+        self.file_list.currentRowChanged.connect(self._on_row_changed)
+        layout.addWidget(self.file_list)
+        buttons = QHBoxLayout()
+        remove_button = QPushButton("移除所选")
+        remove_button.clicked.connect(self.remove_selected)
+        clear_button = QPushButton("清空")
+        clear_button.clicked.connect(self.clear_files)
+        buttons.addWidget(remove_button)
+        buttons.addWidget(clear_button)
+        layout.addLayout(buttons)
+        hint = QLabel("可将 .bat/.cmd/.ps1 文件或文件夹拖拽到此窗口")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: palette(mid);")
+        layout.addWidget(hint)
+        return box
+
+    def _build_source_panel(self) -> QWidget:
+        box = QGroupBox("源文件预览（只读）")
+        layout = QVBoxLayout(box)
+        header = QHBoxLayout()
+        self.source_path_label = QLabel("未选择文件")
+        self.source_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.kind_label = QLabel("")
+        self.kind_label.setStyleSheet("color: palette(mid);")
+        self.encoding_combo = QComboBox()
+        self.encoding_combo.setToolTip("输入编码：可手动覆盖自动检测结果")
+        self.encoding_combo.addItem("自动检测", None)
+        for name in SUPPORTED_ENCODINGS:
+            self.encoding_combo.addItem(name, name)
+        self.encoding_combo.currentIndexChanged.connect(self._on_encoding_changed)
+        header.addWidget(self.source_path_label, 1)
+        header.addWidget(self.kind_label)
+        header.addWidget(self.encoding_combo)
+        layout.addLayout(header)
+        self.source_editor = CodeEditor()
+        self.source_editor.setReadOnly(True)
+        layout.addWidget(self.source_editor)
+        return box
+
+    def _build_output_panel(self) -> QWidget:
+        box = QGroupBox("转换结果（可编辑）")
+        layout = QVBoxLayout(box)
+        header = QHBoxLayout()
+        self.output_path_label = QLabel("转换后在此预览")
+        self.output_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        diff_button = QPushButton("预览差异")
+        diff_button.setIcon(self._icon("document-preview", self.style().StandardPixmap.SP_FileDialogContentsView))
+        diff_button.clicked.connect(self.open_diff)
+        report_button = QPushButton("报告")
+        report_button.setIcon(self._icon("document-properties", self.style().StandardPixmap.SP_FileDialogInfoView))
+        report_button.clicked.connect(self.open_report)
+        header.addWidget(self.output_path_label, 1)
+        header.addWidget(diff_button)
+        header.addWidget(report_button)
+        layout.addLayout(header)
+        self.output_editor = CodeEditor()
+        layout.addWidget(self.output_editor)
+        return box
+
+    def _build_statusbar(self) -> None:
+        status = self.statusBar()
+        self.status_label = QLabel("就绪：请打开 .bat/.cmd/.ps1 文件")
+        self.progress = QProgressBar()
+        self.progress.setMaximumWidth(220)
+        self.progress.hide()
+        self.counts_label = QLabel("警告 0 · 错误 0 · 已转换 0/0")
+        status.addWidget(self.status_label, 1)
+        status.addPermanentWidget(self.progress)
+        status.addPermanentWidget(self.counts_label)
+
+    # ------------------------------------------------------------------
+    # 高亮
+    # ------------------------------------------------------------------
+    def _rebuild_highlighters(self) -> None:
+        if self._source_highlighter is not None:
+            self._source_highlighter.setDocument(None)
+        if self._output_highlighter is not None:
+            self._output_highlighter.setDocument(None)
+        kind = self.current.kind.value if self.current else "sh"
+        self._source_highlighter = highlighter_for(kind, self.source_editor.document(), self.dark)
+        self._output_highlighter = highlighter_for("sh", self.output_editor.document(), self.dark)
+
+    # ------------------------------------------------------------------
+    # 文件列表
+    # ------------------------------------------------------------------
+    def add_paths(self, paths: list[Path], select_last: bool = True) -> int:
+        existing = {entry.path.resolve() for entry in self.files}
+        added = 0
+        for path in paths:
+            candidates: list[Path] = []
+            if path.is_dir():
+                for child in sorted(path.rglob("*")):
+                    if child.is_file() and child.suffix.lower() in SCRIPT_SUFFIXES:
+                        candidates.append(child)
+                    if len(candidates) >= 500:
+                        break
+            elif path.is_file() and path.suffix.lower() in SCRIPT_SUFFIXES:
+                candidates.append(path)
+            for candidate in candidates:
+                resolved = candidate.resolve()
+                if resolved in existing:
+                    continue
+                existing.add(resolved)
+                self.files.append(SourceFile(path=candidate, kind=detect_kind(candidate)))
+                added += 1
+        if added:
+            self._refresh_list()
+            if select_last:
+                self.file_list.setCurrentRow(self.file_list.count() - 1)
+            self.status_label.setText(f"已添加 {added} 个文件")
+        elif paths:
+            self.status_label.setText("没有可添加的 .bat/.cmd/.ps1 文件")
+        self._update_actions()
+        return added
+
+    def open_paths(self, paths: list[Path]) -> None:
+        self.add_paths(paths)
+
+    def _refresh_list(self) -> None:
+        self.file_list.blockSignals(True)
+        current_row = self.file_list.currentRow()
+        self.file_list.clear()
+        for entry in self.files:
+            item = QListWidgetItem(entry.path.name)
+            item.setToolTip(str(entry.path))
+            item.setData(Qt.ItemDataRole.UserRole, str(entry.path))
+            icon_name = "text-x-script" if entry.kind is not SourceKind.UNKNOWN else "text-x-generic"
+            item.setIcon(QIcon.fromTheme(icon_name))
+            self.file_list.addItem(item)
+        if 0 <= current_row < self.file_list.count():
+            self.file_list.setCurrentRow(current_row)
+        self.file_list.blockSignals(False)
+
+    def remove_selected(self) -> None:
+        rows = sorted({index.row() for index in self.file_list.selectedIndexes()}, reverse=True)
+        if not rows:
+            return
+        for row in rows:
+            if 0 <= row < len(self.files):
+                entry = self.files.pop(row)
+                if entry is self.current:
+                    self.current = None
+        self._refresh_list()
+        if self.files and self.current is None:
+            self.file_list.setCurrentRow(min(rows[-1], len(self.files) - 1))
+        elif not self.files:
+            self._clear_editors()
+        self._update_actions()
+
+    def clear_files(self) -> None:
+        self.files.clear()
+        self.current = None
+        self._refresh_list()
+        self._clear_editors()
+        self._update_actions()
+
+    def _clear_editors(self) -> None:
+        self._loading = True
+        self.source_editor.clear()
+        self.output_editor.clear()
+        self._loading = False
+        self.source_path_label.setText("未选择文件")
+        self.kind_label.setText("")
+        self.output_path_label.setText("转换后在此预览")
+        self._update_counts(None)
+
+    def _show_list_menu(self, position) -> None:
+        menu = QMenu(self)
+        menu.addAction(self.action_convert)
+        menu.addAction(self.action_convert_save)
+        menu.addAction(self.action_save)
+        menu.addSeparator()
+        menu.addAction(self.action_remove)
+        menu.addAction(self.action_clear)
+        reveal = menu.addAction("在文件管理器中显示")
+        reveal.triggered.connect(self._reveal_current)
+        menu.exec(self.file_list.mapToGlobal(position))
+
+    def _reveal_current(self) -> None:
+        if self.current:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.current.path.parent)))
+
+    def _on_row_changed(self, row: int) -> None:
+        if self._loading or row < 0 or row >= len(self.files):
+            return
+        entry = self.files[row]
+        if entry is self.current:
+            return
+        self.current = entry
+        if not entry.source_text:
+            if not self._read_entry(entry):
+                return
+        self._loading = True
+        self.source_editor.setPlainText(entry.source_text)
+        self.encoding_combo.setItemText(0, f"自动检测（{entry.detected_encoding}）")
+        self.encoding_combo.setCurrentIndex(0)
+        self._loading = False
+        self.source_path_label.setText(str(entry.path))
+        self.kind_label.setText(f"[{entry.kind.display_name}]")
+        self._rebuild_highlighters()
+        self.source_editor.moveCursor(self.source_editor.textCursor().MoveOperation.Start)
+        self.convert_current()
+        self._update_actions()
+
+    def _read_entry(self, entry: SourceFile) -> bool:
+        try:
+            decoded = read_source(entry.path, entry.encoding_override)
+        except OSError as exc:
+            QMessageBox.critical(self, "读取失败", str(exc))
+            self.status_label.setText(f"读取失败: {entry.path}")
+            return False
+        entry.source_text = decoded.text
+        entry.detected_encoding = decoded.encoding
+        return True
+
+    def _on_encoding_changed(self, index: int) -> None:
+        if self._loading or self.current is None:
+            return
+        override = self.encoding_combo.itemData(index)
+        entry = self.current
+        entry.encoding_override = override
+        if self._read_entry(entry):
+            self._loading = True
+            self.source_editor.setPlainText(entry.source_text)
+            self._loading = False
+            self.convert_current()
+
+    # ------------------------------------------------------------------
+    # 转换 / 保存
+    # ------------------------------------------------------------------
+    def convert_current(self) -> None:
+        entry = self.current
+        if entry is None:
+            return
+        try:
+            text, report = convert_text(entry.source_text, entry.kind, self.settings, entry.path.name)
+        except Exception as exc:
+            QMessageBox.critical(self, "转换失败", str(exc))
+            return
+        entry.output_text = text
+        entry.report = report
+        entry.output_path = output_path_for(entry.path, self.settings)
+        self._loading = True
+        self.output_editor.setPlainText(text)
+        self._loading = False
+        self.output_path_label.setText(str(entry.output_path))
+        self._update_counts(report)
+        self.status_label.setText(f"已转换 {entry.path.name}")
+        self._update_actions()
+
+    def _make_result(self, entry: SourceFile) -> ConversionResult:
+        return ConversionResult(
+            source_path=str(entry.path),
+            output_path=str(entry.output_path or output_path_for(entry.path, self.settings)),
+            kind=entry.kind,
+            encoding=entry.detected_encoding or "utf-8",
+            text=entry.output_text,
+            report=entry.report or ConvertReport(),
+        )
+
+    def save_current(self) -> None:
+        entry = self.current
+        if entry is None:
+            return
+        entry.output_text = self.output_editor.toPlainText()
+        if not entry.output_text.strip():
+            QMessageBox.warning(self, "保存", "没有可保存的转换结果，请先执行转换。")
+            return
+        entry.output_path = entry.output_path or output_path_for(entry.path, self.settings)
+        result = self._make_result(entry)
+        write_output(result, self.settings)
+        if result.error:
+            QMessageBox.critical(self, "保存失败", result.error)
+            return
+        message = f"已保存: {result.output_path}"
+        if result.backup_path:
+            message += f"（原文件已备份为 {result.backup_path}）"
+        self.status_label.setText(message)
+
+    def convert_and_save(self) -> None:
+        self.convert_current()
+        self.save_current()
+
+    def batch_convert(self) -> None:
+        if not self.files:
+            QMessageBox.information(self, "批量转换", "文件列表为空。")
+            return
+        self.progress.show()
+        self.progress.setRange(0, len(self.files))
+        self.progress.setValue(0)
+        saved = 0
+        errors: list[str] = []
+        total_warnings = 0
+        total_todos = 0
+        for index, entry in enumerate(self.files, start=1):
+            try:
+                if not entry.source_text and not self._read_entry(entry):
+                    errors.append(f"{entry.path}: 读取失败")
+                else:
+                    text, report = convert_text(entry.source_text, entry.kind, self.settings, entry.path.name)
+                    entry.output_text = text
+                    entry.report = report
+                    entry.output_path = output_path_for(entry.path, self.settings)
+                    result = self._make_result(entry)
+                    write_output(result, self.settings)
+                    total_warnings += report.warning_count
+                    total_todos += report.todo_count
+                    if result.error:
+                        errors.append(f"{entry.path}: {result.error}")
+                    else:
+                        saved += 1
+            except Exception as exc:
+                errors.append(f"{entry.path}: {exc}")
+            self.progress.setValue(index)
+            QApplication.processEvents()
+        self.progress.hide()
+        if self.current is not None:
+            self._loading = True
+            self.output_editor.setPlainText(self.current.output_text)
+            self._loading = False
+            self._update_counts(self.current.report)
+        lines = [
+            f"共处理文件: {len(self.files)}",
+            f"成功写出: {saved}",
+            f"失败: {len(errors)}",
+            f"警告总数: {total_warnings}",
+            f"无法自动转换（TODO）总数: {total_todos}",
+        ]
+        if errors:
+            lines.append("")
+            lines.append("── 错误 ─────────────────────────────────")
+            lines.extend("  " + error for error in errors)
+        ReportDialog("批量转换报告", "\n".join(lines), self).exec()
+        self.status_label.setText(f"批量转换完成：成功 {saved} 个，失败 {len(errors)} 个")
+
+    # ------------------------------------------------------------------
+    # 对话框
+    # ------------------------------------------------------------------
+    def open_files(self) -> None:
+        directory = self.settings.last_dir or str(Path.home())
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "打开脚本文件",
+            directory,
+            "脚本文件 (*.bat *.cmd *.ps1 *.psm1);;所有文件 (*)",
+        )
+        if paths:
+            self.settings.last_dir = str(Path(paths[0]).parent)
+            self.add_paths([Path(p) for p in paths])
+
+    def open_folder(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self, "打开文件夹", self.settings.last_dir or str(Path.home())
+        )
+        if directory:
+            self.settings.last_dir = directory
+            self.add_paths([Path(directory)])
+
+    def open_diff(self) -> None:
+        entry = self.current
+        if entry is None:
+            QMessageBox.information(self, "预览差异", "请先选择并转换一个文件。")
+            return
+        output_text = self.output_editor.toPlainText()
+        output_name = str(entry.output_path or "output.sh")
+        DiffDialog(
+            entry.source_text,
+            output_text,
+            entry.path.name,
+            Path(output_name).name,
+            self.dark,
+            self,
+        ).exec()
+
+    def open_report(self) -> None:
+        entry = self.current
+        if entry is None or entry.report is None:
+            QMessageBox.information(self, "转换报告", "尚无转换报告，请先转换文件。")
+            return
+        text = entry.report.to_text()
+        if entry.report.todo_count == 0:
+            text += "\n\n所有语句均已自动转换。"
+        else:
+            text += "\n\n提示：输出脚本中以 # TODO 开头的行需要人工确认。"
+        ReportDialog(f"转换报告 - {entry.path.name}", text, self).exec()
+
+    def open_settings(self) -> None:
+        dialog = SettingsDialog(self.settings, self)
+        if dialog.exec() != SettingsDialog.DialogCode.Accepted:
+            return
+        self.settings = dialog.result_settings()
+        save_settings(self.settings)
+        app = QApplication.instance()
+        self.dark = apply_theme(app, self.settings.theme)
+        self._rebuild_highlighters()
+        if self.current is not None:
+            self.convert_current()
+        self.status_label.setText("设置已更新")
+
+    def toggle_theme(self) -> None:
+        order = ["system", "light", "dark"]
+        try:
+            index = order.index(self.settings.theme)
+        except ValueError:
+            index = 0
+        self.settings.theme = order[(index + 1) % len(order)]
+        save_settings(self.settings)
+        app = QApplication.instance()
+        self.dark = apply_theme(app, self.settings.theme)
+        self._rebuild_highlighters()
+        labels = {"system": "跟随系统", "light": "浅色", "dark": "深色"}
+        self.status_label.setText(f"主题: {labels[self.settings.theme]}")
+
+    def show_about(self) -> None:
+        AboutDialog(self).exec()
+
+    # ------------------------------------------------------------------
+    # 拖拽与状态
+    # ------------------------------------------------------------------
+    def dragEnterEvent(self, event) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:
+        paths = [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
+        if paths:
+            self.add_paths(paths)
+            event.acceptProposedAction()
+
+    def _update_counts(self, report: ConvertReport | None) -> None:
+        if report is None:
+            self.counts_label.setText("警告 0 · 错误 0 · 已转换 0/0")
+            return
+        self.counts_label.setText(
+            f"警告 {report.warning_count} · 错误 {report.todo_count} · "
+            f"已转换 {report.converted_lines}/{report.total_lines}"
+        )
+
+    def _update_actions(self) -> None:
+        has_current = self.current is not None
+        for action in (
+            self.action_convert,
+            self.action_save,
+            self.action_convert_save,
+            self.action_diff,
+            self.action_report,
+        ):
+            action.setEnabled(has_current)
+        self.action_batch.setEnabled(bool(self.files))
+        self.action_remove.setEnabled(self.file_list.count() > 0)
+        self.action_clear.setEnabled(self.file_list.count() > 0)
+
+    def closeEvent(self, event) -> None:
+        save_settings(self.settings)
+        super().closeEvent(event)
