@@ -362,22 +362,83 @@ def test_here_string_unclosed_warns(convert_ps):
 # ----------------------------------------------------------------------
 # try/catch/finally（阶段 3 的 2.5 目标）
 # ----------------------------------------------------------------------
-def test_try_catch_current_structure(convert_ps):
+def test_try_catch_single_command(convert_ps, bash_check):
     out, report = convert_ps(
         'try {\n    Get-Item "/tmp/a"\n} catch {\n    Write-Warning "failed"\n}\n'
     )
+    assert 'if ! ls -la "/tmp/a"; then' in out
+    assert 'echo "failed" >&2' in out
+    assert report.todo_count == 0
+    assert report.warning_count == 1
+    bash_check(out)
+
+
+def test_try_catch_inline_full(convert_ps, bash_check):
+    out, report = convert_ps('try { risky } catch { Write-Host "x" }\n')
+    assert "if ! risky; then" in out
+    assert 'echo "x"' in out
+    assert out.rstrip().endswith("fi")
+    assert report.todo_count == 0
+    assert report.warning_count == 2
+    bash_check(out)
+
+
+def test_try_catch_multi_command_falls_back(convert_ps, bash_check):
+    out, report = convert_ps(
+        'try {\n    Write-Host "one"\n    Write-Host "two"\n'
+        '} catch {\n    Write-Host "err"\n}\n'
+    )
     assert "if true; then  # TODO: try/catch 未等价转换" in out
     assert "else  # TODO: catch 块" in out
-    assert report.warning_count == 2
+    assert "多余的 }" not in out
+    assert report.warning_count == 1
+    bash_check(out)
 
 
-def test_try_catch_typed_current_behavior(convert_ps):
-    # 锁定当前行为：带类型的 catch 会让后续花括号错位，产生「多余的 }」警告（阶段 3 修复）
+def test_try_catch_typed_keeps_structure(convert_ps, bash_check):
     out, report = convert_ps(
         'try {\n    risky\n} catch [System.IO.IOException] {\n    Write-Host "io"\n}\n'
     )
-    assert "# 多余的 }，已忽略" in out
-    assert report.warning_count == 4
+    assert "多余的 }" not in out
+    assert "if true; then  # TODO: try/catch 未等价转换" in out
+    assert any(
+        "catch 类型 System.IO.IOException 已忽略" in d.message for d in report.warnings
+    )
+    assert report.warning_count == 3
+    bash_check(out)
+
+
+def test_try_finally_is_parallel_block(convert_ps, bash_check):
+    out, report = convert_ps(
+        'try {\n    Get-Item "/tmp/a"\n} finally {\n    Write-Host "done"\n}\n'
+    )
+    assert 'ls -la "/tmp/a"' in out
+    assert "if true; then  # TODO: finally 块总是执行" in out
+    assert 'echo "done"' in out
+    assert out.index('ls -la "/tmp/a"') < out.index("if true; then  # TODO: finally")
+    assert report.todo_count == 0
+    assert report.warning_count == 1
+    bash_check(out)
+
+
+def test_try_catch_finally_combined(convert_ps, bash_check):
+    out, report = convert_ps(
+        'try {\n    Get-Item "/tmp/a"\n} catch {\n    Write-Host "err"\n'
+        '} finally {\n    Write-Host "done"\n}\n'
+    )
+    assert 'if ! ls -la "/tmp/a"; then' in out
+    assert "if true; then  # TODO: finally 块总是执行" in out
+    assert "多余的 }" not in out
+    assert report.warning_count == 2
+    bash_check(out)
+
+
+def test_bare_try_executes_body(convert_ps, bash_check):
+    out, report = convert_ps('try { Write-Host "just" }\nWrite-Host "after"\n')
+    assert 'echo "just"' in out
+    assert 'echo "after"' in out
+    assert report.warning_count == 0
+    bash_check(out)
 
 
 # ----------------------------------------------------------------------

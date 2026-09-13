@@ -75,6 +75,10 @@ class PowerShellConverter:
         self._todo_reason = ""
         self._current_cmdlet = ""
         self._pipe_comments: list[str] = []
+        self._try_buffer: list[str] | None = None
+        self._try_lineno = 0
+        self._try_depth = 0
+        self._try_inline_pending = False
 
     # ------------------------------------------------------------------
     # 对外入口
@@ -84,7 +88,7 @@ class PowerShellConverter:
         self.report.total_lines = len(logical)
         self._prescan(logical)
         for start, line in logical:
-            produced = self._convert_line(start, line)
+            produced = self._dispatch_line(start, line)
             self._out.extend(produced)
             if not line.strip():
                 continue
@@ -510,6 +514,30 @@ class PowerShellConverter:
     # ------------------------------------------------------------------
     # 分发
     # ------------------------------------------------------------------
+    def _dispatch_line(self, lineno: int, raw: str) -> list[str]:
+        """try 体缓冲：非边界行只累积，catch/finally/结束花括号才落盘。"""
+        if self._try_buffer is None:
+            return self._convert_line(lineno, raw)
+        stripped = raw.strip()
+        boundary = len(self._stack) == self._try_depth and (
+            stripped.startswith("}") or bool(re.match(r"(?i)^(catch|finally)\b", stripped))
+        )
+        if boundary:
+            return self._convert_line(lineno, raw)
+        if self._try_inline_pending:
+            finalized = self._finalize_bare_try()
+            return finalized + self._convert_line(lineno, raw)
+        self._try_buffer.extend(self._convert_line(lineno, raw))
+        return []
+
+    def _finalize_bare_try(self) -> list[str]:
+        buffer = self._try_buffer or []
+        self._try_buffer = None
+        self._try_inline_pending = False
+        if self._stack and self._stack[-1].kind == "try":
+            self._stack.pop()
+        return list(buffer)
+
     def _convert_line(self, lineno: int, raw: str) -> list[str]:
         if self._here_end is not None:
             return self._collect_here_line(lineno, raw)
@@ -638,6 +666,9 @@ class PowerShellConverter:
     def _convert_statement(self, lineno: int, text: str) -> list[str]:
         self._todo_reason = ""
 
+        if self._try_buffer is not None and re.match(r"(?i)^(catch|finally)\b", text):
+            return self._close_block_line(lineno, text)
+
         # 注释
         if text.startswith("#"):
             return [self._c(text)]
@@ -666,21 +697,37 @@ class PowerShellConverter:
             self._stack.append(block)
             return [todo_line]
 
-        if re.match(r"(?i)^try\s*\{?", text):
-            self._warn(lineno, "try/catch 已简化处理：try 体直接执行，catch 分支仅保留结构", text)
-            header = self._c("if true; then  # TODO: try/catch 未等价转换")
-            self._stack.append(_Block("try", "fi"))
-            lines = [header]
-            inline = re.sub(r"(?i)^try\s*\{", "", text).strip()
-            if inline.endswith("}"):
-                inline = inline[:-1].strip()
+        if re.match(r"(?i)^try\s*\{?", text) and self._try_buffer is None:
+            self._try_lineno = lineno
+            self._try_buffer = []
+            self._try_inline_pending = False
+            self._stack.append(_Block("try", ""))
+            self._try_depth = len(self._stack)
+            open_index = text.find("{")
+            if open_index < 0:
+                self._warn(lineno, "try 缺少花括号，已忽略", text)
                 self._stack.pop()
-                if inline:
-                    lines.extend(self._convert_line(lineno, inline))
-                lines.append(self._c("fi"))
-            elif inline:
-                lines.extend(self._convert_line(lineno, inline))
-            return lines
+                self._try_buffer = None
+                return []
+            close_index = find_matching(text, "{", "}", open_index)
+            if close_index > open_index:
+                body_text = text[open_index + 1:close_index].strip()
+                tail = text[close_index + 1:].strip()
+                if body_text:
+                    self._try_buffer.extend(self._convert_line(lineno, body_text))
+                if re.match(r"(?i)^catch\b", tail):
+                    return self._handle_catch(lineno, tail, tail)
+                if re.match(r"(?i)^finally\b", tail):
+                    return self._handle_finally(lineno, tail, tail)
+                if tail:
+                    self._warn(lineno, f"try 之后的 {tail!r} 无法解析", text)
+                else:
+                    self._try_inline_pending = True
+                return []
+            body_text = text[open_index + 1:].strip()
+            if body_text:
+                self._try_buffer.extend(self._convert_line(lineno, body_text))
+            return []
 
         if text.lower() == "do {":
             header = self._c("while true; do")
@@ -2223,8 +2270,14 @@ class PowerShellConverter:
     # 块闭合
     # ------------------------------------------------------------------
     def _close_block_line(self, lineno: int, text: str) -> list[str]:
-        rest = text[1:].strip()
+        if text.startswith("}"):
+            rest = text[1:].strip()
+        else:
+            rest = text.strip()
         if not rest:
+            if self._stack and self._stack[-1].kind == "try":
+                self._try_inline_pending = True
+                return []
             return self._pop_block(lineno)
         low = rest.lower()
         if low.startswith("elseif") or low.startswith("else if"):
@@ -2258,42 +2311,10 @@ class PowerShellConverter:
             lines.append(self._c("fi"))
             return lines
         if low.startswith("catch"):
-            if self._stack:
-                self._stack.pop()
-            self._warn(lineno, "catch 分支仅保留结构，错误处理逻辑需人工转换", text)
-            lines = [self._c("else  # TODO: catch 块")]
-            self._stack.append(_Block("catch", "fi"))
-            after = rest[5:].strip()
-            inline = ""
-            if after.startswith("{"):
-                close = find_matching(after, "{", "}")
-                inline = after[1:close].strip() if close > 0 else after[1:].strip()
-            if inline:
-                lines.extend(self._convert_line(lineno, inline))
-            if after.startswith("{") and (not after.endswith("}") or after == "{"):
-                return lines
-            self._stack.pop()
-            lines.append(self._c("fi"))
-            return lines
+            return self._handle_catch(lineno, text, rest)
         if low.startswith("finally"):
-            if self._stack:
-                self._stack.pop()
-            lines = [self._c("fi"), self._c("# TODO: finally 块总是执行"), self._c("if true; then")]
-            self._stack.append(_Block("finally", "fi"))
-            after = rest[7:].strip()
-            inline = ""
-            if after.startswith("{"):
-                close = find_matching(after, "{", "}")
-                inline = after[1:close].strip() if close > 0 else after[1:].strip()
-            if inline:
-                lines.extend(self._convert_line(lineno, inline))
-            if after.startswith("{") and (not after.endswith("}") or after == "{"):
-                return lines
-            self._stack.pop()
-            lines.append(self._c("fi"))
-            return lines
+            return self._handle_finally(lineno, text, rest)
         if low.startswith("while"):
-            # do { ... } while (cond)
             m = re.match(r"(?i)^while\s*\((.*)\)\s*$", rest)
             cond = self._convert_condition(m.group(1), lineno) if m else "0 -eq 0"
             lines: list[str] = []
@@ -2303,6 +2324,108 @@ class PowerShellConverter:
             lines.append(self._c("done"))
             return lines
         return self._pop_block(lineno)
+
+    @staticmethod
+    def _parse_block_body(after: str) -> tuple[str, bool]:
+        after = after.strip()
+        if after.startswith("{"):
+            close = find_matching(after, "{", "}")
+            if close > 0:
+                return after[1:close].strip(), close == len(after) - 1
+            return after[1:].strip(), False
+        return after, True
+
+    @staticmethod
+    def _is_effectful(line: str) -> bool:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            return False
+        if stripped in ("fi", "done", "else", "esac", "}"):
+            return False
+        return not stripped.endswith(("; then", "; do"))
+
+    def _handle_catch(self, lineno: int, text: str, rest: str) -> list[str]:
+        after = rest[5:].strip()
+        type_name = ""
+        if after.startswith("["):
+            close_type = find_matching(after, "[", "]")
+            if close_type > 0:
+                type_name = after[1:close_type].strip()
+                after = after[close_type + 1:].strip()
+        inline, complete = self._parse_block_body(after)
+        if self._try_buffer is None:
+            self._warn(lineno, "catch 分支仅保留结构，错误处理逻辑需人工转换", text)
+            lines = [self._c("else  # TODO: catch 块")]
+            if inline:
+                lines.extend(self._convert_line(lineno, inline))
+            if complete:
+                lines.append(self._c("fi"))
+            else:
+                self._stack.append(_Block("catch", "fi"))
+            return lines
+        buffer = self._try_buffer
+        self._try_buffer = None
+        self._try_inline_pending = False
+        if self._stack and self._stack[-1].kind == "try":
+            self._stack.pop()
+        meaningful = [line for line in buffer if line.strip()]
+        effectful = [line for line in meaningful if self._is_effectful(line)]
+        if not type_name and len(effectful) == 1 and len(meaningful) == 1:
+            self._warn(
+                lineno,
+                "try/catch 已近似转换为 if ! 判断：仅在命令失败时执行 catch，"
+                "PowerShell 异常语义可能不同，请核对",
+                text,
+            )
+            lines = [self._c(f"if ! {effectful[0].strip()}; then")]
+            if inline:
+                lines.extend(self._convert_line(lineno, inline))
+            if complete:
+                lines.append(self._c("fi"))
+            else:
+                self._stack.append(_Block("catch", "fi"))
+            return lines
+        self._warn(lineno, "try/catch 已简化处理：try 体直接执行，catch 分支仅保留结构", text)
+        if type_name:
+            self._warn(
+                lineno,
+                f"catch 类型 {type_name} 已忽略，错误处理逻辑需人工转换，请核对",
+                text,
+            )
+        lines = [self._c("if true; then  # TODO: try/catch 未等价转换")]
+        lines.extend(buffer)
+        lines.append(self._c("else  # TODO: catch 块"))
+        if inline:
+            lines.extend(self._convert_line(lineno, inline))
+        if complete:
+            lines.append(self._c("fi"))
+        else:
+            self._stack.append(_Block("catch", "fi"))
+        return lines
+
+    def _handle_finally(self, lineno: int, text: str, rest: str) -> list[str]:
+        lines: list[str] = []
+        if self._try_buffer is not None:
+            if self._stack and self._stack[-1].kind == "try":
+                self._stack.pop()
+            lines.extend(self._try_buffer)
+            self._try_buffer = None
+            self._try_inline_pending = False
+        elif self._stack and self._stack[-1].kind in ("try", "catch"):
+            block = self._stack.pop()
+            if block.close_word:
+                lines.append(self._c(block.close_word))
+        self._warn(lineno, "finally 块总是执行，已转换为独立的 if true 块，请核对", text)
+        lines.append(self._c("if true; then  # TODO: finally 块总是执行"))
+        after = rest[7:].strip()
+        inline, complete = self._parse_block_body(after)
+        if inline:
+            lines.extend(self._convert_line(lineno, inline))
+        if complete:
+            lines.append(self._c("fi"))
+        else:
+            self._stack.append(_Block("finally", "fi"))
+        return lines
 
     def _pop_block(self, lineno: int) -> list[str]:
         if not self._stack:
@@ -2317,6 +2440,16 @@ class PowerShellConverter:
     # 收尾
     # ------------------------------------------------------------------
     def _finish(self) -> None:
+        if self._try_buffer is not None:
+            self._warn(
+                self._try_lineno,
+                "try 块未找到 catch/finally/结束花括号，已按顺序执行 try 体",
+            )
+            self._out.extend(self._try_buffer)
+            self._try_buffer = None
+            self._try_inline_pending = False
+            while self._stack and self._stack[-1].kind == "try":
+                self._stack.pop()
         if self._here_end is not None:
             self._warn(
                 self._here_lineno,

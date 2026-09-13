@@ -249,6 +249,7 @@ bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
 | `Expand-Archive` / `Compress-Archive` | `unzip` / `zip -r` |
 | `Get/Start/Stop/Restart-Service` | `systemctl status/start/stop/restart` |
 | `@"..."@` / `@'...'@` here-string | `cat <<EOF`（插值）/ `cat <<'EOF'`（字面量）；赋值形式 `x=$(cat <<EOF ... )`（见 §8.2） |
+| `try { cmd } catch { ... }`（无类型、try 体单命令） | `if ! cmd; then ...; fi`（近似；多命令/类型 catch/finally 保留结构 + TODO） |
 | `if ($x -eq "y") {...} elseif ... else ...` | `if [[ "${x:-}" = "y" ]]; then ... elif ... else ... fi` |
 | `-eq/-ne/-gt/-lt/-ge/-le/-like/-match/-and/-or/-not` | `=`/`!=`/`-gt`/`-lt`/`-ge`/`-le`/`==`（glob）/`=~`/`&&`/`\|\|`/`!`（`[[ ]]` 内） |
 | `foreach ($i in $list) {...}`、`1..10`、`Get-ChildItem ...` | `for i in ...; do ...; done`、`$(seq 1 10)`、数组展开 |
@@ -443,8 +444,11 @@ echo "清理完成"
    `Select-Object`（除 `-First/-Last`）、`Group-Object`、`Get-Member`、
    `Format-Table/List`、`ConvertTo/From-Json` 等仍依赖对象模型 → TODO
    （建议改用 `grep/awk/jq`）。
-2. **`try/catch/finally`**：仅保留控制结构（`if true; then ... else ... fi` + 注释），
-   无真正的异常语义；建议配合脚本头 `set -e` 并手工整理错误处理。
+2. **`try/catch/finally`**：try 体只有单条命令且 catch 无类型时转换为
+   `if ! cmd; then ...; fi`（近似：bash 的 `set -e` 与 PowerShell 异常语义不同）；
+   多命令、带类型 catch 仍为"结构保留 + TODO"。`finally` 生成独立的
+   `if true; then ... fi`，与 try/catch 块并列而非嵌套；建议配合脚本头 `set -e`
+   并手工整理错误处理。
 3. **`switch`**：整块注释为 TODO。
 4. **.NET 与对象操作**：`[System.IO.File]::ReadAllText()`、`New-Object`、`Add-Type`、
    `Add-Member`、`$obj.Property`、`$_.X`、`Get-ItemProperty` 等 → TODO。
