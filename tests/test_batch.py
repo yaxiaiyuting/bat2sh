@@ -89,6 +89,19 @@ def test_if_compare(convert_bat):
     assert 'if [ "${A}" = "B" ]; then' in out
 
 
+def test_if_exist_glob_warns(convert_bat):
+    out, report = convert_bat("@echo off\nif exist *.log echo found\n")
+    assert '[ -e "*.log" ]' in out
+    assert report.warning_count == 1
+    assert report.warnings[0].category == "glob"
+    assert "if exist 支持通配符" in report.warnings[0].message
+
+
+def test_if_exist_plain_no_glob_warning(convert_bat):
+    out, report = convert_bat("@echo off\nif exist config.ini echo yes\n")
+    assert report.warning_count == 0
+
+
 # ----------------------------------------------------------------------
 # if errorlevel
 # ----------------------------------------------------------------------

@@ -587,6 +587,15 @@ class BatchConverter:
     def _parse_condition(self, lineno: int, expr: str, negate: bool) -> tuple[str, str]:
         m = re.match(r'(?i)^exist\s+(".*?"|\S+)\s*(.*)$', expr)
         if m:
+            raw_target, _ = strip_outer_quotes(m.group(1))
+            if needs_nullglob(raw_target):
+                self._warn(
+                    lineno,
+                    "cmd 的 if exist 支持通配符，bash 的 -e 不支持；"
+                    "如需匹配任意文件请手动改为 ls <模式> 2>/dev/null（或 compgen -G）",
+                    expr,
+                    category="glob",
+                )
             target = self._convert_path_token(m.group(1), lineno)
             test = f"-e {target}"
             if negate:
