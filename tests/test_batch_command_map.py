@@ -382,3 +382,36 @@ def test_type_regular_file_still_cat(convert_bat):
 def test_nul_redirect_still_devnull(convert_bat):
     out, _ = convert_bat("@echo off\necho hi >nul\n")
     assert ">/dev/null" in out
+
+
+def test_unicode_variable_declaration_and_reference_match(convert_bat):
+    text = '@echo off\nset "中文变量=中文值"\necho %中文变量%\n'
+    out, _ = convert_bat(text)
+    assert '____="中文值"' in out
+    assert 'echo "${____}"' in out
+    assert "%中文变量%" not in out
+    assert "${中文变量}" not in out
+
+
+def test_unicode_path_preserved(convert_bat):
+    text = '@echo off\nset "中文路径=C:\\测试目录"\necho %中文路径%\n'
+    out, _ = convert_bat(text)
+    assert "C:/测试目录" in out
+    assert "C:\\\\" not in out
+
+
+def test_unicode_variable_runs(convert_bat, bash_run):
+    text = '@echo off\nset "中文变量=中文值"\necho %中文变量%\n'
+    out, _ = convert_bat(text)
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert "中文值" in proc.stdout
+
+
+def test_unicode_name_collision_warns(convert_bat):
+    text = (
+        '@echo off\nset "中文变量=中文值"\nset "中文路径=C:\\测试目录"\n'
+        "echo %中文路径%\n"
+    )
+    out, report = convert_bat(text)
+    assert any("重命名后同名" in d.message for d in report.warnings)

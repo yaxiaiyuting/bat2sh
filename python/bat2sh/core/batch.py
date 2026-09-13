@@ -297,6 +297,7 @@ class BatchConverter:
         self._bat2sh_status_valid = False
         self._errorlevel_captured = False
         self._errorlevel_lines: set[int] = set()
+        self._renamed_vars: dict[str, str] = {}
         self._current_command = ""
 
     # ------------------------------------------------------------------
@@ -602,9 +603,9 @@ class BatchConverter:
                         category="variables",
                     )
                     return "${ERRORLEVEL}"
-                return "${%s}" % name
+                return "${%s}" % sanitize_identifier(name)
 
-            text = re.sub(r"!([A-Za-z_]\w*)!", delayed_repl, text)
+            text = re.sub(r"!([^\W\d]\w*)!", delayed_repl, text)
 
         # %NAME%
         def env_repl(m: re.Match[str]) -> str:
@@ -627,9 +628,9 @@ class BatchConverter:
                 if upper in rules.BATCH_ENV_WARN:
                     self._warn(lineno, f"%{name}% 的转换可能不完全等价", text, category="variables")
                 return rules.BATCH_ENV_MAP[upper]
-            return "${%s}" % name
+            return "${%s}" % sanitize_identifier(name)
 
-        text = re.sub(r"%([A-Za-z_][A-Za-z0-9_]*)%", env_repl, text)
+        text = re.sub(r"%([^\W\d]\w*)%", env_repl, text)
         return text
 
     def _modifier(self, m: re.Match[str], lineno: int, original: str) -> str:
@@ -2123,13 +2124,28 @@ class BatchConverter:
                     return "env"
                 return "env | grep -E " + dq("^" + re.escape(args.strip()))
         raw_var = var.strip()
-        name = sanitize_identifier(raw_var)
-        if name != raw_var:
-            self._warn(lineno, f"变量名 {raw_var!r} 已重命名为 {name}", original, category="variables")
+        name = self._variable_name(raw_var, lineno, original)
         value = convert_backslashes(self._expand_vars(value.rstrip(), lineno))
         if self.settings.quote_variables or value == "" or re.search(r"[\s$&|()<>]", value):
             return f"{name}={dq(value)}"
         return f"{name}={value}"
+
+    def _variable_name(self, raw_var: str, lineno: int, original: str) -> str:
+        name = sanitize_identifier(raw_var)
+        if name == raw_var:
+            return name
+        previous = self._renamed_vars.get(name)
+        if previous is not None and previous != raw_var:
+            self._warn(
+                lineno,
+                f"变量名 {raw_var!r} 与 {previous!r} 重命名后同名（{name}），请人工重命名",
+                original,
+                category="variables",
+            )
+        else:
+            self._renamed_vars[name] = raw_var
+        self._warn(lineno, f"变量名 {raw_var!r} 已重命名为 {name}", original, category="variables")
+        return name
 
     def _set_arithmetic(self, lineno: int, m: re.Match[str], original: str) -> str:
         name = sanitize_identifier(m.group(1))

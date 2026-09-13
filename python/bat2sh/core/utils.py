@@ -168,7 +168,7 @@ def convert_backslashes(text: str) -> str:
                 if nxt == quote:
                     # Windows 目录写法 "C:\dir\"：反斜杠紧邻引号，转换为 /
                     result.append("/")
-                elif nxt and nxt in path_next:
+                elif nxt and (nxt in path_next or nxt.isalnum()):
                     result.append("/")
                 else:
                     result.append(c)
@@ -186,7 +186,7 @@ def convert_backslashes(text: str) -> str:
             nxt = text[i + 1] if i + 1 < n else ""
             if not nxt:
                 result.append("/")
-            elif nxt in path_next:
+            elif nxt in path_next or nxt.isalnum():
                 result.append("/")
             else:
                 result.append(c)
