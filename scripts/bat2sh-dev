@@ -2,5 +2,5 @@
 # 从源码目录直接运行（开发用）
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-export PYTHONPATH="$PROJECT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$PROJECT_DIR/python${PYTHONPATH:+:$PYTHONPATH}"
 exec python3 -m bat2sh "$@"

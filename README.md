@@ -28,12 +28,13 @@
 ```text
 bat2sh/
 ├── PKGBUILD                     # Arch/CachyOS 打包脚本 (makepkg -si)
-├── bat2sh.install               # PKGBUILD 安装钩子
 ├── install.sh                   # 免打包安装脚本（默认 ~/.local）
 ├── bat2sh.desktop               # 桌面项
 ├── pyproject.toml               # pip/setuptools 打包配置
 ├── LICENSE
 ├── README.md
+├── .github/
+│   └── workflows/test.yml       # CI：多版本 Python 运行 pytest
 ├── scripts/
 │   ├── bat2sh-launcher          # 安装版启动器（供 PKGBUILD 使用）
 │   └── bat2sh-dev               # 源码目录直接运行
@@ -42,7 +43,14 @@ bat2sh/
 │   ├── deploy.bat / deploy.sh
 │   ├── backup.ps1 / backup.sh
 │   └── cleanup.ps1/ cleanup.sh
-└── src/bat2sh/
+├── tests/                       # pytest 回归测试
+│   ├── conftest.py
+│   ├── test_batch.py
+│   ├── test_powershell.py
+│   ├── test_encoding.py
+│   ├── test_cli.py
+│   └── test_examples.py
+└── python/bat2sh/
     ├── __init__.py              # 版本与应用元信息
     ├── __main__.py              # 统一入口：GUI / --cli
     ├── cli.py                   # 命令行模式
@@ -75,8 +83,8 @@ makepkg -si
 ```
 
 依赖解析：`python`、`python-pyside6`（AUR 之外的官方仓库均有）。
-PKGBUILD 使用本地 tarball 模式（`sha256sums=('SKIP')`），发布到 AUR 时请替换为正式
-source 与校验和。
+PKGBUILD 使用 GitHub Release 的 tag tarball 作为 `source`，并固定 `sha256sums`；
+发布新版本时需要同步更新 `pkgver` 与校验和（`updpkgsums`）。
 
 ### 3.2 免打包安装（推荐个人使用）
 
@@ -461,7 +469,7 @@ echo "清理完成"
 
 ## 9. 扩展转换规则
 
-所有规则集中在 `src/bat2sh/core/rules.py`：
+所有规则集中在 `python/bat2sh/core/rules.py`：
 
 - 简单命令（参数透传）：往 `BATCH_SIMPLE_MAP` / `PS_SIMPLE_CMDLETS` 加一行。
 - 需要特判参数：在 `BATCH_HANDLER_MAP` / `PS_HANDLER_MAP` 中把命令映射到转换器的

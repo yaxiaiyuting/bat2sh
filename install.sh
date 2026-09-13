@@ -44,7 +44,7 @@ fi
 echo "==> 安装模块到 $LIBDIR"
 rm -rf "$LIBDIR"
 mkdir -p "$LIBDIR"
-cp -a "$HERE/src/bat2sh" "$LIBDIR/"
+cp -a "$HERE/python/bat2sh" "$LIBDIR/"
 
 echo "==> 安装启动器到 $BINDIR/bat2sh"
 mkdir -p "$BINDIR"
@@ -54,7 +54,7 @@ chmod 755 "$BINDIR/bat2sh"
 echo "==> 安装桌面项与图标"
 mkdir -p "$PREFIX/share/applications" "$PREFIX/share/icons/hicolor/scalable/apps"
 install -m644 "$HERE/bat2sh.desktop" "$PREFIX/share/applications/bat2sh.desktop"
-install -m644 "$HERE/src/bat2sh/data/bat2sh.svg" \
+install -m644 "$HERE/python/bat2sh/data/bat2sh.svg" \
     "$PREFIX/share/icons/hicolor/scalable/apps/bat2sh.svg"
 
 echo "==> 完成。"
