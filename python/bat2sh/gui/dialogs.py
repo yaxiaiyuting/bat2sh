@@ -139,6 +139,27 @@ class SettingsDialog(QDialog):
         return settings.normalized()
 
 
+def build_diff_html(
+    source_text: str,
+    output_text: str,
+    source_name: str,
+    output_name: str,
+    dark: bool,
+) -> str:
+    """构造差异预览的 HTML（含深/浅色包装），不依赖 Qt。"""
+    html = difflib.HtmlDiff(wrapcolumn=100).make_table(
+        source_text.splitlines(),
+        output_text.splitlines(),
+        fromdesc=source_name,
+        todesc=output_name,
+        context=True,
+        numlines=4,
+    )
+    background = "#232629" if dark else "#fcfcfc"
+    foreground = "#eff0f1" if dark else "#232629"
+    return f"<div style='background:{background};color:{foreground};'>{html}</div>"
+
+
 class DiffDialog(QDialog):
     def __init__(
         self,
@@ -158,18 +179,8 @@ class DiffDialog(QDialog):
         layout.addWidget(header)
         browser = QTextBrowser()
         browser.setOpenExternalLinks(False)
-        html = difflib.HtmlDiff(wrapcolumn=100).make_table(
-            source_text.splitlines(),
-            output_text.splitlines(),
-            fromdesc=source_name,
-            todesc=output_name,
-            context=True,
-            numlines=4,
-        )
-        background = "#232629" if dark else "#fcfcfc"
-        foreground = "#eff0f1" if dark else "#232629"
         browser.setHtml(
-            f"<div style='background:{background};color:{foreground};'>{html}</div>"
+            build_diff_html(source_text, output_text, source_name, output_name, dark)
         )
         layout.addWidget(browser)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
