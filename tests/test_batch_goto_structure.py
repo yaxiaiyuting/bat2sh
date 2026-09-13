@@ -116,3 +116,35 @@ def test_stress_shape_keeps_post_skip_code_in_main_flow(convert_bat, bash_check)
     assert "label_SKIP" not in out
     assert out.index('echo "module1"') < out.index('echo "module5"')
     assert "label_SUB() {" in out
+
+
+def test_dead_code_warning_after_goto(convert_bat):
+    out, _ = convert_bat("@echo off\ngoto :SKIP\necho dead\n:SKIP\necho done\n")
+    assert "# 注意：以下代码原被 goto :SKIP 跳过，在 bash 中会执行，请核对" in out
+    assert out.index("# TODO: 手动检查: goto :SKIP") < out.index("# 注意：")
+
+
+def test_no_warning_when_target_immediately_follows(convert_bat):
+    out, _ = convert_bat("@echo off\ngoto :SKIP\n:SKIP\necho done\n")
+    assert "# 注意：" not in out
+
+
+def test_multiple_goto_targets_warn_independently(convert_bat):
+    text = "@echo off\ngoto :A\necho deadA\n:A\ngoto :B\necho deadB\n:B\necho done\n"
+    out, _ = convert_bat(text)
+    assert "# 注意：以下代码原被 goto :A 跳过" in out
+    assert "# 注意：以下代码原被 goto :B 跳过" in out
+    assert out.count("# 注意：") == 2
+
+
+def test_warning_not_emitted_past_target_label(convert_bat):
+    text = "@echo off\ngoto :A\n:A\necho done\ngoto :B\n:B\necho end\n"
+    out, _ = convert_bat(text)
+    assert "# 注意：" not in out
+
+
+def test_warning_is_comment_only(convert_bat, bash_run):
+    out, _ = convert_bat("@echo off\ngoto :SKIP\necho dead\n:SKIP\necho done\n")
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines() == ["dead", "done"]

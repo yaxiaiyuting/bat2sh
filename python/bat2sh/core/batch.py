@@ -352,6 +352,7 @@ class BatchConverter:
         self._labels: set[str] = set()
         self._call_targets: set[str] = set()
         self._goto_targets: set[str] = set()
+        self._goto_dead_lines: dict[int, str] = {}
         self._function_mode = False
         self._current_func: str | None = None
         self._needs_script_dir = False
@@ -571,7 +572,7 @@ class BatchConverter:
         return result
 
     def _prescan(self, logical: list[tuple[int, str]]) -> None:
-        for number, line in logical:
+        for index, (number, line) in enumerate(logical):
             stripped = line.strip()
             if not stripped:
                 continue
@@ -584,6 +585,8 @@ class BatchConverter:
             jump = re.match(r"(?i)^goto\s+:?([\w.\-]+)\s*$", stripped)
             if jump and jump.group(1).lower() != "eof":
                 self._goto_targets.add(jump.group(1).lower())
+                if self._code_follows_before_label(logical, index, jump.group(1)):
+                    self._goto_dead_lines[number] = jump.group(1)
             if re.match(r"(?i)^@?\s*if\b", stripped):
                 for target in re.findall(r"(?i)\bgoto\s+:?([\w.\-]+)", stripped):
                     if target.lower() != "eof":
@@ -598,6 +601,18 @@ class BatchConverter:
                 )
             ):
                 self._errorlevel_lines.add(number)
+
+    @staticmethod
+    def _code_follows_before_label(
+        logical: list[tuple[int, str]], index: int, target: str
+    ) -> bool:
+        pattern = re.compile(rf"(?i)^:{re.escape(target)}\s*$")
+        for _, following in logical[index + 1:]:
+            stripped = following.strip()
+            if not stripped:
+                continue
+            return not pattern.match(stripped)
+        return False
 
     def _compose(self) -> str:
         header = ["#!/usr/bin/env bash"]
@@ -1062,7 +1077,13 @@ class BatchConverter:
             self._todo(lineno, text, "goto 跨函数跳转无法自动重构，请手动改为函数调用或循环", category="control_flow")
         else:
             self._todo(lineno, text, "goto 控制流无法自动转换，请手动重构", category="control_flow")
-        return [self._c("# TODO: 手动检查: " + text)]
+        result = [self._c("# TODO: 手动检查: " + text)]
+        dead_target = self._goto_dead_lines.get(lineno)
+        if dead_target:
+            result.append(
+                self._c(f"# 注意：以下代码原被 goto :{dead_target} 跳过，在 bash 中会执行，请核对")
+            )
+        return result
 
     def _convert_call(self, lineno: int, text: str) -> list[str]:
         indirect = re.match(
