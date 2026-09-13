@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--last-exit-code",
         choices=["warn", "map"],
         default="warn",
-        help="处理 PowerShell $LASTEXITCODE 的策略（默认 warn）："
+        help="处理 PowerShell $LASTEXITCODE / 批处理 %%ERRORLEVEL%% 的退出码策略（默认 warn）："
         "warn = 生成 TODO 提示手工复核；"
         "map = 近似映射为 bash $?（首次捕获到 __bat2sh_rc）",
     )

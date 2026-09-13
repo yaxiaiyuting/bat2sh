@@ -36,7 +36,7 @@ class ConvertSettings:
     indent: str = "    "
     quote_variables: bool = True
     strict_mode: bool = True
-    last_exit_code: str = "warn"  # PowerShell $LASTEXITCODE 策略: warn | map
+    last_exit_code: str = "warn"  # 退出码策略（PowerShell $LASTEXITCODE / 批处理 %ERRORLEVEL%）: warn | map
 
     # 界面
     theme: str = "system"

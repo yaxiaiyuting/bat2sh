@@ -310,6 +310,16 @@ GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未�
 | `tasklist` / `taskkill /im x /pid N` | `ps aux` / `pkill -f x`、`kill N` |
 | `ipconfig` / `netstat` | `ip addr` / `ss -tuln`（输出格式不同，告警） |
 | `timeout /t N` | `sleep N` |
+| `choice /c ... [/t N] [/m "提示"]` | `read -r -n 1 [-t N] [-p "提示"]`（后续依赖 `%ERRORLEVEL%` 时整行 TODO） |
+| `certutil -hashfile f MD5\|SHA256` | `md5sum f` / `sha256sum f`（其他算法 TODO；输出格式不同，告警） |
+| `driverquery` | `lsmod`（仅内核模块，语义不同，告警；有意不做 `lspci` 映射） |
+| `assoc .ext` / `ftype name` | `xdg-mime query default <MIME>`（常见扩展名/类型名映射；未知 → TODO） |
+| `dir x \| findstr y`（两段、无重定向/`&`） | `ls x \| grep y`（多级管道、含重定向/`&` 连接 → 整行 TODO） |
+| `%SystemRoot%` | `${SystemRoot:-/}`（保留变量名，可用环境变量覆盖） |
+| `call set "R=%%%A%%%"` | `R="${!A}"`（整个值为单个间接引用；复杂形式 → TODO） |
+| `if /i "%A%"=="%B%"` | `[[ ${A,,} == ${B,,} ]]`（变量）；字面量转换时小写；通配符/复杂表达式 → TODO；不使用 `shopt` |
+| `%ERRORLEVEL%` | warn（默认）：TODO；`--last-exit-code map`：`${__bat2sh_rc}`（首次引用处捕获 `$?`） |
+| `%DATE%` / `%TIME%` | `$(date +%Y-%m-%d)` / `$(date +%H:%M:%S)`（ISO 近似并告警；`for /f` 内 → TODO） |
 | `ver` / `systeminfo` | `uname -a` |
 | `where x` / `mklink` / `fc` / `comp` | `command -v x` / `ln -s` / `diff` / `cmp` |
 | `shift`、`pushd`、`popd`、`&` 顺序执行、`&&`、`\|\|`、管道 | 原样或等价形式 |
@@ -507,8 +517,10 @@ echo "清理完成"
    `%%x`（仅告警，不生成变量）。`for /r` 递归遍历仍 TODO（提示改用 `find`）。
 3. **延迟展开 `!var!`**：尽力转 `${var}`，但循环内赋值语义不同，需复核。
 4. **`set /a`**：多表达式（逗号）、复杂位运算仅部分支持；`!`→`~` 为近似。
-5. **`%DATE%`/`%TIME%`**：格式与 Windows 区域设置不同；`%ERRORLEVEL%`→`$?` 只反映
-   紧邻上一条命令的退出码，插入其他命令后语义会变。
+5. **`%DATE%`/`%TIME%`**：映射为 ISO 格式（`$(date +%Y-%m-%d)` / `$(date +%H:%M:%S)`），
+   与 Windows 区域设置格式不同并告警；出现在 `for /f` 中时整行 `# TODO`。
+   **`%ERRORLEVEL%`**：默认（warn）整行 `# TODO`；`--last-exit-code map` 时近似映射为
+   `${__bat2sh_rc}`（首次引用处捕获 `$?`），只反映紧邻一条命令的退出码。
 6. **`%VAR%` 的单词切分**、`^` 转义、空变量与引号嵌套：与 cmd 解析器存在细节差异。
    `for %%x in (%VAR%)` 这类变量集合会生成 `for x in "${VAR}"; do`：加引号可避免含空格
    路径被拆开（更安全），但变量内容本身含空白时行为与 cmd 的拆词不同；若需要 cmd 的
@@ -516,17 +528,20 @@ echo "清理完成"
 7. **Windows 驱动器路径**：`C:\dir` 会变成 `C:/dir`（并非有效的 Linux 路径），
    需要手工改成挂载点；驱动器前缀会产生告警。
 8. **Windows 专有命令**：`reg`、`sc`、`schtasks`、`wmic`、`attrib`、`icacls`、
-   `takeown`、`diskpart`、`bcdedit`、`choice` 等 → TODO，并在报告中给出替代建议。
+   `takeown`、`diskpart`、`bcdedit` 等 → TODO，并在报告中给出替代建议；
+   有意不映射的完整清单与理由见 8.4。
 9. **近似命令**：`taskkill`→`pkill`、`ipconfig`→`ip addr`、`netstat`→`ss`、
-   `shutdown`→`systemctl`、`robocopy`→`rsync -a`、`start`→`xdg-open`，
-   行为/参数/输出并不完全一致；`start` 的窗口标题、`/wait`、`/b` 等语义有限。
+   `choice`→`read -r -n 1`、`shutdown`→`systemctl`、`robocopy`→`rsync -a`、
+   `start`→`xdg-open`，行为/参数/输出并不完全一致；`start` 的窗口标题、
+   `/wait`、`/b` 等语义有限。
 10. **`cmd /c`、`runas`、`powershell -Command`**：引号嵌套复杂时需人工整理。
 11. **`&` 分隔的多命令与管道混合**、`>file` 位置在命令之前等非常规写法：可能改变
     重定向顺序。
 12. **`if errorlevel N`**：上一条是简单命令时，N=1 生成 `if ! cmd` / `if cmd`；
     N≥2 生成 `__bat2sh_status=0; cmd || __bat2sh_status=$?; if [ "$__bat2sh_status" -ge N ]`
-    以保留精确退出码。上一条不是简单命令（前面是 `fi`/`done`/块语句）、`if /i`、
-    `else if errorlevel` 等情况仍回退 `[ $? ... ]` 并告警；strict 模式下该回退通常是
+    以保留精确退出码。上一条不是简单命令（前面是 `fi`/`done`/块语句）、
+    `else if errorlevel` 等情况仍回退 `[ $? ... ]` 并告警（`if /i` 的字符串比较已用
+    `${a,,}` 局部转换，见 8.4）；strict 模式下该回退通常是
     死代码（前一条命令失败时 `set -e` 已退出）。
 13. **`goto :eof` 生成裸 `return`**（函数内）而非 `return 0`：批处理的 `goto :eof`
     不修改 errorlevel，裸 `return` 保留最后一条命令的退出码，调用方的
@@ -614,6 +629,31 @@ echo "清理完成"
 - 转换不做数据流/类型分析，**不保证行为等价**；请把生成的 `.sh` 当"高级草稿"。
 - `# TODO` 行与菜单"转换报告"是人工复核清单；`--fail-on-todo` 可用于 CI 卡点。
 - 复杂脚本建议先分段转换、逐段验证，再合并。
+
+### 8.4 有意不做自动映射的命令（设计决策）
+
+命令"有对应物"≠"可以自动映射"：输出格式或抽象层不同的映射会产生**静默错误**，
+比 `# TODO` 更危险。以下命令**有意不做自动映射**，保持 TODO 或原样：
+
+| 命令 | 不映射的原因 |
+| --- | --- |
+| `wmic` | 输出为对象/表格文本，常被 `for /f` 按列解析；`lsblk`/`lscpu` 等只能覆盖个别用法，无稳定等价输出 |
+| `sc query` | 服务列表的**输出格式**是 `for /f` 的事实接口，`systemctl` 的格式完全不同 |
+| `net user` / `net start` | 同上：账户/服务列表的列布局被脚本依赖，替换即静默错位 |
+| `icacls` | Windows ACL 与 Linux UGO/ACL 是**不同抽象层**，`chmod` 无法一一对应 |
+| `reg query` | Linux 无注册表；用 grep 近似配置文件无法保证键值语义 |
+| `goto` 跨函数 | 需要跨标签控制流分析才能重构；转换器只做局部改写，跨函数跳转一律 TODO |
+| `cmdextversion` | Linux 无对应检查：保留为恒假条件 + TODO（不能当作成功分支执行） |
+| 复杂管道 | 多级（>2 段）、含重定向（如 `2>nul`、`2>&1`）或 `&` 连接的管道，逐段重写会改变执行顺序与错误传播 → 整行 TODO |
+| `choice` 后接 `%ERRORLEVEL%` | `read` 无法保留"选项序号"退出码语义；检测到后续依赖即整行 TODO |
+| `for /f` 中的 `%DATE%`/`%TIME%`/`%ERRORLEVEL%`/管道 | 循环按该输出解析字段，格式与捕获时机无法保证 → 整行 TODO |
+| `%ERRORLEVEL%`（默认 warn 策略） | `$?` 只反映紧邻一条命令；用 `--last-exit-code map` 才会近似映射为 `__bat2sh_rc` |
+
+对应的"干净映射"（无下游格式依赖，已自动转换）：
+`certutil -hashfile`（MD5/SHA256）、`driverquery`（仅 `lsmod`）、
+`assoc`/`ftype` 查询（`xdg-mime query default`）、`%SystemRoot%`（`${SystemRoot:-/}`）、
+`call set` 间接引用（`R="${!A}"`）、`if /i` 字符串比较（`${a,,}`，不用 `shopt`）、
+`%DATE%`/`%TIME%`（ISO 格式，`for /f` 内除外）。
 
 ## 9. 扩展转换规则
 
