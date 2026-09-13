@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStyle,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -37,6 +38,7 @@ from ..core.engine import (
     output_path_for,
     write_output,
 )
+from ..core.recent import load_recent, save_recent, update_recent_list
 from ..core.settings import ConvertSettings, save_settings
 from ..core.types import ConvertReport, SourceKind
 from .dialogs import AboutDialog, DiffDialog, ReportDialog, SettingsDialog
@@ -111,6 +113,7 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.files: list[SourceFile] = []
         self.current: SourceFile | None = None
+        self.recent_files: list[Path] = load_recent()
         self._loading = False
         self._source_highlighter = None
         self._output_highlighter = None
@@ -119,6 +122,7 @@ class MainWindow(QMainWindow):
 
         self._build_actions()
         self._build_toolbar()
+        self._rebuild_recent_menu()
         self._build_ui()
         self._build_statusbar()
         self._rebuild_highlighters()
@@ -197,6 +201,14 @@ class MainWindow(QMainWindow):
             "退出", self._icon("application-exit", std.SP_DialogCloseButton),
             "Ctrl+Q", self.close, "退出",
         )
+        self.recent_menu = QMenu(self)
+        self.action_recent = QAction(
+            self._icon("document-open-recent", std.SP_FileDialogDetailedView),
+            "最近打开",
+            self,
+        )
+        self.action_recent.setMenu(self.recent_menu)
+        self.action_recent.setStatusTip("重新打开最近使用过的文件")
         self.action_remove = QAction("移除所选", self)
         self.action_remove.triggered.connect(self.remove_selected)
         self.action_clear = QAction("清空列表", self)
@@ -213,6 +225,7 @@ class MainWindow(QMainWindow):
         for action in (
             self.action_open,
             self.action_open_dir,
+            self.action_recent,
             None,
             self.action_convert,
             self.action_save,
@@ -229,6 +242,9 @@ class MainWindow(QMainWindow):
                 toolbar.addSeparator()
             else:
                 toolbar.addAction(action)
+        recent_button = toolbar.widgetForAction(self.action_recent)
+        if isinstance(recent_button, QToolButton):
+            recent_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
     def _build_ui(self) -> None:
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -340,6 +356,9 @@ class MainWindow(QMainWindow):
             self.files.append(SourceFile(path=candidate, kind=detect_kind(candidate)))
         added = len(new_paths)
         if added:
+            self.recent_files = update_recent_list(self.recent_files, new_paths)
+            save_recent(self.recent_files)
+            self._rebuild_recent_menu()
             self._refresh_list()
             if select_last:
                 self.file_list.setCurrentRow(self.file_list.count() - 1)
@@ -399,6 +418,17 @@ class MainWindow(QMainWindow):
         self.kind_label.setText("")
         self.output_path_label.setText("转换后在此预览")
         self._update_counts(None)
+
+    def _rebuild_recent_menu(self) -> None:
+        self.recent_menu.clear()
+        if not self.recent_files:
+            empty = self.recent_menu.addAction("（无）")
+            empty.setEnabled(False)
+            return
+        for path in self.recent_files:
+            action = self.recent_menu.addAction(str(path))
+            action.setStatusTip("重新打开 " + str(path))
+            action.triggered.connect(lambda checked=False, p=path: self.open_paths([p]))
 
     def _show_list_menu(self, position) -> None:
         menu = QMenu(self)
