@@ -6,8 +6,9 @@ pkgdesc="将 Windows 批处理 (.bat/.cmd) 与 PowerShell (.ps1) 脚本转换为
 arch=('any')
 url="https://github.com/yaxiaiyuting/bat2sh"
 license=('AGPL-3.0-or-later')
-depends=('python' 'pyside6' 'hicolor-icon-theme')
+depends=('python' 'pyside6' 'hicolor-icon-theme' 'shared-mime-info' 'desktop-file-utils')
 makedepends=()
+install=bat2sh.install
 options=('!strip')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('777eaa00f700917d38acc9650d9b49106f0e545a71d8465ee6789436b14417d4')
@@ -20,6 +21,8 @@ package() {
 
   install -Dm755 scripts/bat2sh-launcher "${pkgdir}/usr/bin/${pkgname}"
   install -Dm644 bat2sh.desktop "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+  install -Dm644 data/mime/bat2sh.xml \
+    "${pkgdir}/usr/share/mime/packages/${pkgname}.xml"
   install -Dm644 python/bat2sh/data/bat2sh.svg \
     "${pkgdir}/usr/share/icons/hicolor/scalable/apps/${pkgname}.svg"
   install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
