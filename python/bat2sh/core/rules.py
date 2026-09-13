@@ -44,6 +44,7 @@ BATCH_SIMPLE_MAP: dict[str, str] = {
 #: 需要特判参数的命令：命令名(小写) -> BatchConverter 方法名
 BATCH_HANDLER_MAP: dict[str, str] = {
     "echo": "cmd_echo",
+    "type": "cmd_type",
     "pause": "cmd_pause",
     "cls": "cmd_cls",
     "cd": "cmd_cd",

@@ -348,3 +348,37 @@ def test_delayed_errorlevel_map_runs(convert_bat, bash_run):
     assert proc.returncode == 0, proc.stderr
     assert "failed" in proc.stdout
     assert "done" in proc.stdout
+
+
+def test_type_nul_creates_empty_file(convert_bat, bash_run, tmp_path):
+    out, report = convert_bat("@echo off\ntype nul > empty.txt\n")
+    assert report.todo_count == 0
+    assert ": >" in out
+    script = f'cd "{tmp_path}"\n' + out
+    proc = bash_run(script)
+    assert proc.returncode == 0, proc.stderr
+    target = tmp_path / "empty.txt"
+    assert target.is_file()
+    assert target.stat().st_size == 0
+
+
+def test_copy_nul_creates_empty_file(convert_bat, bash_run, tmp_path):
+    out, report = convert_bat("@echo off\ncopy nul empty2.txt\n")
+    assert report.todo_count == 0
+    assert "/dev/null" in out
+    script = f'cd "{tmp_path}"\n' + out
+    proc = bash_run(script)
+    assert proc.returncode == 0, proc.stderr
+    target = tmp_path / "empty2.txt"
+    assert target.is_file()
+    assert target.stat().st_size == 0
+
+
+def test_type_regular_file_still_cat(convert_bat):
+    out, _ = convert_bat("@echo off\ntype a.txt\n")
+    assert "cat a.txt" in out
+
+
+def test_nul_redirect_still_devnull(convert_bat):
+    out, _ = convert_bat("@echo off\necho hi >nul\n")
+    assert ">/dev/null" in out

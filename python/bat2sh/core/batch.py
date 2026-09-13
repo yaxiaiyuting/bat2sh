@@ -1836,6 +1836,17 @@ class BatchConverter:
             command = f"echo {dq(text)}"
         return command.replace(_DOLLAR_PLACEHOLDER, "\\$")
 
+    def cmd_type(self, lineno: int, args: str, original: str) -> str:
+        if args.strip().strip('"').lower() == "nul":
+            self._warn(
+                lineno,
+                "type nul 已按创建空文件处理（nul 为空设备）",
+                original,
+                category="command",
+            )
+            return ":"
+        return ("cat " + args).strip()
+
     def cmd_pause(self, lineno: int, args: str, original: str) -> str:
         return guard_read('read -rp "Press Enter to continue..."', self.settings.strict_mode)
 
@@ -1883,7 +1894,20 @@ class BatchConverter:
         command = "cp -f" if "/y" in flags else "cp"
         for flag in sorted(flags - {"/y", "/v"}):
             self._warn(lineno, f"copy 开关 {flag} 未处理", original, category="command")
-        paths = " ".join(self._convert_path_token(t, lineno) for t in targets)
+        has_nul = any(t.strip('"').lower() == "nul" for t in targets)
+        if has_nul:
+            self._warn(
+                lineno,
+                "copy nul 已转换为从 /dev/null 复制（创建空文件）",
+                original,
+                category="command",
+            )
+        paths = " ".join(
+            "/dev/null"
+            if t.strip('"').lower() == "nul"
+            else self._convert_path_token(t, lineno)
+            for t in targets
+        )
         return (command + " " + paths).strip()
 
     def cmd_move(self, lineno: int, args: str, original: str) -> str:
