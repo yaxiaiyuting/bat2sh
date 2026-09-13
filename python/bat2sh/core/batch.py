@@ -756,6 +756,11 @@ class BatchConverter:
                     return "${ERRORLEVEL}"
                 return "${%s}" % sanitize_identifier(name)
 
+            # !%NAME%!：%NAME% 先展开为变量名，再对结果做延迟展开 → bash 间接引用
+            def delayed_indirect_repl(m: re.Match[str]) -> str:
+                return "${!%s}" % sanitize_identifier(m.group(1))
+
+            text = re.sub(r"!%([A-Za-z_][A-Za-z0-9_]*)%!", delayed_indirect_repl, text)
             text = re.sub(r"!([^\W\d]\w*)!", delayed_repl, text)
 
         # %NAME%
