@@ -313,36 +313,20 @@ class PowerShellConverter:
         # $env:NAME / $global:x 等
         m = re.match(r"\$(env|global|script|local|private|using):([A-Za-z_][\w]*)", text[i:], re.I)
         if m:
-            scope = m.group(1).lower()
-            name = m.group(2)
-            if scope == "env":
-                key = name.lower()
-                if key in rules.PS_ENV_MAP:
-                    mapped = rules.PS_ENV_MAP[key]
-                    result.append(mapped)
-                    if key in rules.PS_ENV_WARN:
-                        self._warn(
-                            lineno,
-                            f"$env:{name} 已近似映射为 {mapped}，"
-                            "Windows 与 Linux 的默认位置不同，请确认路径",
-                            text[i:i + m.end()],
-                            category="variables",
-                        )
-                else:
-                    result.append("${%s}" % name)
-                    self._warn(
-                        lineno,
-                        f"$env:{name} 未收录映射，已原样保留为 ${{{name}}}；"
-                        "严格模式（set -u）下变量未设置会直接报错，请显式给默认值或改为脚本变量",
-                        text[i:i + m.end()],
-                        category="variables",
-                    )
-            elif scope == "using":
-                result.append("${%s}" % name)
-                self._warn(lineno, "$using: 跨会话变量在 bash 中无对应物", text[i:i + m.end()], category="variables")
-            else:
-                result.append("${%s}" % self._var_map.get(name.lower(), name))
-                self._warn(lineno, f"${scope}: 作用域限定符已省略（bash 无对应作用域）", text[i:i + m.end()], category="variables")
+            self._append_scoped_var(
+                m.group(1).lower(), m.group(2), text[i:i + m.end()], result, lineno
+            )
+            return m.end()
+        # ${env:NAME} / ${global:x} 等花括号形式
+        m = re.match(
+            r"\$\{(env|global|script|local|private|using):([A-Za-z_][\w]*)\}",
+            text[i:],
+            re.I,
+        )
+        if m:
+            self._append_scoped_var(
+                m.group(1).lower(), m.group(2), text[i:i + m.end()], result, lineno
+            )
             return m.end()
         # ${name}
         m = re.match(r"\$\{([A-Za-z_][\w]*)\}", text[i:])
@@ -350,7 +334,8 @@ class PowerShellConverter:
             name = m.group(1)
             low = name.lower()
             if low in rules.PS_AUTOMATIC_VARS or low in rules.PS_TODO_VARS:
-                return self._automatic_var(name, result, lineno)
+                self._automatic_var(name, result, lineno)
+                return m.end()
             result.append(self._canonical(name))
             return m.end()
         # $arr[0]
@@ -384,6 +369,53 @@ class PowerShellConverter:
             return 2
         result.append("$")
         return 1
+
+    def _append_scoped_var(
+        self,
+        scope: str,
+        name: str,
+        raw: str,
+        result: list[str],
+        lineno: int,
+    ) -> None:
+        if scope == "env":
+            key = name.lower()
+            if key in rules.PS_ENV_MAP:
+                mapped = rules.PS_ENV_MAP[key]
+                result.append(mapped)
+                if key in rules.PS_ENV_WARN:
+                    self._warn(
+                        lineno,
+                        f"$env:{name} 已近似映射为 {mapped}，"
+                        "Windows 与 Linux 的默认位置不同，请确认路径",
+                        raw,
+                        category="variables",
+                    )
+            else:
+                result.append("${%s}" % name)
+                self._warn(
+                    lineno,
+                    f"$env:{name} 未收录映射，已原样保留为 ${{{name}}}；"
+                    "严格模式（set -u）下变量未设置会直接报错，请显式给默认值或改为脚本变量",
+                    raw,
+                    category="variables",
+                )
+        elif scope == "using":
+            result.append("${%s}" % name)
+            self._warn(
+                lineno,
+                "$using: 跨会话变量在 bash 中无对应物",
+                raw,
+                category="variables",
+            )
+        else:
+            result.append("${%s}" % self._var_map.get(name.lower(), name))
+            self._warn(
+                lineno,
+                f"${scope}: 作用域限定符已省略（bash 无对应作用域）",
+                raw,
+                category="variables",
+            )
 
     def _automatic_var(self, name: str, result: list[str], lineno: int) -> int:
         low = name.lower()

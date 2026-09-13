@@ -171,6 +171,34 @@ def test_env_mapped_and_unlisted(convert_ps):
     assert "$env:MY_UNLISTED_VAR 未收录映射" in report.warnings[0].message
 
 
+def test_braced_automatic_vars_map_fully(convert_ps):
+    out, report = convert_ps(
+        "Write-Host ${PSScriptRoot}/sub\n"
+        "Write-Host ${PSCommandPath}\n"
+        "Write-Host ${args}\n"
+        "Write-Host ${PSScriptRoot}:$PSScriptRoot\n"
+    )
+    assert "echo ${SCRIPT_DIR}/sub" in out
+    assert "echo ${BASH_SOURCE[0]}" in out
+    assert 'echo "$@"' in out
+    assert "echo ${SCRIPT_DIR}:${SCRIPT_DIR}" in out
+    assert report.warning_count == 0
+
+
+def test_braced_user_variable_kept(convert_ps):
+    out, _ = convert_ps("$MyVar = 1\nWrite-Host ${MyVar}\n")
+    assert 'echo "${MyVar}"' in out
+
+
+def test_braced_env_variable_maps(convert_ps):
+    out, report = convert_ps(
+        "Write-Host ${env:USERNAME}\nWrite-Host ${env:MY_UNLISTED}\n"
+    )
+    assert 'echo "${USER}"' in out
+    assert 'echo "${MY_UNLISTED}"' in out
+    assert report.warning_count == 1
+
+
 # ----------------------------------------------------------------------
 # Get-Date（阶段 3 的 2.4-PS 目标）
 # ----------------------------------------------------------------------
