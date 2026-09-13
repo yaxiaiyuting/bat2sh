@@ -112,14 +112,18 @@ class PowerShellConverter:
     def _c(self, content: str) -> str:
         return self._indent + content if content else ""
 
-    def _warn(self, lineno: int, message: str, original: str = "") -> None:
-        self.report.warnings.append(Diagnostic(lineno, message, original))
+    def _warn(
+        self, lineno: int, message: str, original: str = "", category: str = ""
+    ) -> None:
+        self.report.warnings.append(Diagnostic(lineno, message, original, category))
 
-    def _todo(self, lineno: int, original: str, hint: str = "") -> str:
+    def _todo(
+        self, lineno: int, original: str, hint: str = "", category: str = ""
+    ) -> str:
         message = f"手动检查: {original}"
         if hint:
             message += f"（{hint}）"
-        self.report.todos.append(Diagnostic(lineno, message, original))
+        self.report.todos.append(Diagnostic(lineno, message, original, category))
         return "# TODO: 手动检查: " + original
 
     def _logical_lines(self, text: str) -> list[tuple[int, str]]:
@@ -322,6 +326,7 @@ class PowerShellConverter:
                             f"$env:{name} 已近似映射为 {mapped}，"
                             "Windows 与 Linux 的默认位置不同，请确认路径",
                             text[i:i + m.end()],
+                            category="variables",
                         )
                 else:
                     result.append("${%s}" % name)
@@ -330,13 +335,14 @@ class PowerShellConverter:
                         f"$env:{name} 未收录映射，已原样保留为 ${{{name}}}；"
                         "严格模式（set -u）下变量未设置会直接报错，请显式给默认值或改为脚本变量",
                         text[i:i + m.end()],
+                        category="variables",
                     )
             elif scope == "using":
                 result.append("${%s}" % name)
-                self._warn(lineno, "$using: 跨会话变量在 bash 中无对应物", text[i:i + m.end()])
+                self._warn(lineno, "$using: 跨会话变量在 bash 中无对应物", text[i:i + m.end()], category="variables")
             else:
                 result.append("${%s}" % self._var_map.get(name.lower(), name))
-                self._warn(lineno, f"${scope}: 作用域限定符已省略（bash 无对应作用域）", text[i:i + m.end()])
+                self._warn(lineno, f"${scope}: 作用域限定符已省略（bash 无对应作用域）", text[i:i + m.end()], category="variables")
             return m.end()
         # ${name}
         m = re.match(r"\$\{([A-Za-z_][\w]*)\}", text[i:])
@@ -484,6 +490,7 @@ class PowerShellConverter:
                 lineno,
                 f"无法解析日期格式 {raw!r}（建议加引号），已退化为 $(date)",
                 args,
+                category="strings",
             )
             return "$(date)"
         fmt = raw[1:-1]
@@ -496,12 +503,14 @@ class PowerShellConverter:
                 lineno,
                 f"日期格式 {fmt!r} 含不支持的 token，已退化为 $(date)，请人工处理",
                 f"Get-Date -Format {fmt}",
+                category="strings",
             )
             return "$(date)"
         self._warn(
             lineno,
             f"日期格式 {fmt!r} 已近似转换为 {converted!r}",
             f"Get-Date -Format {fmt}",
+            category="strings",
         )
         return f"$(date +{converted})"
 
@@ -563,7 +572,7 @@ class PowerShellConverter:
             return [self._c("# " + text)]
         if text.startswith("<#"):
             self._block_comment = "#>" not in text
-            self._warn(lineno, "PowerShell 块注释已转换为行注释", text)
+            self._warn(lineno, "PowerShell 块注释已转换为行注释", text, category="strings")
             body = text[2:].replace("#>", "").strip()
             return [self._c("# " + body if body else "#")]
 
@@ -640,6 +649,7 @@ class PowerShellConverter:
                 self._here_lineno,
                 "here-string 的反斜杠/反引号转义语义与 PowerShell 不同，请核对",
                 marker + "（here-string）",
+                category="strings",
             )
         else:
             body = list(content)
@@ -650,6 +660,7 @@ class PowerShellConverter:
                 self._here_lineno,
                 "赋值形式的 here-string 使用命令替换，会去掉结尾换行，请核对",
                 marker + "（here-string）",
+                category="strings",
             )
         else:
             lines.append(self._c(f"cat {open_token}"))
@@ -671,7 +682,7 @@ class PowerShellConverter:
             return self._close_block_line(lineno, text)
 
         if self._try_buffer is not None and re.match(r"(?i)^try\b", text):
-            self._todo(lineno, text, "嵌套 try 无法自动转换，块内代码已注释")
+            self._todo(lineno, text, "嵌套 try 无法自动转换，块内代码已注释", category="control_flow")
             block = _Block("comment", "")
             block.brace_depth = text.count("{") - text.count("}")
             if block.brace_depth <= 0:
@@ -699,7 +710,7 @@ class PowerShellConverter:
             return self._emit_for(lineno, text, m)
 
         if re.match(r"(?i)^switch\b", text):
-            self._todo(lineno, text, "switch 无法自动转换，块内代码已注释")
+            self._todo(lineno, text, "switch 无法自动转换，块内代码已注释", category="control_flow")
             block = _Block("comment", "")
             block.brace_depth = text.count("{") - text.count("}")
             if block.brace_depth <= 0:
@@ -716,7 +727,7 @@ class PowerShellConverter:
             self._try_depth = len(self._stack)
             open_index = text.find("{")
             if open_index < 0:
-                self._warn(lineno, "try 缺少花括号，已忽略", text)
+                self._warn(lineno, "try 缺少花括号，已忽略", text, category="control_flow")
                 self._stack.pop()
                 self._try_buffer = None
                 return []
@@ -731,7 +742,7 @@ class PowerShellConverter:
                 if re.match(r"(?i)^finally\b", tail):
                     return self._handle_finally(lineno, tail, tail)
                 if tail:
-                    self._warn(lineno, f"try 之后的 {tail!r} 无法解析", text)
+                    self._warn(lineno, f"try 之后的 {tail!r} 无法解析", text, category="control_flow")
                 else:
                     self._try_inline_pending = True
                 return []
@@ -763,7 +774,7 @@ class PowerShellConverter:
         if re.match(r"(?i)^\.\s+\S", text) or re.match(r"(?i)^\.\s*['\"]", text):
             target = re.sub(r"^(?i)\.\s*", "", text).strip().strip("\"'")
             converted = re.sub(r"(?i)\.ps1$", ".sh", convert_backslashes(target))
-            self._warn(lineno, f"点源调用已转换为 source {converted}，请确认已转换", text)
+            self._warn(lineno, f"点源调用已转换为 source {converted}，请确认已转换", text, category="command")
             return [self._c(f'source {dq(converted)}')]
 
         # 函数调用重写
@@ -779,7 +790,7 @@ class PowerShellConverter:
             elif self._looks_like_undefined_function(first) and any(
                 is_named_arg(t) for t in tokenize_args(text[len(tokens[0]):].strip())
             ):
-                self._todo(lineno, text, "未在本文件定义函数，命名参数无法解析，请确认目标命令")
+                self._todo(lineno, text, "未在本文件定义函数，命名参数无法解析，请确认目标命令", category="params")
                 return [self._c("# TODO: 手动检查: " + text)]
 
         # 赋值
@@ -795,7 +806,7 @@ class PowerShellConverter:
         # & 调用运算符
         if text.startswith("&"):
             inner = text[1:].strip()
-            self._warn(lineno, "&（调用运算符）已移除", text)
+            self._warn(lineno, "&（调用运算符）已移除", text, category="command")
             return self._convert_statement(lineno, inner)
 
         # 普通 cmdlet / 命令
@@ -805,7 +816,7 @@ class PowerShellConverter:
                 "手动检查: Where-Object"
             ):
                 return [self._c("# TODO: 手动检查: " + text)]
-            return [self._c(self._todo(lineno, text))]
+            return [self._c(self._todo(lineno, text, category="misc"))]
         return [self._c(line)]
 
     def _emit_named_function_call(
@@ -814,9 +825,9 @@ class PowerShellConverter:
         name = self._function_map[func_low]
         rewritten = self._rewrite_named_args(func_low, arg_tokens, lineno)
         if rewritten is None:
-            self._todo(lineno, original, "命名参数无法解析：函数未声明 param 或参数名不匹配")
+            self._todo(lineno, original, "命名参数无法解析：函数未声明 param 或参数名不匹配", category="params")
             return [self._c("# TODO: 手动检查: " + original)]
-        self._warn(lineno, "函数命名参数已改写为位置参数，请核对顺序", original)
+        self._warn(lineno, "函数命名参数已改写为位置参数，请核对顺序", original, category="params")
         return [self._c((name + " " + " ".join(rewritten)).strip())]
 
     def _rewrite_named_args(
@@ -868,7 +879,7 @@ class PowerShellConverter:
             else:
                 inline = after[1:brace_close].strip()
         elif after:
-            self._warn(0, f"无法解析的语句尾部: {after}", text)
+            self._warn(0, f"无法解析的语句尾部: {after}", text, category="misc")
         return keyword, cond, inline, block_open
 
     def _emit_condition_block(
@@ -876,7 +887,7 @@ class PowerShellConverter:
     ) -> list[str]:
         if self._todo_reason:
             reason, self._todo_reason = self._todo_reason, ""
-            return [self._c(self._todo(lineno, text, reason))]
+            return [self._c(self._todo(lineno, text, reason, category="misc"))]
         test = self._convert_condition(cond, lineno)
         bash_kw = {"if": "if", "elseif": "elif", "while": "while", "until": "while"}.get(keyword, "if")
         if keyword == "until":
@@ -932,7 +943,7 @@ class PowerShellConverter:
         def _unquote_regex(m: re.Match[str]) -> str:
             pattern = m.group(3) if m.group(3) is not None else m.group(4)
             if re.search(r"\s", pattern):
-                self._warn(lineno, "包含空格的正则需改为变量后再用 =~ 匹配", m.group(0))
+                self._warn(lineno, "包含空格的正则需改为变量后再用 =~ 匹配", m.group(0), category="control_flow")
                 return m.group(0)
             return m.group(1) + pattern
 
@@ -1009,7 +1020,7 @@ class PowerShellConverter:
         block_open = opened and not closed_inline
         parts = re.split(r"(?i)\sin\s", interior, maxsplit=1)
         if len(parts) != 2:
-            self._todo(lineno, text, "无法解析 foreach 语法")
+            self._todo(lineno, text, "无法解析 foreach 语法", category="control_flow")
             return [self._c("# TODO: 手动检查: " + text)]
         var = sanitize_identifier(parts[0].strip().lstrip("$"))
         collection = self._convert_collection(parts[1].strip(), lineno)
@@ -1041,6 +1052,7 @@ class PowerShellConverter:
             lineno,
             "检测到通配符集合，已在脚本头添加 shopt -s nullglob：无匹配时数组为空、循环体不执行",
             original,
+            category="glob",
         )
 
     def _convert_collection_raw(self, expr: str, lineno: int) -> str:
@@ -1052,7 +1064,7 @@ class PowerShellConverter:
         if m:
             base, pattern, recursive = self._parse_childitem(m.group(1))
             if recursive:
-                self._warn(lineno, "Get-ChildItem -Recurse 已转换为 find，请检查", expr)
+                self._warn(lineno, "Get-ChildItem -Recurse 已转换为 find，请检查", expr, category="path")
                 return f"$(find {base or '.'} -name {pattern})"
             if base is None:
                 return pattern
@@ -1067,7 +1079,7 @@ class PowerShellConverter:
             if var_name in {v.lower() for v in self._array_vars}:
                 canonical = self._var_map.get(var_name, var_name)
                 return f'"${{{canonical}[@]}}"'
-            self._warn(lineno, "变量集合在 bash 中按空白切分，若元素含空格请改用数组", expr)
+            self._warn(lineno, "变量集合在 bash 中按空白切分，若元素含空格请改用数组", expr, category="glob")
             return self._convert_expression(expr, lineno)
         if "," in expr:
             items = [t.strip().strip("\"'") for t in split_top_level(expr, ",")]
@@ -1084,7 +1096,7 @@ class PowerShellConverter:
                 inline = inline[:-1].strip()
         parts = split_top_level(interior, ";")
         if len(parts) != 3:
-            self._todo(lineno, text, "无法解析 for 循环")
+            self._todo(lineno, text, "无法解析 for 循环", category="control_flow")
             return [self._c("# TODO: 手动检查: " + text)]
         init, cond, step = (p.strip() for p in parts)
         init = re.sub(r"\$\{(\w+)\}", r"\1", self._replace_vars(init, lineno)).strip()
@@ -1147,7 +1159,7 @@ class PowerShellConverter:
         interior = text[open_index + 1:close] if close > open_index else ""
         inside_function = any(b.kind == "function" for b in self._stack)
         if not inside_function:
-            self._warn(lineno, "脚本级 param() 已转换为位置参数，命名参数需手动处理", text)
+            self._warn(lineno, "脚本级 param() 已转换为位置参数，命名参数需手动处理", text, category="params")
         raw_lines = self._convert_params(interior, lineno, as_local=inside_function, start_index=1)
         return [self._c(line) if line else "" for line in raw_lines]
 
@@ -1166,7 +1178,7 @@ class PowerShellConverter:
                 self._warn_param_attributes(lineno, attrs, raw)
             m = re.match(r"\$(\w+)\s*(?:=\s*(.+))?$", decl, re.S)
             if not m:
-                self._warn(lineno, f"无法解析的参数声明: {raw}", raw)
+                self._warn(lineno, f"无法解析的参数声明: {raw}", raw, category="params")
                 continue
             name = m.group(1)
             default = (m.group(2) or "").strip().rstrip(",")
@@ -1180,6 +1192,7 @@ class PowerShellConverter:
                         lineno,
                         f"参数默认值 {default!r} 是 Windows 路径，已按原样保留，请在 Linux 下改为实际路径",
                         raw,
+                        category="path",
                     )
                     lines.append("# 注意: Windows 路径，请改为 Linux 路径，例如 ${HOME}/data")
                     default = convert_backslashes(default)
@@ -1209,6 +1222,7 @@ class PowerShellConverter:
                 lineno,
                 "参数 attribute 已剥离（" + "、".join(unsupported) + "），在 bash 中无对应物，请人工核对",
                 raw,
+                category="params",
             )
 
     # ------------------------------------------------------------------
@@ -1229,7 +1243,7 @@ class PowerShellConverter:
         low = rhs.lower()
 
         if low.startswith("$erroractionpreference"):
-            self._warn(lineno, "无法解析的赋值", original)
+            self._warn(lineno, "无法解析的赋值", original, category="misc")
         if var[1:].lower() == "erroractionpreference":
             value = rhs.strip().strip("\"'").lower()
             if value == "stop":
@@ -1238,14 +1252,15 @@ class PowerShellConverter:
                         lineno,
                         "$ErrorActionPreference = 'Stop'：脚本头已启用严格模式，已跳过重复的 set -e",
                         original,
+                        category="control_flow",
                     )
                     return [self._c('# $ErrorActionPreference = "Stop"（脚本头已启用严格模式）')]
-                self._warn(lineno, "$ErrorActionPreference = 'Stop' 已转换为 set -e", original)
+                self._warn(lineno, "$ErrorActionPreference = 'Stop' 已转换为 set -e", original, category="control_flow")
                 return [self._c("set -e")]
             if value == "continue":
-                self._warn(lineno, "$ErrorActionPreference = 'Continue' 已转换为 set +e", original)
+                self._warn(lineno, "$ErrorActionPreference = 'Continue' 已转换为 set +e", original, category="control_flow")
                 return [self._c("set +e")]
-            self._warn(lineno, "$ErrorActionPreference 的值无法映射到 bash", original)
+            self._warn(lineno, "$ErrorActionPreference 的值无法映射到 bash", original, category="control_flow")
             return [self._c("# " + original)]
         if var[1:].lower() in ("debugpreference", "verbosepreference", "progresspreference",
                                "warningpreference", "informationpreference"):
@@ -1257,9 +1272,9 @@ class PowerShellConverter:
             return self._read_host(lineno, original, name, m.group(1))
 
         if re.search(r"\$\{?\w+\}?\.[A-Z]\w*", rhs):
-            return [self._c(self._todo(lineno, original, "对象属性访问（如 $obj.Prop）无法自动转换"))]
+            return [self._c(self._todo(lineno, original, "对象属性访问（如 $obj.Prop）无法自动转换", category="objects"))]
         if re.search(r"\]\s*::", rhs):
-            return [self._c(self._todo(lineno, original, ".NET 类型静态调用在 bash 中无对应物"))]
+            return [self._c(self._todo(lineno, original, ".NET 类型静态调用在 bash 中无对应物", category="objects"))]
 
         # 数组
         if rhs.startswith("@(") and rhs.endswith(")"):
@@ -1278,7 +1293,7 @@ class PowerShellConverter:
             self._array_vars.add(name)
             base, pattern, recursive = self._parse_childitem(m.group(1))
             if recursive:
-                self._warn(lineno, "Get-ChildItem -Recurse 已转换为 find，请检查", original)
+                self._warn(lineno, "Get-ChildItem -Recurse 已转换为 find，请检查", original, category="path")
                 find_cmd = f"find {base} -name {pattern}"
                 return [self._c(f"{name}=$({find_cmd})")]
             if base is None:
@@ -1308,7 +1323,7 @@ class PowerShellConverter:
             self._current_cmdlet = ""
             converted = self._convert_cmdlet_line(lineno, rhs)
             if converted is None:
-                return [self._c(self._todo(lineno, original, "cmdlet 结果无法自动赋值"))]
+                return [self._c(self._todo(lineno, original, "cmdlet 结果无法自动赋值", category="objects"))]
             converted = converted.strip()
             if converted.startswith(("$(", '"', "'", "${", "$@")):
                 return [self._c(f"{name}={converted}")]
@@ -1331,7 +1346,7 @@ class PowerShellConverter:
         expression = self._convert_expression(rhs, lineno)
         if self._todo_reason:
             reason, self._todo_reason = self._todo_reason, ""
-            return [self._c(self._todo(lineno, original, reason))]
+            return [self._c(self._todo(lineno, original, reason, category="misc"))]
         if expression.startswith("$(") and expression.endswith(")"):
             return [self._c(f"{name}={expression}")]
         if expression.startswith("'") or expression.startswith('"'):
@@ -1340,7 +1355,7 @@ class PowerShellConverter:
             return [self._c(f"{name}={expression}")]
         if expression.startswith("${") and re.fullmatch(r"\$\{[\w]+\}", expression):
             return [self._c(f"{name}={expression}")]
-        self._warn(lineno, "无法确定右值类型，已按字符串处理，请检查", original)
+        self._warn(lineno, "无法确定右值类型，已按字符串处理，请检查", original, category="misc")
         return [self._c(f"{name}={dq(expression)}")]
 
     def _parse_childitem(self, args: str) -> tuple[str | None, str, bool]:
@@ -1391,7 +1406,7 @@ class PowerShellConverter:
         if not prompt:
             prompt = "请输入"
         if secure:
-            self._warn(lineno, "Read-Host -AsSecureString 已转换为 read -s（输入不回显）", original)
+            self._warn(lineno, "Read-Host -AsSecureString 已转换为 read -s（输入不回显）", original, category="command")
             return [self._c(guard_read(f'read -rsp {dq(prompt)} {name}', self.settings.strict_mode))]
         return [self._c(guard_read(f'read -rp {dq(prompt)} {name}', self.settings.strict_mode))]
 
@@ -1439,17 +1454,17 @@ class PowerShellConverter:
             if index == 0:
                 head = self._convert_cmdlet_line(lineno, segment)
                 if head is None:
-                    self._todo(lineno, text, "管道首段无法转换")
+                    self._todo(lineno, text, "管道首段无法转换", category="pipeline")
                     return [self._c("# TODO: 手动检查: " + text)]
                 pieces.append(head)
                 continue
             converted, is_redirect = self._convert_pipe_filter(lineno, segment)
             if converted is None:
-                self._todo(lineno, text, f"管道段 {segment!r} 无法转换")
+                self._todo(lineno, text, f"管道段 {segment!r} 无法转换", category="pipeline")
                 return [self._c("# TODO: 手动检查: " + text)]
             if is_redirect:
                 if index != len(segments) - 1:
-                    self._todo(lineno, text, "重定向出现在管道中间")
+                    self._todo(lineno, text, "重定向出现在管道中间", category="pipeline")
                     return [self._c("# TODO: 手动检查: " + text)]
                 redirect = converted
             else:
@@ -1508,14 +1523,14 @@ class PowerShellConverter:
                     pattern = a
                 i += 1
             pattern = pattern or '""'
-            self._warn(lineno, "Select-String 已转换为 grep，正则语法可能不同", segment)
+            self._warn(lineno, "Select-String 已转换为 grep，正则语法可能不同", segment, category="pipeline")
             return f"grep -{opts} {pattern}".replace("- ", " "), False
         if low == "sort-object":
             reverse = "-descending" in (a.lower() for a in args)
-            self._warn(lineno, "Sort-Object 已转换为 sort（对象排序语义不同）", segment)
+            self._warn(lineno, "Sort-Object 已转换为 sort（对象排序语义不同）", segment, category="pipeline")
             return "sort -r" if reverse else "sort", False
         if low == "measure-object":
-            self._warn(lineno, "Measure-Object 已转换为 wc -l", segment)
+            self._warn(lineno, "Measure-Object 已转换为 wc -l", segment, category="pipeline")
             if any(a.lower() in ("-character",) for a in args):
                 return "wc -c", False
             if any(a.lower() in ("-word",) for a in args):
@@ -1600,6 +1615,7 @@ class PowerShellConverter:
             lineno,
             f"Where-Object 的{scope}条件已近似转换为 {command}，无法还原对象/类型语义，请核对",
             segment,
+            category="pipeline",
         )
         return f"{command} -- {pattern}"
 
@@ -1621,12 +1637,12 @@ class PowerShellConverter:
         if low != "where-object" and (
             re.search(r"\$\{?\w+\}?\.[A-Z]\w*", text) or re.search(r"\]\s*::", text)
         ):
-            self._todo(lineno, text, "对象属性 / .NET 静态调用无法自动转换")
+            self._todo(lineno, text, "对象属性 / .NET 静态调用无法自动转换", category="objects")
             return None
         if low in rules.PS_HANDLER_MAP:
             return getattr(self, rules.PS_HANDLER_MAP[low])(lineno, args, text)
         if low in rules.PS_TODO_CMDLETS:
-            self._todo(lineno, text, rules.PS_TODO_CMDLETS[low])
+            self._todo(lineno, text, rules.PS_TODO_CMDLETS[low], category="command")
             return None
         if low in self._function_map:
             rest_tokens = tokenize_args(text[len(tokens[0]):].strip())
@@ -1634,25 +1650,25 @@ class PowerShellConverter:
                 rewritten = self._rewrite_named_args(low, rest_tokens, lineno)
                 if rewritten is None:
                     return None
-                self._warn(lineno, "函数命名参数已改写为位置参数，请核对顺序", text)
+                self._warn(lineno, "函数命名参数已改写为位置参数，请核对顺序", text, category="params")
                 return (self._function_map[low] + " " + " ".join(rewritten)).strip()
             rest = self._convert_args_join(rest_tokens, lineno)
             return (self._function_map[low] + " " + rest).strip() or self._function_map[low]
         if low in rules.PS_SIMPLE_CMDLETS:
             mapped = rules.PS_SIMPLE_CMDLETS[low]
             if low in rules.PS_WARN_CMDLETS:
-                self._warn(lineno, f"{name} 已转换为 {mapped}，语义可能不完全相同", text)
+                self._warn(lineno, f"{name} 已转换为 {mapped}，语义可能不完全相同", text, category="command")
             rest = self._convert_args_join(args, lineno)
             return (mapped + (" " + rest if rest else "")).strip()
         if low.endswith(".exe"):
             base = low[:-4]
             return (base + " " + self._convert_args_join(args, lineno)).strip()
         if re.match(r"^[A-Z][a-z]+-[A-Z]", name):
-            self._todo(lineno, text, "未支持的 PowerShell cmdlet")
+            self._todo(lineno, text, "未支持的 PowerShell cmdlet", category="command")
             return None
         if low in rules.PS_POSIX_KEEP:
             return self._convert_expression(text, lineno)
-        self._warn(lineno, f"未知命令 {name!r}，请确认 Linux 下可用", text)
+        self._warn(lineno, f"未知命令 {name!r}，请确认 Linux 下可用", text, category="command")
         return self._convert_expression(text, lineno)
 
     def _convert_args_join(self, args: list[str], lineno: int) -> str:
@@ -1688,7 +1704,7 @@ class PowerShellConverter:
                 i += 1
                 continue
             if low in ("-foregroundcolor", "-backgroundcolor") and i + 1 < len(args):
-                self._warn(lineno, f"Write-Host 的 {args[i]} 颜色参数已忽略", original)
+                self._warn(lineno, f"Write-Host 的 {args[i]} 颜色参数已忽略", original, category="command")
                 i += 2
                 continue
             if low == "-separator" and i + 1 < len(args):
@@ -1729,9 +1745,9 @@ class PowerShellConverter:
         prompt = next((a for a in args if not a.startswith("-")), None)
         prompt_text = self._convert_arg(prompt, lineno).strip("\"'") if prompt else "请输入"
         if any(a.lower() == "-assecurestring" for a in args):
-            self._warn(lineno, "Read-Host -AsSecureString 已转换为 read -s", original)
+            self._warn(lineno, "Read-Host -AsSecureString 已转换为 read -s", original, category="command")
             return guard_read(f'read -rsp {dq(prompt_text)} REPLY', self.settings.strict_mode)
-        self._warn(lineno, "Read-Host 结果被丢弃（未赋值给变量）", original)
+        self._warn(lineno, "Read-Host 结果被丢弃（未赋值给变量）", original, category="command")
         return guard_read(f'read -rp {dq(prompt_text)} REPLY', self.settings.strict_mode)
 
     def cmd_get_childitem(self, lineno: int, args: list[str], original: str) -> str:
@@ -1749,7 +1765,7 @@ class PowerShellConverter:
                 i += 2
                 continue
             if low in ("-filter", "-include", "-exclude") and i + 1 < len(args):
-                self._warn(lineno, f"Get-ChildItem 的 {args[i]} 已转换为位置参数，请检查", original)
+                self._warn(lineno, f"Get-ChildItem 的 {args[i]} 已转换为位置参数，请检查", original, category="command")
                 path = args[i + 1]
                 i += 2
                 continue
@@ -1757,7 +1773,7 @@ class PowerShellConverter:
                 i += 1
                 continue
             if low in ("-file", "-directory"):
-                self._warn(lineno, f"Get-ChildItem {args[i]} 已忽略，请改用 find", original)
+                self._warn(lineno, f"Get-ChildItem {args[i]} 已忽略，请改用 find", original, category="command")
                 i += 1
                 continue
             if not args[i].startswith("-") and path is None:
@@ -1838,7 +1854,7 @@ class PowerShellConverter:
             i += 1
         if path is None:
             if value:
-                self._warn(lineno, "缺少输出文件参数", original)
+                self._warn(lineno, "缺少输出文件参数", original, category="command")
             return None
         op = ">>" if append else ">"
         target = dq(convert_backslashes(strip_outer_quotes(path)[0]))
@@ -1890,7 +1906,7 @@ class PowerShellConverter:
 
     def cmd_remove_item(self, lineno: int, args: list[str], original: str) -> str | None:
         if any(a.lower() == "-whatif" for a in args):
-            self._todo(lineno, original, "Remove-Item -WhatIf（预演）在 bash 中无对应物")
+            self._todo(lineno, original, "Remove-Item -WhatIf（预演）在 bash 中无对应物", category="command")
             return None
         recursive = any(a.lower() == "-recurse" for a in args)
         force = any(a.lower() == "-force" for a in args)
@@ -1914,7 +1930,7 @@ class PowerShellConverter:
             i += 1
         if target and new_name:
             return f"mv {self._convert_arg(target, lineno)} {self._convert_arg(new_name, lineno)}"
-        self._todo(lineno, original, "Rename-Item 参数无法解析")
+        self._todo(lineno, original, "Rename-Item 参数无法解析", category="command")
         return None
 
     def cmd_new_item(self, lineno: int, args: list[str], original: str) -> str | None:
@@ -1952,7 +1968,7 @@ class PowerShellConverter:
             if force:
                 return f"touch {self._convert_arg(path, lineno)}"
             return f"[ -e {self._convert_arg(path, lineno)} ] || touch {self._convert_arg(path, lineno)}"
-        self._todo(lineno, original, "New-Item 参数无法解析")
+        self._todo(lineno, original, "New-Item 参数无法解析", category="command")
         return None
 
     def cmd_test_path(self, lineno: int, args: list[str], original: str) -> str:
@@ -1977,6 +1993,7 @@ class PowerShellConverter:
                 "Join-Path 的子路径可能包含子目录，bash 不会自动创建父目录，"
                 "请确认目标目录存在或先 mkdir -p",
                 original,
+                category="path",
             )
 
     def cmd_join_path(self, lineno: int, args: list[str], original: str) -> str:
@@ -1987,6 +2004,7 @@ class PowerShellConverter:
                 lineno,
                 "Join-Path 选项 " + "、".join(options) + " 无法等价转换，请人工核对",
                 original,
+                category="path",
             )
         parts = [
             convert_backslashes(strip_outer_quotes(self._replace_vars(p.strip('"'), lineno))[0])
@@ -2006,7 +2024,7 @@ class PowerShellConverter:
             return f"$(basename {target})"
         if any(a.lower() == "-parent" for a in args):
             return f"$(dirname {target})"
-        self._todo(lineno, original, "Split-Path 仅支持 -Leaf / -Parent")
+        self._todo(lineno, original, "Split-Path 仅支持 -Leaf / -Parent", category="path")
         return None
 
     def cmd_resolve_path(self, lineno: int, args: list[str], original: str) -> str:
@@ -2033,7 +2051,7 @@ class PowerShellConverter:
                 i += 2
                 continue
             if low in ("-useBasicParsing", "-usebasicparsing") or low in ("-headers", "-body") and i + 1 < len(args):
-                self._warn(lineno, f"Invoke-WebRequest 的 {args[i]} 未处理", original)
+                self._warn(lineno, f"Invoke-WebRequest 的 {args[i]} 未处理", original, category="command")
                 i += 2
                 continue
             if low.startswith("-"):
@@ -2049,7 +2067,7 @@ class PowerShellConverter:
         if out_file:
             command = f"curl -L -o {self._convert_arg(out_file, lineno)} {target}"
         if method and method.strip("\"'").upper() != "GET":
-            self._warn(lineno, "非 GET 请求请手动补充 curl 参数（-X/-d）", original)
+            self._warn(lineno, "非 GET 请求请手动补充 curl 参数（-X/-d）", original, category="command")
         return command
 
     def cmd_expand_archive(self, lineno: int, args: list[str], original: str) -> str | None:
@@ -2125,7 +2143,7 @@ class PowerShellConverter:
             if low in ("-id", "-pid") and i + 1 < len(args):
                 return f"kill {args[i + 1]}"
             i += 1
-        self._todo(lineno, original, "Stop-Process 参数无法解析")
+        self._todo(lineno, original, "Stop-Process 参数无法解析", category="command")
         return None
 
     def cmd_start_process(self, lineno: int, args: list[str], original: str) -> str | None:
@@ -2148,7 +2166,7 @@ class PowerShellConverter:
         if target is None:
             return None
         converted = self._convert_arg(target, lineno)
-        self._warn(lineno, "Start-Process 已转换为 xdg-open/后台执行", original)
+        self._warn(lineno, "Start-Process 已转换为 xdg-open/后台执行", original, category="command")
         if wait:
             return f"xdg-open {converted}"
         return f"xdg-open {converted} &"
@@ -2162,7 +2180,7 @@ class PowerShellConverter:
         return f"tee {'-a ' if append else ''}{target}".strip()
 
     def cmd_measure_object(self, lineno: int, args: list[str], original: str) -> str:
-        self._warn(lineno, "Measure-Object 已转换为 wc -l", original)
+        self._warn(lineno, "Measure-Object 已转换为 wc -l", original, category="pipeline")
         if any(a.lower() == "-character" for a in args):
             return "wc -c"
         if any(a.lower() == "-word" for a in args):
@@ -2178,7 +2196,7 @@ class PowerShellConverter:
             if low == "-last" and i + 1 < len(args):
                 return f"tail -n {args[i + 1]}"
             i += 1
-        self._todo(lineno, original, "Select-Object 仅支持 -First / -Last")
+        self._todo(lineno, original, "Select-Object 仅支持 -First / -Last", category="pipeline")
         return None
 
     def cmd_where_object(self, lineno: int, args: list[str], original: str) -> str | None:
@@ -2187,23 +2205,24 @@ class PowerShellConverter:
             original,
             "Where-Object 需要管道输入，无法单独转换；"
             "简单条件可写成 Get-ChildItem ... | Where-Object { $_.X -eq \"v\" }",
+            category="pipeline",
         )
         return None
 
     def cmd_foreach_object(self, lineno: int, args: list[str], original: str) -> str | None:
-        self._todo(lineno, original, "ForEach-Object（脚本块）无法自动转换，请改用 while read 循环")
+        self._todo(lineno, original, "ForEach-Object（脚本块）无法自动转换，请改用 while read 循环", category="pipeline")
         return None
 
     def cmd_todo_cmdlet(self, lineno: int, args: list[str], original: str) -> str | None:
         hint = rules.PS_TODO_CMDLETS.get(self._current_cmdlet, "")
-        self._todo(lineno, original, hint)
+        self._todo(lineno, original, hint, category="command")
         return None
 
     def cmd_service(self, lineno: int, args: list[str], original: str) -> str | None:
         name = next((a for a in args if not a.startswith("-")), None)
         if name is None:
             if self._current_cmdlet == "get-service":
-                self._warn(lineno, "Get-Service 已转换为 systemctl list-units", original)
+                self._warn(lineno, "Get-Service 已转换为 systemctl list-units", original, category="command")
                 return "systemctl list-units --type=service"
             return None
         action = {
@@ -2212,7 +2231,7 @@ class PowerShellConverter:
             "restart-service": "restart",
             "get-service": "status",
         }.get(self._current_cmdlet, "status")
-        self._warn(lineno, "服务管理已转换为 systemctl", original)
+        self._warn(lineno, "服务管理已转换为 systemctl", original, category="command")
         return f"systemctl {action} {name.strip(chr(34) + chr(39))}"
 
     def cmd_get_item(self, lineno: int, args: list[str], original: str) -> str:
@@ -2256,7 +2275,7 @@ class PowerShellConverter:
             if low in ("$null", '""', "''"):
                 return "return 0"
             converted = self._convert_expression(value, lineno)
-            self._warn(lineno, "return 的返回值已通过 echo 输出，请确认调用方约定", text)
+            self._warn(lineno, "return 的返回值已通过 echo 输出，请确认调用方约定", text, category="control_flow")
             return f"echo {converted}; return 0"
         m = re.match(r"(?i)^exit\b\s*(.*)$", text)
         if m:
@@ -2271,7 +2290,7 @@ class PowerShellConverter:
         m = re.match(r"(?i)^throw\b\s*(.*)$", text)
         if m:
             message = self._convert_expression(m.group(1).strip(), lineno)
-            self._warn(lineno, "throw 已转换为 echo + exit 1", text)
+            self._warn(lineno, "throw 已转换为 echo + exit 1", text, category="control_flow")
             return f"echo {message} >&2; exit 1"
         if re.match(r"(?i)^break\b", text):
             return "break"
@@ -2297,7 +2316,7 @@ class PowerShellConverter:
                 self._stack.pop()
             header = self._match_condition_header(after)
             if header is None:
-                self._warn(lineno, "无法解析 elseif 条件", text)
+                self._warn(lineno, "无法解析 elseif 条件", text, category="control_flow")
                 return [self._c("# TODO: 手动检查: " + text)]
             keyword, cond, inline, block_open = header
             return self._emit_condition_block(lineno, text, "elseif", cond, inline, block_open)
@@ -2369,7 +2388,7 @@ class PowerShellConverter:
                 after = after[close_type + 1:].strip()
         inline, complete = self._parse_block_body(after)
         if self._try_buffer is None:
-            self._warn(lineno, "catch 分支仅保留结构，错误处理逻辑需人工转换", text)
+            self._warn(lineno, "catch 分支仅保留结构，错误处理逻辑需人工转换", text, category="control_flow")
             lines = [self._c("else  # TODO: catch 块")]
             if inline:
                 lines.extend(self._convert_line(lineno, inline))
@@ -2395,6 +2414,7 @@ class PowerShellConverter:
                 "try/catch 已近似转换为 if ! 判断：仅在命令失败时执行 catch，"
                 "PowerShell 异常语义可能不同，请核对",
                 text,
+                category="control_flow",
             )
             lines = [self._c(f"if ! {effectful[0].strip()}; then")]
             if inline:
@@ -2408,12 +2428,13 @@ class PowerShellConverter:
                 block.body_mark = len(self._out) + len(lines)
                 self._stack.append(block)
             return lines
-        self._warn(lineno, "try/catch 已简化处理：try 体直接执行，catch 分支仅保留结构", text)
+        self._warn(lineno, "try/catch 已简化处理：try 体直接执行，catch 分支仅保留结构", text, category="control_flow")
         if type_name:
             self._warn(
                 lineno,
                 f"catch 类型 {type_name} 已忽略，错误处理逻辑需人工转换，请核对",
                 text,
+                category="control_flow",
             )
         lines = [self._c("if true; then  # TODO: try/catch 未等价转换")]
         if not any(self._is_effectful(line) for line in buffer):
@@ -2446,7 +2467,7 @@ class PowerShellConverter:
                 lines.append(self._c(":"))
             if block.close_word:
                 lines.append(self._c(block.close_word))
-        self._warn(lineno, "finally 块总是执行，已转换为独立的 if true 块，请核对", text)
+        self._warn(lineno, "finally 块总是执行，已转换为独立的 if true 块，请核对", text, category="control_flow")
         lines.append(self._c("if true; then  # TODO: finally 块总是执行"))
         after = rest[7:].strip()
         inline, complete = self._parse_block_body(after)
@@ -2464,7 +2485,7 @@ class PowerShellConverter:
 
     def _pop_block(self, lineno: int) -> list[str]:
         if not self._stack:
-            self._warn(lineno, "多余的 '}'", "")
+            self._warn(lineno, "多余的 '}'", "", category="misc")
             return [self._c("# 多余的 }，已忽略")]
         block = self._stack.pop()
         lines: list[str] = []
@@ -2482,6 +2503,7 @@ class PowerShellConverter:
             self._warn(
                 self._try_lineno,
                 "try 块未找到 catch/finally/结束花括号，已按顺序执行 try 体",
+                category="control_flow",
             )
             self._out.extend(self._try_buffer)
             self._try_buffer = None
@@ -2493,6 +2515,7 @@ class PowerShellConverter:
                 self._here_lineno,
                 "here-string 未找到结束标记，内容已丢弃，请人工检查",
                 self._here_end,
+                category="strings",
             )
             self._out.append(self._c("# TODO: here-string 未闭合，请人工检查"))
             self._here_end = None
@@ -2501,6 +2524,6 @@ class PowerShellConverter:
             block = self._stack.pop()
             if block.kind == "comment":
                 continue
-            self._warn(0, f"{block.kind} 块未正常闭合，已自动补全")
+            self._warn(0, f"{block.kind} 块未正常闭合，已自动补全", category="misc")
             if block.close_word:
                 self._out.append(block.close_word)
