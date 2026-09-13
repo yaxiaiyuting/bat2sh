@@ -844,11 +844,11 @@ class PowerShellConverter:
     def _emit_foreach(self, lineno: int, text: str, m: re.Match[str]) -> list[str]:
         interior = m.group(1)
         inline = m.group(3).strip()
-        block_open = not inline
-        if inline.startswith("{") and inline.endswith("}"):
-            inline = inline[1:-1].strip()
-        elif inline.startswith("{"):
-            inline = inline[1:].strip()
+        opened = bool(m.group(2))
+        closed_inline = inline.endswith("}") and inline.count("{") < inline.count("}")
+        if closed_inline:
+            inline = inline[:-1].strip()
+        block_open = opened and not closed_inline
         parts = re.split(r"(?i)\sin\s", interior, maxsplit=1)
         if len(parts) != 2:
             self._todo(lineno, text, "无法解析 foreach 语法")
@@ -859,9 +859,8 @@ class PowerShellConverter:
         if block_open:
             self._stack.append(_Block("for", "done"))
             lines = [header]
-            tail = m.group(3).strip()
-            if tail.startswith("{") and len(tail) > 1:
-                lines.extend(self._convert_line(lineno, tail[1:].strip()))
+            if inline:
+                lines.extend(self._convert_line(lineno, inline))
             return lines
         self._stack.append(_Block("tmp", "done"))
         lines = [header]

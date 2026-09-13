@@ -280,13 +280,24 @@ def test_pipeline_mixed_todo(convert_ps):
 # ----------------------------------------------------------------------
 # 数组 / Test-Path 赋值（阶段 5/6 候选）
 # ----------------------------------------------------------------------
-def test_array_literal_current_behavior(convert_ps):
-    # 锁定当前行为：单行 foreach 的函数体残留一个多余的右花括号（后续阶段候选）
-    out, _ = convert_ps(
+def test_array_literal_and_inline_foreach(convert_ps):
+    out, report = convert_ps(
         '$items = @("a", "b")\nforeach ($i in $items) { Write-Host $i }\n'
     )
     assert 'items=("a"  "b")' in out
-    assert 'echo "${i}" }' in out
+    assert 'echo "${i}" }' not in out
+    assert '    echo "${i}"\n' in out
+    assert out.rstrip().endswith("done")
+    assert report.todo_count == 0
+
+
+def test_inline_foreach_with_multiple_statements(convert_ps):
+    out, report = convert_ps(
+        '$items = @("a")\nforeach ($i in $items) { Write-Host $i; Write-Host $i }\n'
+    )
+    assert out.count('echo "${i}"') == 2
+    assert out.rstrip().endswith("done")
+    assert report.todo_count == 0
 
 
 def test_test_path_assign_current_behavior(convert_ps):
