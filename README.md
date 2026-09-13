@@ -159,6 +159,7 @@ bat2sh a.bat b.ps1  # 启动并载入文件
 
 工作流：打开/拖入文件 → 自动转换并在右侧预览 → 按需编辑 → 保存（自动 `chmod +x`）。
 "批量转换"会按设置逐个转换、写出，并弹出汇总报告。
+"转换并运行"会在窗口底部内嵌面板中执行脚本、实时显示输出（30 秒超时，可折叠）。
 双击打开与默认程序设置见 3.5 节"文件关联"。
 
 快捷键：
@@ -170,6 +171,7 @@ bat2sh a.bat b.ps1  # 启动并载入文件
 | `Ctrl+Enter` | 转换当前文件 |
 | `Ctrl+S` | 保存当前结果 |
 | `Ctrl+Shift+R` | 批量转换 |
+| `Ctrl+Shift+Enter` | 转换并运行（内嵌输出） |
 | `Ctrl+D` | 预览差异 |
 | `Ctrl+R` | 转换报告 |
 | `Ctrl+T` | 切换主题（跟随系统/浅色/深色） |
@@ -186,6 +188,8 @@ bat2sh --cli a.bat --diff                  # 打印源文件与结果的 unified
 bat2sh --cli a.bat --dry-run               # 只显示将写出的文件，不落盘
 bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
 bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出到 stdout（--print 时走 stderr）
+bat2sh --cli a.bat --run --yes             # 转换后执行（含 TODO 时拒绝，退出码 4）
+bat2sh --cli a.bat --run --force           # 强制执行（跳过 TODO 防护与确认）
 ```
 
 | 参数 | 说明 |
@@ -207,9 +211,15 @@ bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出到 stdo
 | `--report` | 打印转换报告（纯文本，stderr） |
 | `--report-json` | 以 JSON 格式打印转换报告（普通模式 stdout，`--print` 时 stderr；与 `--report` 互斥） |
 | `--fail-on-todo` | 存在 TODO 时返回 3 |
+| `--run` | 转换后立即执行（不写文件；含 TODO 时拒绝，退出码 4；仅单文件） |
+| `--force` | 跳过 TODO 防护与执行确认（谨慎使用） |
+| `--yes` | 跳过执行确认（非交互环境必需；仍受 TODO 防护） |
+| `--run-timeout N` | 执行超时秒数（默认 30；超时退出码 5） |
+| `--run-cwd DIR` | 执行工作目录（默认脚本所在目录） |
 | `-q, --quiet` | 静默 |
 
-退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在 TODO。
+退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在 TODO；
+`4` 使用 `--run` 且存在 TODO（未加 `--force`）；`5` 执行超时或无法启动 bash。
 `--diff` 与 `--report-json` 在普通文件模式下输出到 stdout（便于管道解析）、`--print` 模式下走 stderr；`--report` 纯文本报告与状态行（`[已写出]`/`[dry-run]`）始终走 stderr。
 `--print` 与 `--dry-run` 同时给出时，`--print` 优先，`--dry-run` 被忽略。
 
@@ -219,6 +229,40 @@ bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出到 stdo
 缩进风格（2/4 空格、Tab）、变量加双引号、严格模式（`set -euo pipefail`）、
 `$LASTEXITCODE` 策略（warn/map）、主题。
 设置保存在 `${XDG_CONFIG_HOME:-~/.config}/bat2sh/settings.json`。
+
+### 4.4 自动执行（--run / "转换并运行"）与安全说明
+
+CLI 使用 `--run` 在转换后立即执行脚本（不写出 `.sh` 文件；仅支持单个输入文件）：
+
+```bash
+bat2sh --cli deploy.bat --run                   # TTY 下提示确认后执行
+bat2sh --cli deploy.bat --run --yes             # 非交互执行（仍拒绝 TODO）
+bat2sh --cli deploy.bat --run --yes --run-timeout 120   # 放宽超时（默认 30 秒）
+bat2sh --cli deploy.bat --run --yes --run-cwd /srv      # 指定工作目录（默认脚本目录）
+```
+
+执行机制与安全边界：
+
+- 脚本写入临时文件后以 `bash <临时文件>` 执行，stdout/stderr 透传，执行后立即清理。
+- **TODO 防护**：转换结果含 `# TODO`（无法自动转换的语句）时默认拒绝执行，
+  退出码 `4`，并在 stderr 列出具体位置；只有 `--force` 能跳过。
+- **确认机制**：交互终端提示 `将执行以上脚本，继续？[y/N]`，回答非 y 退出码 `1`；
+  非交互环境（管道、CI）必须显式加 `--yes`（或 `--force`），否则拒绝执行。
+- **退出码**：脚本自身退出码原样透传（脚本 `exit 7` → CLI 返回 `7`）；
+  超时（默认 30 秒）或无法启动 bash → `5`；被信号终止 → `5`。
+
+GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未保存修改时先按源文件
+重新转换（未保存的修改不参与执行）→ 含 TODO 时弹窗列出并可取消 → 展示脚本全文
+确认 → 在底部"运行输出"面板流式显示 stdout/stderr，30 秒超时自动终止，
+状态栏显示退出码，面板可折叠。
+
+安全提示：
+
+- 转换是**近似**翻译，复杂脚本请先人工核对；首次建议用 `--print` 或 `--dry-run`
+  检查输出，再考虑 `--run`。
+- 不要对来源不可信的 `.bat/.cmd/.ps1` 使用 `--force`：TODO 防护是最后一道闸门，
+  跳过它意味着未转换的语句将以近似或缺失的形式执行。
+- 执行权限与当前用户相同，工作目录默认是脚本所在目录。
 
 ## 5. 编码处理
 
