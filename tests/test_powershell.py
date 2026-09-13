@@ -215,6 +215,22 @@ def test_get_date_plain(convert_ps):
     assert report.warning_count == 0
 
 
+def test_lastexitcode_warns_semantics(convert_ps):
+    out, report = convert_ps("Write-Host $LASTEXITCODE\n")
+    assert report.warning_count == 1
+    assert report.warnings[0].category == "errorlevel"
+    assert "LASTEXITCODE" in report.warnings[0].message
+    assert 'echo "${LASTEXITCODE}"' in out
+
+
+def test_question_mark_warns_semantics(convert_ps):
+    out, report = convert_ps('if ($?) { Write-Host "ok" }\n')
+    assert report.warning_count == 1
+    assert report.warnings[0].category == "errorlevel"
+    assert "$? 语义不同" in report.warnings[0].message
+    assert "if [[ $? ]]; then" in out
+
+
 def test_ps_date_token_mapping_unit():
     assert PowerShellConverter._ps_date_format("yyyy-MM-dd") == "%Y-%m-%d"
     assert PowerShellConverter._ps_date_format("HH:mm:ss") == "%H:%M:%S"

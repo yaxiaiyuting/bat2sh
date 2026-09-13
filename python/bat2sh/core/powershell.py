@@ -365,7 +365,17 @@ class PowerShellConverter:
             name = m.group(1)
             return self._automatic_var(name, result, lineno)
         # $? / $$ / $_ 等
-        if i + 1 < n and text[i + 1] in "?$!":
+        if i + 1 < n and text[i + 1] == "?":
+            self._warn(
+                lineno,
+                "bash 的 $? 只反映紧邻上一条命令的退出码，"
+                "与 PowerShell 的 $? 语义不同，请人工确认",
+                "$?",
+                category="errorlevel",
+            )
+            result.append("$?")
+            return 2
+        if i + 1 < n and text[i + 1] in "$!":
             result.append("$" + text[i + 1])
             return 2
         if i + 1 < n and text[i + 1] == "_":
@@ -377,6 +387,14 @@ class PowerShellConverter:
 
     def _automatic_var(self, name: str, result: list[str], lineno: int) -> int:
         low = name.lower()
+        if low == "lastexitcode":
+            self._warn(
+                lineno,
+                "bash 的 $? 只反映紧邻上一条命令的退出码，"
+                "与 PowerShell 的 $LASTEXITCODE 语义不同，请人工确认",
+                f"${name}",
+                category="errorlevel",
+            )
         if low in rules.PS_AUTOMATIC_VARS:
             mapped = rules.PS_AUTOMATIC_VARS[low]
             result.append(mapped)
