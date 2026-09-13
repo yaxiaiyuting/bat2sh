@@ -91,6 +91,7 @@ def _restore_placeholders(line: str) -> str:
 
 _VARIABLE_MARKER = re.compile(r"[%!]")
 _ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
+_DATE_TIME_VAR_RE = re.compile(r"(?<!%)%(?:DATE|TIME)%(?!%)", re.I)
 _IF_COMPARE_RE = re.compile(
     r'^\s*("(?:[^"]*)"|\S+?)\s*(===|==|equ|neq|lss|leq|gtr|geq)\s*'
     r'("(?:[^"]*)"|\S+)(?:\s+(.*))?$',
@@ -476,6 +477,14 @@ class BatchConverter:
                     return "${__bat2sh_rc}"
                 self._warn(lineno, "%ERRORLEVEL% 的转换可能不完全等价", text, category="variables")
                 return "$?"
+            if upper in ("DATE", "TIME"):
+                self._warn(
+                    lineno,
+                    f"Windows %{upper}% 格式依赖区域设置，已映射为 ISO 格式",
+                    text,
+                    category="variables",
+                )
+                return rules.BATCH_ENV_MAP[upper]
             if upper in rules.BATCH_ENV_MAP:
                 if upper in rules.BATCH_ENV_WARN:
                     self._warn(lineno, f"%{name}% 的转换可能不完全等价", text, category="variables")
@@ -1251,6 +1260,13 @@ class BatchConverter:
         command: str | None = None
         file_target: str | None = None
         source = set_text.strip()
+        if _DATE_TIME_VAR_RE.search(set_text):
+            return self._for_todo_lines(
+                lineno,
+                text,
+                body,
+                "for /f 依赖 %DATE%/%TIME% 的输出格式（受区域设置影响），请手工处理",
+            )
         if (
             len(source) >= 2
             and source.startswith("'")

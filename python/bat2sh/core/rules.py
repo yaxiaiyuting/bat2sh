@@ -230,8 +230,8 @@ BATCH_ENV_MAP: dict[str, str] = {
     "PROCESSOR_IDENTIFIER": "$(uname -p)",
     "NUMBER_OF_PROCESSORS": "$(nproc)",
     "COMPUTERNAME": "$(hostname)",
-    "DATE": "$(date +%F)",
-    "TIME": "$(date +%T)",
+    "DATE": "$(date +%Y-%m-%d)",
+    "TIME": "$(date +%H:%M:%S)",
     "SYSTEMDRIVE": "/",
     "SYSTEMROOT": "${SystemRoot:-/}",
     "WINDIR": "/",
@@ -241,7 +241,7 @@ BATCH_ENV_MAP: dict[str, str] = {
 }
 
 #: 转换时需要提醒语义差异的变量
-BATCH_ENV_WARN: set[str] = {"DATE", "TIME", "SYSTEMROOT", "WINDIR", "PROGRAMDATA", "APPDATA", "LOCALAPPDATA"}
+BATCH_ENV_WARN: set[str] = {"SYSTEMROOT", "WINDIR", "PROGRAMDATA", "APPDATA", "LOCALAPPDATA"}
 
 #: .exe / .cmd 可执行文件名 -> Linux 命令
 BATCH_EXE_MAP: dict[str, str] = {

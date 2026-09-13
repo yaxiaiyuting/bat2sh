@@ -1,8 +1,9 @@
-"""A 类命令干净映射测试：certutil / driverquery / assoc / ftype / %SystemRoot%。"""
+"""A 类命令干净映射测试：certutil / driverquery / assoc / ftype / SystemRoot 等。"""
 
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 
@@ -219,3 +220,36 @@ def test_if_slash_i_complex_expression_todo(convert_bat):
     out, report = convert_bat('@echo off\nif /i "%A%_x"=="%B%_x" echo x\n')
     assert report.todo_count == 1
     assert "# TODO" in out
+
+
+def test_date_maps_to_iso_and_runs(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho %DATE%\n")
+    assert "$(date +%Y-%m-%d)" in out
+    assert any("区域设置" in d.message for d in report.warnings)
+    proc = bash_run(out)
+    assert proc.returncode == 0
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", proc.stdout.strip())
+
+
+def test_time_maps_to_iso_and_runs(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho %TIME%\n")
+    assert "$(date +%H:%M:%S)" in out
+    assert any("区域设置" in d.message for d in report.warnings)
+    proc = bash_run(out)
+    assert proc.returncode == 0
+    assert re.fullmatch(r"\d{2}:\d{2}:\d{2}", proc.stdout.strip())
+
+
+def test_date_in_for_f_string_todo(convert_bat):
+    text = '@echo off\nfor /f "tokens=1-3 delims=-" %%a in ("%DATE%") do echo %%a\n'
+    out, report = convert_bat(text)
+    assert report.todo_count == 1
+    assert "$(date" not in out
+    assert "# TODO" in out
+
+
+def test_time_in_for_f_command_todo(convert_bat):
+    text = "@echo off\nfor /f \"delims=\" %%i in ('echo %TIME%') do echo %%i\n"
+    out, report = convert_bat(text)
+    assert report.todo_count == 1
+    assert "$(date" not in out

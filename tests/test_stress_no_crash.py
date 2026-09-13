@@ -18,8 +18,8 @@ from bat2sh.core.settings import ConvertSettings
 STRESS_BAT = Path(__file__).resolve().parents[1] / "examples" / "stress_test.bat"
 
 FROZEN_WARNINGS = [
-    (16, 'variables', '%DATE% 的转换可能不完全等价'),
-    (16, 'variables', '%TIME% 的转换可能不完全等价'),
+    (16, 'variables', 'Windows %DATE% 格式依赖区域设置，已映射为 ISO 格式'),
+    (16, 'variables', 'Windows %TIME% 格式依赖区域设置，已映射为 ISO 格式'),
     (84, 'command', 'findstr 已转换为 grep，正则语法可能存在差异'),
     (114, 'glob', '检测到通配符集合，已在脚本头添加 shopt -s nullglob：无匹配时循环体不执行'),
     (138, 'command', 'ver 已转换为 uname -a'),
