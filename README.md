@@ -146,7 +146,7 @@ bat2sh --cli a.bat --print                 # 只打印到 stdout，不写文件
 bat2sh --cli a.bat --diff                  # 打印源文件与结果的 unified diff
 bat2sh --cli a.bat --dry-run               # 只显示将写出的文件，不落盘
 bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
-bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出（stderr）
+bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出到 stdout（--print 时走 stderr）
 ```
 
 | 参数 | 说明 |
@@ -159,24 +159,26 @@ bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出（stder
 | `--backup` / `--backup-source` | 覆盖输出前备份 / 转换前备份源文件 |
 | `--no-quote-vars` | 变量不强制加双引号 |
 | `--no-strict` | 不添加 `set -euo pipefail` |
+| `--last-exit-code {warn,map}` | PowerShell `$LASTEXITCODE` 策略（默认 `warn`；`map` 近似映射为 `$?`） |
 | `--encoding` | 强制输入编码（默认自动检测） |
 | `--no-overwrite` | 输出已存在时拒绝覆盖 |
 | `--print` | 输出到 stdout |
 | `--diff` | 打印源文件与转换结果的 unified diff（`--print` 时走 stderr） |
 | `--dry-run` | 只显示将写出的文件，不实际写盘、不改权限 |
 | `--report` | 打印转换报告（纯文本，stderr） |
-| `--report-json` | 以 JSON 格式打印转换报告（stderr，与 `--report` 互斥） |
+| `--report-json` | 以 JSON 格式打印转换报告（普通模式 stdout，`--print` 时 stderr；与 `--report` 互斥） |
 | `--fail-on-todo` | 存在 TODO 时返回 3 |
 | `-q, --quiet` | 静默 |
 
 退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在 TODO。
-`--diff` 在普通文件模式下输出到 stdout、`--print` 模式下输出到 stderr；报告类参数始终输出到 stderr。
+`--diff` 与 `--report-json` 在普通文件模式下输出到 stdout（便于管道解析）、`--print` 模式下走 stderr；`--report` 纯文本报告与状态行（`[已写出]`/`[dry-run]`）始终走 stderr。
 `--print` 与 `--dry-run` 同时给出时，`--print` 优先，`--dry-run` 被忽略。
 
 ### 4.3 设置项
 
 输出目录、输出后缀、自动 `chmod +x`、覆盖前备份、转换前备份源文件、允许覆盖、
-缩进风格（2/4 空格、Tab）、变量加双引号、严格模式（`set -euo pipefail`）、主题。
+缩进风格（2/4 空格、Tab）、变量加双引号、严格模式（`set -euo pipefail`）、
+`$LASTEXITCODE` 策略（warn/map）、主题。
 设置保存在 `${XDG_CONFIG_HOME:-~/.config}/bat2sh/settings.json`。
 
 ## 5. 编码处理
