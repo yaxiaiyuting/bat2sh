@@ -74,6 +74,7 @@ FROZEN_WARNINGS = [
     (354, 'variables', '%ERRORLEVEL% 的转换可能不完全等价'),
     (399, 'command', 'findstr 已转换为 grep，正则语法可能存在差异'),
     (403, 'command', 'findstr 已转换为 grep，正则语法可能存在差异'),
+    (418, 'control_flow', 'eol=; 仅近似为跳过以 ; 开头的行；Windows 在行中间遇到 ; 会截断，请核对'),
     (424, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
     (433, 'command', 'netstat 已转换为 ss，输出格式不同'),
     (436, 'command', 'tasklist 已转换为 ps aux，输出格式不同'),

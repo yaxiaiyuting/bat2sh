@@ -259,6 +259,8 @@ class _Block:
 class _ForFOptions:
     tokens: str | None = None
     delims: str | None = None
+    skip: int = 0
+    eol: str | None = None
     usebackq: bool = False
 
 
@@ -1195,14 +1197,32 @@ class BatchConverter:
 
         header = self._indent + f"while {ifs}read -r {' '.join(read_vars)}; do"
         if command is not None:
-            close_word = f"done < <({command})"
+            body_source = (
+                f"{command} | tail -n +{options.skip + 1}" if options.skip else command
+            )
+            close_word = f"done < <({body_source})"
+        elif options.skip:
+            close_word = f"done < <(tail -n +{options.skip + 1} < {file_target})"
         else:
             close_word = f"done < {file_target}"
         self._loop_vars.extend(loop_vars)
         block = _Block("for", close_word)
         block.loop_vars = list(loop_vars)
         self._stack.append(block)
-        prelude = [header, self._c(f'[ -z "${loop_vars[0]}" ] && continue')]
+        first_var = loop_vars[0]
+        if options.eol:
+            escaped = options.eol if options.eol.isalnum() else "\\" + options.eol
+            guard = self._c(f'[[ -z "${first_var}" || "${first_var}" == {escaped}* ]] && continue')
+            self._warn(
+                lineno,
+                f"eol={options.eol} 仅近似为跳过以 {options.eol} 开头的行；"
+                f"Windows 在行中间遇到 {options.eol} 会截断，请核对",
+                text,
+                category="control_flow",
+            )
+        else:
+            guard = self._c(f'[ -z "${first_var}" ] && continue')
+        prelude = [header, guard]
 
         body = body.strip()
         if body.startswith("("):
@@ -1251,6 +1271,16 @@ class BatchConverter:
                 options.delims = part.split("=", 1)[1]
                 if '"' in options.delims:
                     return None
+            elif low.startswith("skip="):
+                value = part.split("=", 1)[1]
+                if not value.isdigit():
+                    return None
+                options.skip = int(value)
+            elif low.startswith("eol="):
+                value = part.split("=", 1)[1]
+                if len(value) > 1:
+                    return None
+                options.eol = value or None
             else:
                 return None
         return options

@@ -115,3 +115,78 @@ def test_for_f_goto_body_todo(convert_bat):
     )
     assert "# TODO: 手动检查: for /f" in out
     assert report.todo_count == 1
+
+
+# ----------------------------------------------------------------------
+# skip / eol
+# ----------------------------------------------------------------------
+def test_for_f_skip_wraps_tail(convert_bat):
+    out, report = convert_bat(
+        "@echo off\nfor /f \"skip=1 tokens=*\" %%a in ('dir /b') do echo %%a\n"
+    )
+    assert "done < <(ls -1 | tail -n +2)" in out
+    assert report.todo_count == 0
+
+
+def test_for_f_skip_two_wraps_tail(convert_bat):
+    out, _ = convert_bat(
+        "@echo off\nfor /f \"skip=2 tokens=*\" %%a in ('dir /b') do echo %%a\n"
+    )
+    assert "tail -n +3" in out
+
+
+def test_for_f_skip_runs_in_bash(convert_bat, bash_run):
+    out, _ = convert_bat(
+        "@echo off\nfor /f \"skip=1 tokens=*\" %%a in ('seq 2') do echo %%a\n"
+    )
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "2\n"
+
+
+def test_for_f_skip_multiline_body(convert_bat, bash_check):
+    out, report = convert_bat(
+        "@echo off\nfor /f \"skip=1 tokens=*\" %%a in ('dir /b') do (\n    echo %%a\n)\n"
+    )
+    assert "done < <(ls -1 | tail -n +2)" in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_for_f_eol_guard_and_warning(convert_bat):
+    out, report = convert_bat(
+        "@echo off\nfor /f \"eol=; tokens=*\" %%a in ('dir /b') do echo %%a\n"
+    )
+    assert '[[ -z "$a" || "$a" == \\;* ]] && continue' in out
+    assert report.warning_count == 1
+    assert (
+        "eol=; 仅近似为跳过以 ; 开头的行；Windows 在行中间遇到 ; 会截断，请核对"
+        == report.warnings[0].message
+    )
+
+
+def test_for_f_eol_runs_in_bash(convert_bat, bash_run):
+    out, _ = convert_bat(
+        "@echo off\nfor /f \"eol=1 tokens=*\" %%a in ('seq 3') do echo %%a\n"
+    )
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "2\n3\n"
+
+
+def test_for_f_skip_and_eol_together(convert_bat):
+    out, report = convert_bat(
+        "@echo off\nfor /f \"skip=1 eol=; tokens=*\" %%a in ('dir /b') do echo %%a\n"
+    )
+    assert "tail -n +2" in out
+    assert '[[ -z "$a" || "$a" == \\;* ]] && continue' in out
+    assert report.warning_count == 1
+
+
+def test_for_f_skip_usebackq_file(convert_bat):
+    out, report = convert_bat(
+        '@echo off\nfor /f "usebackq skip=1 tokens=*" %%a in ("test1.txt") do echo %%a\n'
+    )
+    assert 'done < <(tail -n +2 < "test1.txt")' in out
+    assert report.todo_count == 0
+

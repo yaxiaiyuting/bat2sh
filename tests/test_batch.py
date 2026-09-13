@@ -650,8 +650,6 @@ def test_for_f_multiline_body(convert_bat, bash_check):
 @pytest.mark.parametrize(
     "line",
     [
-        "for /f \"skip=1\" %%i in ('dir /b') do echo %%i",
-        "for /f \"eol=#\" %%i in ('dir /b') do echo %%i",
         "for /f \"usebackq\" %%i in (`dir /b`) do echo %%i",
         "for /f \"foo\" %%i in ('dir /b') do echo %%i",
     ],
