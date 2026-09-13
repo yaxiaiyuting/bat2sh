@@ -40,7 +40,7 @@ from ..core.engine import (
 )
 from ..core.recent import load_recent, save_recent, update_recent_list
 from ..core.settings import ConvertSettings, save_settings
-from ..core.types import ConvertReport, SourceKind
+from ..core.types import ConvertReport, SourceKind, report_blocks
 from .dialogs import AboutDialog, DiffDialog, ReportDialog, SettingsDialog
 from .editor import CodeEditor
 from .highlighter import highlighter_for
@@ -586,7 +586,7 @@ class MainWindow(QMainWindow):
             lines.append("")
             lines.append("── 错误 ─────────────────────────────────")
             lines.extend("  " + error for error in errors)
-        ReportDialog("批量转换报告", "\n".join(lines), self).exec()
+        ReportDialog("批量转换报告", [(line, "normal") for line in lines], self.dark, self).exec()
         self.status_label.setText(f"批量转换完成：成功 {saved} 个，失败 {len(errors)} 个")
 
     # ------------------------------------------------------------------
@@ -633,12 +633,14 @@ class MainWindow(QMainWindow):
         if entry is None or entry.report is None:
             QMessageBox.information(self, "转换报告", "尚无转换报告，请先转换文件。")
             return
-        text = entry.report.to_text()
+        blocks = report_blocks(entry.report)
         if entry.report.todo_count == 0:
-            text += "\n\n所有语句均已自动转换。"
+            blocks.append(("", "normal"))
+            blocks.append(("所有语句均已自动转换。", "normal"))
         else:
-            text += "\n\n提示：输出脚本中以 # TODO 开头的行需要人工确认。"
-        ReportDialog(f"转换报告 - {entry.path.name}", text, self).exec()
+            blocks.append(("", "normal"))
+            blocks.append(("提示：输出脚本中以 # TODO 开头的行需要人工确认。", "normal"))
+        ReportDialog(f"转换报告 - {entry.path.name}", blocks, self.dark, self).exec()
 
     def open_settings(self) -> None:
         dialog = SettingsDialog(self.settings, self)

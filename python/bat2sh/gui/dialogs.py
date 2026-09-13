@@ -5,7 +5,7 @@ from __future__ import annotations
 import difflib
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QColor, QDesktopServices, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QTextBrowser,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -31,6 +32,7 @@ from ..core.settings import (
     load_presets,
     save_presets,
 )
+from .theme import report_level_color
 
 
 class SettingsDialog(QDialog):
@@ -258,15 +260,37 @@ class DiffDialog(QDialog):
 
 
 class ReportDialog(QDialog):
-    def __init__(self, title: str, text: str, parent: QWidget | None = None):
+    def __init__(
+        self,
+        title: str,
+        blocks: list[tuple[str, str]],
+        dark: bool = False,
+        parent: QWidget | None = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(760, 560)
         layout = QVBoxLayout(self)
-        viewer = QPlainTextEdit()
-        viewer.setReadOnly(True)
-        viewer.setPlainText(text)
-        layout.addWidget(viewer)
+        self.viewer = QPlainTextEdit()
+        self.viewer.setReadOnly(True)
+        self.viewer.setPlainText("\n".join(text for text, _level in blocks))
+        selections: list[QTextEdit.ExtraSelection] = []
+        offset = 0
+        for text, level in blocks:
+            color = report_level_color(level, dark)
+            if color is not None and text:
+                selection = QTextEdit.ExtraSelection()
+                fmt = QTextCharFormat()
+                fmt.setForeground(QColor(color))
+                selection.format = fmt
+                cursor = self.viewer.textCursor()
+                cursor.setPosition(offset)
+                cursor.setPosition(offset + len(text), QTextCursor.MoveMode.KeepAnchor)
+                selection.cursor = cursor
+                selections.append(selection)
+            offset += len(text) + 1
+        self.viewer.setExtraSelections(selections)
+        layout.addWidget(self.viewer)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self.accept)

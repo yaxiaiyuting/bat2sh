@@ -101,3 +101,12 @@ def apply_theme(app: QApplication, mode: str) -> bool:
         if not switched:
             app.setPalette(dark_palette() if dark else light_palette())
     return dark
+
+
+def report_level_color(level: str, dark: bool) -> str | None:
+    """报告行级别 → 前景色 hex；info/normal → None（使用默认前景色）。"""
+    colors = {
+        "warning": "#ffb454" if dark else "#b26a00",
+        "todo": "#8c9196" if dark else "#787d82",
+    }
+    return colors.get(level)

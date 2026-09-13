@@ -19,6 +19,7 @@ _CATEGORY_LABELS: tuple[tuple[str, str], ...] = (
     ("variables", "变量"),
 )
 _OTHER_LABEL = "其他"
+_SECTION_DASHES = 33  # 与 ConvertReport.to_text() 的分节线保持一致
 
 
 class SourceKind(str, Enum):
@@ -149,3 +150,32 @@ class ConvertReport:
         if "" in buckets:
             groups.append((_OTHER_LABEL, buckets[""]))
         return groups
+
+
+def report_blocks(report: ConvertReport) -> list[tuple[str, str]]:
+    """把报告拆成 (text, level) 行块，level ∈ {"info", "warning", "todo", "normal"}。
+
+    独立生成 to_text() 的行结构（由测试守护两者一致），供 GUI 按级别着色。
+    """
+    blocks: list[tuple[str, str]] = [
+        (f"源文件      : {report.source}", "info"),
+        (f"源类型      : {report.kind.display_name}", "info"),
+        (f"输入编码    : {report.encoding}", "info"),
+        (f"总行数      : {report.total_lines}", "info"),
+        (f"已转换行数  : {report.converted_lines}", "info"),
+        (f"保持不变行数: {report.unchanged_lines}", "info"),
+        (f"警告数量    : {report.warning_count}", "info"),
+        (f"无法自动转换: {report.todo_count}", "info"),
+    ]
+    for title, diagnostics, level in (
+        ("警告", report.warnings, "warning"),
+        ("需要人工检查", report.todos, "todo"),
+    ):
+        if not diagnostics:
+            continue
+        blocks.append(("", "normal"))
+        blocks.append((f"── {title} {'─' * _SECTION_DASHES}", level))
+        for label, group in report._group_diagnostics(diagnostics):
+            blocks.append((f"  [{label}]", level))
+            blocks.extend(("    " + diagnostic.format(), level) for diagnostic in group)
+    return blocks
