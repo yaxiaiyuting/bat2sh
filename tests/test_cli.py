@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -185,6 +186,42 @@ def test_report_plain_text_on_stderr(tmp_path, capsys):
     assert "已转换行数" in captured.err
     assert "警告数量" in captured.err
     assert "已转换行数" not in captured.out
+
+
+def test_report_json_on_stderr(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    assert main([str(path), "--report-json"]) == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.err)
+    assert data["source"] == "demo.bat"
+    assert data["kind"] == "bat"
+    assert data["kind_display"] == "Windows 批处理"
+    assert data["warning_count"] == 0
+    assert data["todos"] == []
+    assert data["converted_lines"] > 0
+    assert "已转换行数" not in captured.out
+
+
+def test_report_json_print_mode(tmp_path, capsys):
+    path = make_bat(tmp_path, text=TODO_BAT)
+    assert main([str(path), "--print", "--report-json"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.startswith("#!/usr/bin/env bash")
+    data = json.loads(captured.err)
+    assert data["todo_count"] == 1
+    todo = data["todos"][0]
+    assert todo["line"] == 2
+    assert todo["category"] == ""
+    assert todo["original"].startswith("for /f")
+    assert todo["message"]
+
+
+def test_report_and_report_json_are_mutually_exclusive(tmp_path, capsys):
+    path = make_bat(tmp_path)
+    with pytest.raises(SystemExit) as excinfo:
+        main([str(path), "--report", "--report-json"])
+    assert excinfo.value.code == 2
+    assert "not allowed with" in capsys.readouterr().err
 
 
 def test_quiet_suppresses_status_output(tmp_path, capsys):

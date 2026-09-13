@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -38,6 +39,7 @@ class Diagnostic:
     line: int
     message: str
     original: str = ""
+    category: str = ""
 
     def format(self) -> str:
         if self.original:
@@ -69,6 +71,33 @@ class ConvertReport:
     @property
     def error_count(self) -> int:
         return len(self.todos)
+
+    @staticmethod
+    def _diagnostic_dict(diagnostic: Diagnostic) -> dict:
+        return {
+            "line": diagnostic.line,
+            "category": diagnostic.category,
+            "message": diagnostic.message,
+            "original": diagnostic.original,
+        }
+
+    def to_dict(self) -> dict:
+        return {
+            "source": self.source,
+            "kind": self.kind.value,
+            "kind_display": self.kind.display_name,
+            "encoding": self.encoding,
+            "total_lines": self.total_lines,
+            "converted_lines": self.converted_lines,
+            "unchanged_lines": self.unchanged_lines,
+            "warning_count": self.warning_count,
+            "todo_count": self.todo_count,
+            "warnings": [self._diagnostic_dict(d) for d in self.warnings],
+            "todos": [self._diagnostic_dict(d) for d in self.todos],
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
 
     def to_text(self) -> str:
         lines = [

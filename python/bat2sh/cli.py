@@ -10,7 +10,7 @@ from . import APP_DESCRIPTION, __version__
 from .core.encoding import decode_bytes
 from .core.engine import ConversionResult, convert_file, convert_text, detect_kind
 from .core.settings import ConvertSettings
-from .core.types import SourceKind
+from .core.types import ConvertReport, SourceKind
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -35,7 +35,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--encoding", help="强制指定输入编码（默认自动检测）")
     parser.add_argument("--no-overwrite", action="store_true", help="输出已存在时拒绝覆盖")
     parser.add_argument("--print", dest="print_only", action="store_true", help="只输出到 stdout，不写文件")
-    parser.add_argument("--report", action="store_true", help="打印转换报告")
+    report_group = parser.add_mutually_exclusive_group()
+    report_group.add_argument("--report", action="store_true", help="打印转换报告")
+    report_group.add_argument(
+        "--report-json",
+        action="store_true",
+        help="以 JSON 格式打印转换报告（与 --report 互斥）",
+    )
     parser.add_argument("--fail-on-todo", action="store_true", help="存在 TODO 时返回退出码 3")
     parser.add_argument("-q", "--quiet", action="store_true", help="静默模式")
     parser.add_argument("--version", action="version", version=f"bat2sh {__version__}")
@@ -58,7 +64,16 @@ def settings_from_args(args: argparse.Namespace) -> ConvertSettings:
     )
 
 
-def _print_only(path: Path, settings: ConvertSettings, encoding: str | None, report: bool) -> int:
+def _emit_report(convert_report: ConvertReport, args: argparse.Namespace) -> None:
+    if args.report:
+        sys.stderr.write(convert_report.to_text() + "\n")
+    elif args.report_json:
+        sys.stderr.write(convert_report.to_json() + "\n")
+
+
+def _print_only(
+    path: Path, settings: ConvertSettings, encoding: str | None, args: argparse.Namespace
+) -> int:
     kind = detect_kind(path)
     if kind is SourceKind.UNKNOWN:
         print(f"bat2sh: 不支持的源文件类型: {path}", file=sys.stderr)
@@ -67,8 +82,7 @@ def _print_only(path: Path, settings: ConvertSettings, encoding: str | None, rep
     text, convert_report = convert_text(decoded.text, kind, settings, path.name)
     convert_report.encoding = decoded.encoding
     sys.stdout.write(text)
-    if report:
-        sys.stderr.write(convert_report.to_text() + "\n")
+    _emit_report(convert_report, args)
     return 3 if convert_report.todo_count else 0
 
 
@@ -79,7 +93,7 @@ def run_one(
     args: argparse.Namespace,
 ) -> tuple[int, ConversionResult | None]:
     if args.print_only:
-        code = _print_only(path, settings, encoding, args.report)
+        code = _print_only(path, settings, encoding, args)
         return code, None
     output_override = args.output if args.output else None
     result = convert_file(
@@ -96,8 +110,7 @@ def run_one(
             f" | 警告 {result.report.warning_count}"
             f" | TODO {result.report.todo_count}"
         )
-    if args.report:
-        sys.stderr.write(result.report.to_text() + "\n")
+    _emit_report(result.report, args)
     return (3 if result.report.todo_count else 0), result
 
 
