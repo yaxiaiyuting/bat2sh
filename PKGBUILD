@@ -10,11 +10,11 @@ depends=('python' 'pyside6')
 makedepends=()
 options=('!strip')
 install="${pkgname}.install"
-source=("${pkgname}-${pkgver}.tar.gz")
-sha256sums=('SKIP')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('b076b7800d977b9aef34efb68c6ee2d5ae2eb4dfee9cd38c93568cacd6487e26')
 
 package() {
-  cd "${srcdir}/${pkgname}"
+  cd "${srcdir}/${pkgname}-${pkgver}"
 
   install -d "${pkgdir}/usr/lib/${pkgname}"
   cp -a python/bat2sh "${pkgdir}/usr/lib/${pkgname}/"
