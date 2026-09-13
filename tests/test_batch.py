@@ -194,14 +194,34 @@ def test_echo_star_is_literal_no_nullglob(convert_bat):
     assert report.warning_count == 0
 
 
-def test_for_nested_inner_loop_current_behavior(convert_bat):
-    # 锁定当前行为：内层循环的 %%a 展开为未加引号的 ${a}（阶段 5.2/后续候选）
-    out, _ = convert_bat(
+def test_for_nested_inner_loop_quotes_variable(convert_bat):
+    out, report = convert_bat(
         "@echo off\nfor %%a in (*.txt) do (\n    for %%b in (%%a) do (\n"
         "        echo %%b\n    )\n)\n"
     )
     assert "for a in *.txt; do" in out
-    assert "for b in ${a}; do" in out
+    assert 'for b in "${a}"; do' in out
+    assert any("%%a 变量集合已加引号" in d.message for d in report.warnings)
+
+
+def test_for_set_variable_quoted_with_warning(convert_bat):
+    out, report = convert_bat("@echo off\nfor %%f in (%LIST%) do echo %%f\n")
+    assert 'for f in "${LIST}"; do' in out
+    assert any("%LIST% 变量集合已加引号" in d.message for d in report.warnings)
+
+
+def test_for_set_argument_quoted_with_warning(convert_bat):
+    out, report = convert_bat("@echo off\nfor %%f in (%1) do echo %%f\n")
+    assert 'for f in "$1"; do' in out
+    assert any("%1 变量集合已加引号" in d.message for d in report.warnings)
+
+
+def test_for_set_variable_unquoted_when_quote_variables_off(convert_bat):
+    out, report = convert_bat(
+        "@echo off\nfor %%f in (%LIST%) do echo %%f\n", quote_variables=False
+    )
+    assert "for f in ${LIST}; do" in out
+    assert not any("变量集合已加引号" in d.message for d in report.warnings)
 
 
 def test_for_f_todo(convert_bat):

@@ -818,8 +818,36 @@ class BatchConverter:
         expanded = convert_backslashes(expanded)
         expanded = re.sub(r"\s*[,;]\s*", " ", expanded)
         tokens = tokenize_args(expanded)
-        fixed = [self._fix_glob_token(t) for t in tokens]
+        fixed = [
+            self._quote_collection_token(self._fix_glob_token(t), lineno)
+            for t in tokens
+        ]
         return " ".join(fixed).strip()
+
+    _COLLECTION_VAR_RE = re.compile(r"^\$(?:\{[A-Za-z_]\w*\}|[0-9]+|[@*])$")
+
+    def _quote_collection_token(self, token: str, lineno: int) -> str:
+        if not self.settings.quote_variables or not self._COLLECTION_VAR_RE.match(token):
+            return token
+        name = self._collection_token_display(token)
+        self._warn(
+            lineno,
+            f"{name} 变量集合已加引号以避免空格拆分，"
+            "如需匹配 cmd 的空白拆词行为请手动去掉引号",
+            token,
+        )
+        return dq(token)
+
+    def _collection_token_display(self, token: str) -> str:
+        if token.startswith("${"):
+            inner = token[2:-1]
+            if inner in self._loop_vars:
+                return f"%%{inner}"
+            return f"%{inner}%"
+        inner = token.lstrip("$")
+        if inner.isdigit():
+            return f"%{inner}"
+        return "%*"
 
     def _note_glob(self, lineno: int, snippet: str, original: str) -> None:
         if not needs_nullglob(snippet) or self._needs_nullglob:
