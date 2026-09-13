@@ -23,3 +23,4 @@ PKGBUILD.bak
 *.tar.gz
 *.bad-*
 build/
+LICENSE.mit.bak

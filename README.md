@@ -457,4 +457,4 @@ QT_QPA_PLATFORM=offscreen python -c "from bat2sh.gui.app import run_gui"
 
 ## 11. 许可
 
-MIT License，见 `LICENSE`。
+GNU Affero General Public License v3.0，见 `LICENSE`。
