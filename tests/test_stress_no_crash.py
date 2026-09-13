@@ -43,7 +43,6 @@ FROZEN_WARNINGS = [
     (244, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
     (248, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
     (249, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
-    (288, 'control_flow', 'if /i（忽略大小写）无法在 [ ] 中实现，已按区分大小写处理'),
     (291, 'errorlevel', '$? 只能反映紧邻上一条命令的退出码，请检查语句顺序'),
     (293, 'errorlevel', 'cmdextversion 在 Linux 无对应检查，恒为假'),
     (297, 'command', 'assoc 已转换为 xdg-mime query default，输出为 .desktop 名称而非命令'),

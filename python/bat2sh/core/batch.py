@@ -91,6 +91,11 @@ def _restore_placeholders(line: str) -> str:
 
 _VARIABLE_MARKER = re.compile(r"[%!]")
 _ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
+_IF_COMPARE_RE = re.compile(
+    r'^\s*("(?:[^"]*)"|\S+?)\s*(===|==|equ|neq|lss|leq|gtr|geq)\s*'
+    r'("(?:[^"]*)"|\S+)(?:\s+(.*))?$',
+    re.I | re.S,
+)
 
 
 def _is_string_operand(token: str) -> bool:
@@ -859,9 +864,10 @@ class BatchConverter:
     # ------------------------------------------------------------------
     def _convert_if(self, lineno: int, text: str, is_elif: bool = False) -> list[str]:
         rest = text.strip()[2:].lstrip()
+        ignore_case = False
         if rest.lower().startswith("/i"):
             rest = rest[2:].lstrip()
-            self._warn(lineno, "if /i（忽略大小写）无法在 [ ] 中实现，已按区分大小写处理", text, category="control_flow")
+            ignore_case = True
         negate = False
         m = re.match(r"(?i)^not\s+", rest)
         if m:
@@ -878,10 +884,12 @@ class BatchConverter:
         if errorlevel is not None and errorlevel.group(2).strip():
             merged = self._errorlevel_condition(lineno, int(errorlevel.group(1)), negate, text)
         if merged is not None:
+            if ignore_case:
+                self._warn(lineno, "if /i 仅对字符串比较有效，此处已忽略", text, category="control_flow")
             cond = merged
             remainder = errorlevel.group(2)
         else:
-            cond, remainder = self._parse_condition(lineno, rest, negate)
+            cond, remainder = self._parse_condition(lineno, rest, negate, ignore_case)
         keyword = "elif" if is_elif else "if"
         remainder = remainder.strip()
 
@@ -939,7 +947,13 @@ class BatchConverter:
         lines.append(self._c("fi"))
         return lines
 
-    def _parse_condition(self, lineno: int, expr: str, negate: bool) -> tuple[str, str]:
+    def _parse_condition(
+        self, lineno: int, expr: str, negate: bool, ignore_case: bool = False
+    ) -> tuple[str, str]:
+        compare = _IF_COMPARE_RE.match(expr)
+        if ignore_case and compare is None:
+            self._warn(lineno, "if /i 仅对字符串比较有效，此处已忽略", expr, category="control_flow")
+            ignore_case = False
         m = re.match(r'(?i)^exist\s+(".*?"|\S+)\s*(.*)$', expr)
         if m:
             token = m.group(1)
@@ -983,25 +997,37 @@ class BatchConverter:
             self._warn(lineno, "cmdextversion 在 Linux 无对应检查，恒为假", expr, category="errorlevel")
             return "[ 0 -eq 1 ]", m.group(1)
 
-        m = re.match(
-            r'^\s*("(?:[^"]*)"|\S+?)\s*(===|==|equ|neq|lss|leq|gtr|geq)\s*'
-            r'("(?:[^"]*)"|\S+)(?:\s+(.*))?$',
-            expr,
-            re.I | re.S,
-        )
-        if m:
-            op_token = m.group(2).lower()
-            left = self._convert_operand(m.group(1), lineno)
+        if compare:
+            op_token = compare.group(2).lower()
+            if ignore_case and op_token not in ("==", "==="):
+                self._warn(lineno, "if /i 仅对字符串比较有效，此处已忽略", expr, category="control_flow")
+                ignore_case = False
+            if ignore_case:
+                left = self._ignore_case_operand(compare.group(1), lineno)
+                right = self._ignore_case_operand(compare.group(3), lineno)
+                if left is not None and right is not None:
+                    test = f"[[ {left} == {right} ]]"
+                    if negate:
+                        test = f"! {test}"
+                    return test, (compare.group(4) or "")
+                self._todo(
+                    lineno,
+                    expr,
+                    "if /i 含通配符或复杂表达式，无法自动转换",
+                    category="control_flow",
+                )
+                return "[ 0 -eq 1 ]", "( # TODO: 手动检查条件: " + expr + " )"
+            left = self._convert_operand(compare.group(1), lineno)
             op = rules.BATCH_TEST_OPERATORS.get(op_token, "=")
             if op_token in ("equ", "neq") and (
-                _is_string_operand(m.group(1)) or _is_string_operand(m.group(3))
+                _is_string_operand(compare.group(1)) or _is_string_operand(compare.group(3))
             ):
                 op = "=" if op_token == "equ" else "!="
-            right = self._convert_operand(m.group(3), lineno)
+            right = self._convert_operand(compare.group(3), lineno)
             test = f"{left} {op} {right}"
             if negate:
                 test = f"! {test}"
-            return f"[ {test} ]", (m.group(4) or "")
+            return f"[ {test} ]", (compare.group(4) or "")
 
         self._warn(lineno, "无法解析的 if 条件，已生成 TODO", expr, category="control_flow")
         return "[ 0 -eq 1 ]", "( # TODO: 手动检查条件: " + expr + " )"
@@ -1115,6 +1141,23 @@ class BatchConverter:
         if quote or self.settings.quote_variables or re.search(r"[\s$&|()<>]", expanded):
             return dq(expanded)
         return expanded
+
+    def _ignore_case_operand(self, token: str, lineno: int) -> str | None:
+        inner, _quote = strip_outer_quotes(token)
+        if re.search(r"[*?]", inner):
+            return None
+        m = re.fullmatch(r"%([A-Za-z_][A-Za-z0-9_]*)%", inner)
+        if m:
+            return "${%s,,}" % m.group(1)
+        m = re.fullmatch(r"!([A-Za-z_][A-Za-z0-9_]*)!", inner)
+        if m:
+            return "${%s,,}" % m.group(1)
+        m = re.fullmatch(r"%%([A-Za-z])", inner)
+        if m:
+            return "${%s,,}" % m.group(1).lower()
+        if re.search(r"[%!]", inner):
+            return None
+        return dq(inner.lower())
 
     def _convert_path_token(self, token: str, lineno: int) -> str:
         inner, _ = strip_outer_quotes(token)

@@ -172,3 +172,50 @@ def test_errorlevel_warn_paren_block_stays_balanced(convert_bat):
     assert report.todo_count == 1
     assert 'echo "done"' in out
     assert not any("多余" in d.message for d in report.warnings)
+
+
+def test_if_slash_i_variables_lowercase_expansion(convert_bat, bash_run):
+    text = '@echo off\nset "A=HELLO"\nset "B=hello"\nif /i "%A%"=="%B%" echo same\n'
+    out, report = convert_bat(text)
+    assert "[[ ${A,,} == ${B,,} ]]" in out
+    assert "shopt" not in out
+    assert "nocasematch" not in out
+    assert report.todo_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0
+    assert "same" in proc.stdout
+
+
+def test_if_slash_i_literals_compare_true(convert_bat, bash_run):
+    out, report = convert_bat('@echo off\nif /i "HELLO"=="hello" echo same\n')
+    assert report.todo_count == 0
+    assert "shopt" not in out
+    proc = bash_run(out)
+    assert proc.returncode == 0
+    assert "same" in proc.stdout
+
+
+def test_if_slash_i_case_difference_runs(convert_bat, bash_run):
+    text = (
+        '@echo off\nset "A=Alpha"\nset "B=ALPHA"\n'
+        'if /i "%A%"=="%B%" echo eq\n'
+        'if /i "%A%"=="beta" echo ne\n'
+    )
+    out, _ = convert_bat(text)
+    proc = bash_run(out)
+    assert proc.returncode == 0
+    assert "eq" in proc.stdout
+    assert "ne" not in proc.stdout
+
+
+def test_if_slash_i_wildcard_todo(convert_bat):
+    out, report = convert_bat('@echo off\nif /i "%A%"=="*.txt" echo x\n')
+    assert report.todo_count == 1
+    assert "# TODO" in out
+    assert "${A,,}" not in out
+
+
+def test_if_slash_i_complex_expression_todo(convert_bat):
+    out, report = convert_bat('@echo off\nif /i "%A%_x"=="%B%_x" echo x\n')
+    assert report.todo_count == 1
+    assert "# TODO" in out
