@@ -133,6 +133,41 @@ def test_set_p_read_without_guard_when_strict_off(convert_bat):
 
 
 # ----------------------------------------------------------------------
+# %% 间接引用 / 转义百分号
+# ----------------------------------------------------------------------
+def test_escaped_percent_pair_is_literal(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\necho 百分号: %%PATH%%\n")
+    assert 'echo "百分号: %PATH%"' in out
+    assert any("检测到转义百分号 %%" in d.message for d in report.warnings)
+    assert not any("循环变量" in d.message for d in report.warnings)
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "百分号: %PATH%\n"
+
+
+def test_triple_percent_indirect_warning(convert_bat):
+    out, report = convert_bat('@echo off\ncall set "INDIRECT=%%%VAR_NAME%%%"\n')
+    assert any(
+        "检测到 %% 间接引用语法（call set），请手工处理" == d.message for d in report.warnings
+    )
+    assert not any("循环变量" in d.message for d in report.warnings)
+
+
+def test_triple_percent_single_letter_is_indirect(convert_bat):
+    out, report = convert_bat('@echo off\ncall set "RESULT=%%%A%%%"\n')
+    assert any(
+        "检测到 %% 间接引用语法（call set），请手工处理" == d.message for d in report.warnings
+    )
+    assert not any("循环变量" in d.message for d in report.warnings)
+
+
+def test_for_loop_variable_not_treated_as_escaped_percent(convert_bat):
+    out, report = convert_bat("@echo off\nfor %%i in (*.txt) do echo %%i\n")
+    assert 'echo "${i}"' in out
+    assert not any("转义百分号" in d.message for d in report.warnings)
+
+
+# ----------------------------------------------------------------------
 # if
 # ----------------------------------------------------------------------
 def test_if_exist_else(convert_bat):

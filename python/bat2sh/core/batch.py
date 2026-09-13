@@ -51,6 +51,7 @@ _CARET_ESCAPES = {
     "!": "\ue106",
 }
 _CARET_RESTORES = {placeholder: char for char, placeholder in _CARET_ESCAPES.items()}
+_LITERAL_PERCENT = "\ue200"
 
 
 def _protect_carets(text: str) -> str:
@@ -82,10 +83,10 @@ def _protect_carets(text: str) -> str:
     return "".join(out)
 
 
-def _restore_carets(line: str) -> str:
+def _restore_placeholders(line: str) -> str:
     for placeholder, char in _CARET_RESTORES.items():
         line = line.replace(placeholder, char)
-    return line
+    return line.replace(_LITERAL_PERCENT, "%")
 
 
 def _split_sequential(text: str) -> list[str]:
@@ -200,6 +201,7 @@ class BatchConverter:
         self._prescan(logical)
         for start, line in logical:
             produced = self._convert_line(start, line)
+            produced = [_restore_placeholders(item) for item in produced]
             bucket = self._func_out if (self._function_mode and self._current_func) else self._out
             bucket.extend(produced)
             self._update_status_validity(line, produced)
@@ -305,6 +307,27 @@ class BatchConverter:
             self._warn(lineno, f"循环变量 %%{m.group(1)} 出现在 for 循环之外", text, category="control_flow")
             return "%" + m.group(1)
 
+        def indirect_repl(m: re.Match[str]) -> str:
+            self._warn(
+                lineno,
+                "检测到 %% 间接引用语法（call set），请手工处理",
+                text,
+                category="variables",
+            )
+            return _LITERAL_PERCENT + m.group(1) + _LITERAL_PERCENT
+
+        def escaped_percent_repl(m: re.Match[str]) -> str:
+            self._warn(
+                lineno,
+                "检测到转义百分号 %% ，已按字面 %% 处理",
+                text,
+                category="variables",
+            )
+            return _LITERAL_PERCENT + m.group(1) + _LITERAL_PERCENT
+
+        # %%%VAR%%% 间接引用 / %%NAME%% 转义百分号（单字母留给 for 循环变量处理）
+        text = re.sub(r"%%%([A-Za-z_][A-Za-z0-9_]*)%%%", indirect_repl, text)
+        text = re.sub(r"%%([A-Za-z_][A-Za-z0-9_]*)%%", escaped_percent_repl, text)
         text = re.sub(r"%%([A-Za-z])", loop_repl, text)
         text = text.replace("%%", "%")
 
@@ -435,8 +458,7 @@ class BatchConverter:
             return self._convert_exit(lineno, text)
 
         protected = _protect_carets(text)
-        result = self._convert_simple(lineno, protected)
-        return [_restore_carets(line) for line in result]
+        return self._convert_simple(lineno, protected)
 
     # ------------------------------------------------------------------
     # 块闭合
