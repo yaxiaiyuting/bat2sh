@@ -174,16 +174,45 @@ def test_env_mapped_and_unlisted(convert_ps):
 # ----------------------------------------------------------------------
 # Get-Date（阶段 3 的 2.4-PS 目标）
 # ----------------------------------------------------------------------
-def test_get_date_format_current_behavior(convert_ps):
-    # 锁定当前行为：_expand_inline_cmdlets 抢先替换 Get-Date，
-    # 导致 -Format 参数残留为无效 bash，且无警告/无 TODO（阶段 3 修复）。
+def test_get_date_format(convert_ps):
     out, report = convert_ps(
         '$d = Get-Date -Format "yyyy-MM-dd"\nGet-Date -Format "yyyy/MM/dd"\n'
     )
-    assert 'd=$(date) -Format "yyyy-MM-dd"' in out
-    assert '$(date) -Format "yyyy/MM/dd"' in out
-    assert report.warning_count == 0
+    assert "d=$(date +%Y-%m-%d)" in out
+    assert "$(date +%Y/%m/%d)" in out
+    assert report.warning_count == 2
     assert report.todo_count == 0
+
+
+def test_get_date_format_more_tokens(convert_ps):
+    out, report = convert_ps(
+        'Get-Date -Format "yyyyMMdd"\n'
+        '$t = Get-Date -Format "HH:mm:ss"\n'
+        '$stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"\n'
+    )
+    assert "$(date +%Y%m%d)" in out
+    assert "t=$(date +%H:%M:%S)" in out
+    assert "stamp=$(date +%Y-%m-%d %H:%M:%S)" in out
+    assert report.warning_count == 3
+
+
+def test_get_date_format_unknown_token_falls_back(convert_ps):
+    out, report = convert_ps('Get-Date -Format "yyyy-MM-dd K"\n')
+    assert "$(date)" in out
+    assert "含不支持的 token" in report.warnings[0].message
+    assert "date +" not in out
+
+
+def test_get_date_format_unquoted_warns(convert_ps):
+    out, report = convert_ps("Get-Date -Format yyyy\n")
+    assert "$(date)" in out
+    assert "建议加引号" in report.warnings[0].message
+
+
+def test_get_date_plain(convert_ps):
+    out, report = convert_ps("Get-Date\n")
+    assert "$(date)" in out
+    assert report.warning_count == 0
 
 
 def test_ps_date_token_mapping_unit():

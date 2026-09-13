@@ -445,9 +445,12 @@ class PowerShellConverter:
                 expr = expr[:m.start()] + f'$(realpath {dq(target)})' + expr[m.end():]
                 changed = True
                 continue
-            m = re.search(r"(?i)\bGet-Date\b", expr)
+            m = re.search(
+                r"(?i)\bGet-Date\b(?:\s+-Format\s+(\"[^\"]*\"|'[^']*'|\S+))?", expr
+            )
             if m:
-                expr = expr[:m.start()] + "$(date)" + expr[m.end():]
+                replacement = self._get_date(lineno, m.group(0))
+                expr = expr[:m.start()] + replacement + expr[m.end():]
                 changed = True
                 continue
         return expr
@@ -457,13 +460,37 @@ class PowerShellConverter:
         return convert_backslashes(self._replace_vars(inner, 0))
 
     def _get_date(self, lineno: int, args: str) -> str:
-        m = re.search(r'(?i)-Format\s+("[^"]*"|\'[^\']*\')', args)
-        if m:
-            fmt = m.group(1)[1:-1]
-            converted = self._ps_date_format(fmt)
-            self._warn(lineno, f"日期格式 {fmt!r} 已近似转换为 {converted!r}", f"Get-Date -Format {fmt}")
-            return f"$(date +{converted})"
-        return "$(date)"
+        if "-format" not in args.lower():
+            return "$(date)"
+        m = re.search(r'(?i)-Format\s+("[^"]*"|\'[^\']*\'|\S+)', args)
+        if not m:
+            return "$(date)"
+        raw = m.group(1)
+        if raw[:1] not in "\"'":
+            self._warn(
+                lineno,
+                f"无法解析日期格式 {raw!r}（建议加引号），已退化为 $(date)",
+                args,
+            )
+            return "$(date)"
+        fmt = raw[1:-1]
+        if not fmt:
+            return "$(date)"
+        converted = self._ps_date_format(fmt)
+        rest = re.sub(r"%[-0-9:]*[A-Za-z%]", "", converted)
+        if re.search(r"[A-Za-z]", rest):
+            self._warn(
+                lineno,
+                f"日期格式 {fmt!r} 含不支持的 token，已退化为 $(date)，请人工处理",
+                f"Get-Date -Format {fmt}",
+            )
+            return "$(date)"
+        self._warn(
+            lineno,
+            f"日期格式 {fmt!r} 已近似转换为 {converted!r}",
+            f"Get-Date -Format {fmt}",
+        )
+        return f"$(date +{converted})"
 
     @staticmethod
     def _ps_date_format(fmt: str) -> str:
