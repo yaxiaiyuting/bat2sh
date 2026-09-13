@@ -35,7 +35,7 @@ def test_substring_start_length_two(convert_bat, bash_run):
 
 def test_replace_word(convert_bat, bash_run):
     out, _ = convert_bat('@echo off\nset "STR=Hello, World!"\necho %STR:World=BAT%\n')
-    assert "${STR/World/BAT}" in out
+    assert "${STR//World/BAT}" in out
     proc = bash_run(out)
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout == "Hello, BAT!\n"
@@ -43,12 +43,40 @@ def test_replace_word(convert_bat, bash_run):
 
 def test_replace_single_char(convert_bat):
     out, _ = convert_bat('@echo off\nset "STR=Hello, World!"\necho %STR:o=0%\n')
-    assert "${STR/o/0}" in out
+    assert "${STR//o/0}" in out
 
 
 def test_replace_delete(convert_bat):
     out, _ = convert_bat('@echo off\nset "STR=default"\necho %STR:def=%\n')
-    assert "${STR/def/}" in out
+    assert "${STR//def/}" in out
+
+
+def test_replace_single_char_all_occurrences(convert_bat, bash_run):
+    out, _ = convert_bat('@echo off\nset "STR=foo"\necho %STR:o=0%\n')
+    assert "${STR//o/0}" in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "f00\n"
+
+
+def test_replace_multiple_hits(convert_bat, bash_run):
+    out, _ = convert_bat(
+        '@echo off\nset "STR=foo bar foo baz"\necho %STR:foo=X%\n'
+    )
+    assert "${STR//foo/X}" in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "X bar X baz\n"
+
+
+def test_replace_delete_all_occurrences(convert_bat, bash_run):
+    out, _ = convert_bat(
+        '@echo off\nset "STR=foo bar foo"\necho %STR:o=%\n'
+    )
+    assert "${STR//o/}" in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "f bar f\n"
 
 
 def test_wildcard_replace_is_todo(convert_bat):

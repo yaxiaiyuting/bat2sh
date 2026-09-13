@@ -731,7 +731,7 @@ class BatchConverter:
 
         def replace_repl(m: re.Match[str]) -> str:
             name = sanitize_identifier(m.group(1))
-            return "${%s/%s/%s}" % (name, m.group(2), m.group(3))
+            return "${%s//%s/%s}" % (name, m.group(2), m.group(3))
 
         text = re.sub(
             r"%([A-Za-z_][A-Za-z0-9_]*):~(-?\d+)(?:,(\d+))?%", substring_repl, text
