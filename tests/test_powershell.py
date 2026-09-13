@@ -441,6 +441,57 @@ def test_bare_try_executes_body(convert_ps, bash_check):
     bash_check(out)
 
 
+def test_try_empty_body(convert_ps, bash_check):
+    out, report = convert_ps('try {\n} catch {\n    Write-Host "err"\n}\n')
+    assert "if true; then  # TODO: try/catch 未等价转换" in out
+    assert "\n:\n" in out
+    assert "else  # TODO: catch 块" in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_try_empty_catch_inline(convert_ps, bash_check):
+    out, report = convert_ps('try { Get-Item "/tmp/a" } catch { }\n')
+    assert 'if ! ls -la "/tmp/a"; then' in out
+    assert "\n:\nfi" in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_try_empty_catch_block(convert_ps, bash_check):
+    out, _ = convert_ps('try {\n    Get-Item "/tmp/a"\n} catch {\n}\n')
+    assert 'if ! ls -la "/tmp/a"; then' in out
+    assert "\n:\nfi" in out
+    bash_check(out)
+
+
+def test_try_empty_finally(convert_ps, bash_check):
+    out, _ = convert_ps('try { Get-Item "/tmp/a" } finally { }\n')
+    assert "if true; then  # TODO: finally 块总是执行" in out
+    assert "\n:\nfi" in out
+    bash_check(out)
+
+
+def test_try_nested_falls_back_to_todo(convert_ps, bash_check):
+    out, report = convert_ps(
+        "try {\n"
+        "    try {\n"
+        '        Write-Host "inner"\n'
+        "    } catch {\n"
+        '        Write-Host "inner catch"\n'
+        "    }\n"
+        "} catch {\n"
+        '    Write-Host "outer catch"\n'
+        "}\n"
+    )
+    assert any("嵌套 try 无法自动转换" in d.message for d in report.todos)
+    assert "# TODO: 手动检查: try {" in out
+    assert 'echo "outer catch"' in out
+    assert "多余的 }" not in out
+    assert report.todo_count == 1
+    bash_check(out)
+
+
 # ----------------------------------------------------------------------
 # Read-Host / 文件与命令转换
 # ----------------------------------------------------------------------

@@ -46,6 +46,7 @@ class _Block:
     kind: str          # if / else / for / while / function / try / catch / finally / do / group / comment
     close_word: str = "fi"
     brace_depth: int = 1
+    body_mark: int = -1
 
 
 class PowerShellConverter:
@@ -668,6 +669,16 @@ class PowerShellConverter:
 
         if self._try_buffer is not None and re.match(r"(?i)^(catch|finally)\b", text):
             return self._close_block_line(lineno, text)
+
+        if self._try_buffer is not None and re.match(r"(?i)^try\b", text):
+            self._todo(lineno, text, "嵌套 try 无法自动转换，块内代码已注释")
+            block = _Block("comment", "")
+            block.brace_depth = text.count("{") - text.count("}")
+            if block.brace_depth <= 0:
+                block.brace_depth = 1
+            todo_line = self._c("# TODO: 手动检查: " + text)
+            self._stack.append(block)
+            return [todo_line]
 
         # 注释
         if text.startswith("#"):
@@ -2295,7 +2306,9 @@ class PowerShellConverter:
                 self._stack.pop()
             after = rest[4:].strip()
             lines = [self._c("else")]
-            self._stack.append(_Block("else", "fi"))
+            block = _Block("else", "fi")
+            block.body_mark = len(self._out) + len(lines)
+            self._stack.append(block)
             inline = ""
             if after.startswith("{"):
                 close = find_matching(after, "{", "}")
@@ -2308,6 +2321,8 @@ class PowerShellConverter:
             if after.startswith("{") and (not after.endswith("}") or after == "{"):
                 return lines
             self._stack.pop()
+            if not inline:
+                lines.append(self._c(":"))
             lines.append(self._c("fi"))
             return lines
         if low.startswith("catch"):
@@ -2359,9 +2374,13 @@ class PowerShellConverter:
             if inline:
                 lines.extend(self._convert_line(lineno, inline))
             if complete:
+                if not inline:
+                    lines.append(self._c(":"))
                 lines.append(self._c("fi"))
             else:
-                self._stack.append(_Block("catch", "fi"))
+                block = _Block("catch", "fi")
+                block.body_mark = len(self._out) + len(lines)
+                self._stack.append(block)
             return lines
         buffer = self._try_buffer
         self._try_buffer = None
@@ -2381,9 +2400,13 @@ class PowerShellConverter:
             if inline:
                 lines.extend(self._convert_line(lineno, inline))
             if complete:
+                if not inline:
+                    lines.append(self._c(":"))
                 lines.append(self._c("fi"))
             else:
-                self._stack.append(_Block("catch", "fi"))
+                block = _Block("catch", "fi")
+                block.body_mark = len(self._out) + len(lines)
+                self._stack.append(block)
             return lines
         self._warn(lineno, "try/catch 已简化处理：try 体直接执行，catch 分支仅保留结构", text)
         if type_name:
@@ -2393,14 +2416,20 @@ class PowerShellConverter:
                 text,
             )
         lines = [self._c("if true; then  # TODO: try/catch 未等价转换")]
+        if not any(self._is_effectful(line) for line in buffer):
+            lines.append(self._c(":"))
         lines.extend(buffer)
         lines.append(self._c("else  # TODO: catch 块"))
         if inline:
             lines.extend(self._convert_line(lineno, inline))
         if complete:
+            if not inline:
+                lines.append(self._c(":"))
             lines.append(self._c("fi"))
         else:
-            self._stack.append(_Block("catch", "fi"))
+            block = _Block("catch", "fi")
+            block.body_mark = len(self._out) + len(lines)
+            self._stack.append(block)
         return lines
 
     def _handle_finally(self, lineno: int, text: str, rest: str) -> list[str]:
@@ -2413,6 +2442,8 @@ class PowerShellConverter:
             self._try_inline_pending = False
         elif self._stack and self._stack[-1].kind in ("try", "catch"):
             block = self._stack.pop()
+            if block.body_mark >= 0 and len(self._out) == block.body_mark:
+                lines.append(self._c(":"))
             if block.close_word:
                 lines.append(self._c(block.close_word))
         self._warn(lineno, "finally 块总是执行，已转换为独立的 if true 块，请核对", text)
@@ -2422,9 +2453,13 @@ class PowerShellConverter:
         if inline:
             lines.extend(self._convert_line(lineno, inline))
         if complete:
+            if not inline:
+                lines.append(self._c(":"))
             lines.append(self._c("fi"))
         else:
-            self._stack.append(_Block("finally", "fi"))
+            block = _Block("finally", "fi")
+            block.body_mark = len(self._out) + len(lines)
+            self._stack.append(block)
         return lines
 
     def _pop_block(self, lineno: int) -> list[str]:
@@ -2432,9 +2467,12 @@ class PowerShellConverter:
             self._warn(lineno, "多余的 '}'", "")
             return [self._c("# 多余的 }，已忽略")]
         block = self._stack.pop()
+        lines: list[str] = []
+        if block.body_mark >= 0 and len(self._out) == block.body_mark:
+            lines.append(self._c(":"))
         if block.close_word:
-            return [self._c(block.close_word)]
-        return []
+            lines.append(self._c(block.close_word))
+        return lines
 
     # ------------------------------------------------------------------
     # 收尾
