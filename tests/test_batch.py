@@ -627,11 +627,12 @@ def test_for_f_tokens_star_simple(convert_bat):
     assert report.warning_count == 0
 
 
-def test_for_f_without_options_warns_about_first_token(convert_bat):
+def test_for_f_without_options_reads_first_token(convert_bat):
     out, report = convert_bat("@echo off\nfor /f %%i in ('dir /b') do echo %%i\n")
-    assert "while IFS= read -r i; do" in out
-    assert report.warning_count == 1
-    assert "默认只取每行第一个空白分隔 token" in report.warnings[0].message
+    assert "while read -r i _; do" in out
+    assert '[ -z "$i" ] && continue' in out
+    assert report.warning_count == 0
+    assert report.todo_count == 0
 
 
 def test_for_f_multiline_body(convert_bat, bash_check):
@@ -649,11 +650,10 @@ def test_for_f_multiline_body(convert_bat, bash_check):
 @pytest.mark.parametrize(
     "line",
     [
-        "for /f \"delims=,\" %%i in ('dir /b') do echo %%i",
-        "for /f \"tokens=1,2\" %%i in ('dir /b') do echo %%i",
         "for /f \"skip=1\" %%i in ('dir /b') do echo %%i",
         "for /f \"eol=#\" %%i in ('dir /b') do echo %%i",
         "for /f \"usebackq\" %%i in (`dir /b`) do echo %%i",
+        "for /f \"foo\" %%i in ('dir /b') do echo %%i",
     ],
 )
 def test_for_f_complex_options_todo(convert_bat, line):
@@ -667,7 +667,7 @@ def test_for_f_string_source_todo(convert_bat):
         "@echo off\nfor /f \"tokens=*\" %%i in (\"a b c\") do echo %%i\n"
     )
     assert report.todo_count == 1
-    assert "仅支持 '命令' 形式" in report.todos[0].message
+    assert "字符串/反引号" in report.todos[0].message
 
 
 def test_for_f_inner_command_todo_falls_back(convert_bat):
@@ -680,7 +680,7 @@ def test_for_f_inner_command_todo_falls_back(convert_bat):
 
 def test_for_f_todo_comments_multiline_body(convert_bat):
     out, report = convert_bat(
-        "@echo off\nfor /f \"delims=,\" %%i in ('dir /b') do (\n    echo %%i\n)\n"
+        "@echo off\nfor /f \"usebackq\" %%i in (`dir /b`) do (\n    echo %%i\n)\n"
     )
     assert "# TODO: 手动检查: for /f" in out
     assert "# echo %%i" in out

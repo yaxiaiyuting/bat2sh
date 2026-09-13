@@ -13,7 +13,7 @@ from bat2sh.cli import main
 from bat2sh.core.types import ConvertReport, Diagnostic, SourceKind
 
 CLEAN_BAT = "@echo off\necho hello\n"
-TODO_BAT = "@echo off\nfor /f \"delims=,\" %%i in ('dir /b') do echo %%i\n"
+TODO_BAT = "@echo off\nfor /f \"usebackq\" %%i in (`dir /b`) do echo %%i\n"
 
 
 def make_bat(tmp_path: Path, name: str = "demo.bat", text: str = CLEAN_BAT) -> Path:

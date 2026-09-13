@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import rules
 from .settings import ConvertSettings
@@ -102,6 +102,75 @@ def _is_string_operand(token: str) -> bool:
     return re.fullmatch(r"-?\d+", inner) is None
 
 
+_FOR_F_TOKEN_ITEM = re.compile(r"(\d+)(?:-(\d+))?")
+
+
+def _expand_tokens_spec(spec: str) -> list[int | None] | None:
+    """把 ``tokens=`` 规格展开为字段槽位；``None`` 槽位表示 ``*``（取剩余部分）。"""
+    text = spec.strip().lower()
+    if not text:
+        return None
+    rest_marker = text.endswith("*")
+    if rest_marker:
+        text = text[:-1].strip().rstrip(",")
+    slots: list[int | None] = []
+    if text:
+        for item in text.split(","):
+            m = _FOR_F_TOKEN_ITEM.fullmatch(item)
+            if not m:
+                return None
+            start = int(m.group(1))
+            end = int(m.group(2)) if m.group(2) else start
+            if start < 1 or end < start:
+                return None
+            slots.extend(range(start, end + 1))
+    if rest_marker:
+        slots.append(None)
+    return slots or None
+
+
+def _plan_for_f_read(slots: list[int | None], base: str) -> tuple[list[str], list[str]] | None:
+    """按 tokens 槽位生成 (read 变量序列, 循环体可见变量列表)。"""
+    if slots == [None]:
+        return [base], [base]
+    letters: list[str] = []
+    for index in range(len(slots)):
+        letter = chr(ord(base) + index)
+        if not ("a" <= letter <= "z"):
+            return None
+        letters.append(letter)
+    positions: dict[int, str] = {}
+    for slot, letter in zip(slots, letters):
+        if slot is None:
+            continue
+        if slot in positions:
+            return None
+        positions[slot] = letter
+    read_vars = ["_" for _ in range(max(positions) if positions else 0)]
+    for position, letter in positions.items():
+        read_vars[position - 1] = letter
+    if None in slots:
+        read_vars.append(letters[slots.index(None)])
+    else:
+        read_vars.append("_")
+    return read_vars, letters
+
+
+def _for_f_ifs(slots: list[int | None], delims: str | None) -> str | None:
+    """生成 ``while`` 的 IFS 前缀（含尾空格）；``None`` 表示 delims 无法安全引用。"""
+    if slots == [None]:
+        return "IFS= "
+    if delims is None:
+        return ""
+    if delims == "":
+        return "IFS= "
+    if "'" in delims or "\\" in delims or "\n" in delims:
+        return None
+    if all(ch in ",;:|" for ch in delims):
+        return f"IFS={delims} "
+    return f"IFS='{delims}' "
+
+
 def _split_sequential(text: str) -> list[str]:
     """按顶层单个 ``&`` 切分命令（保留 &&、||、管道与重定向中的 &）。"""
     parts: list[str] = []
@@ -183,6 +252,14 @@ class _Block:
     close_word: str = "fi"
     loop_var: str = ""
     paren_depth: int = 1
+    loop_vars: list[str] = field(default_factory=list)
+
+
+@dataclass
+class _ForFOptions:
+    tokens: str | None = None
+    delims: str | None = None
+    usebackq: bool = False
 
 
 class BatchConverter:
@@ -481,8 +558,12 @@ class BatchConverter:
             self._warn(lineno, "多余的 ')'", "", category="misc")
             return [self._c("# 多余的 ')'，已忽略")]
         block = self._stack.pop()
-        if block.loop_var and block.loop_var in self._loop_vars:
-            self._loop_vars.remove(block.loop_var)
+        names = list(block.loop_vars)
+        if block.loop_var:
+            names.insert(0, block.loop_var)
+        for name in names:
+            if name in self._loop_vars:
+                self._loop_vars.remove(name)
         if block.close_word:
             return [self._c(block.close_word)]
         return []
@@ -1054,82 +1135,125 @@ class BatchConverter:
         options = self._parse_for_f_options(opts)
         if options is None:
             return self._for_todo_lines(
+                lineno, text, body, "for /f 的选项无法解析（tokens/delims/usebackq）"
+            )
+
+        command: str | None = None
+        file_target: str | None = None
+        source = set_text.strip()
+        if (
+            len(source) >= 2
+            and source.startswith("'")
+            and source.endswith("'")
+            and not options.usebackq
+        ):
+            raw = source[1:-1].strip()
+            if not raw:
+                return self._for_todo_lines(lineno, text, body, "for /f 的 '命令' 为空，请手工转换")
+            todo_mark = len(self.report.todos)
+            command_lines = self._convert_simple_no_pipe(lineno, raw)
+            if (
+                len(command_lines) != 1
+                or not command_lines[0].strip()
+                or command_lines[0].lstrip().startswith("#")
+            ):
+                del self.report.todos[todo_mark:]
+                return self._for_todo_lines(
+                    lineno, text, body, "for /f 的命令无法自动转换，请手工改写为 while read"
+                )
+            command = command_lines[0].strip()
+        elif (
+            options.usebackq
+            and len(source) >= 2
+            and source.startswith('"')
+            and source.endswith('"')
+        ):
+            file_target = self._convert_path_token(source[1:-1], lineno)
+        elif source and not source.startswith(("'", '"', "`")):
+            file_target = self._convert_path_token(source, lineno)
+        else:
+            return self._for_todo_lines(
                 lineno,
                 text,
                 body,
-                "for /f 的 delims/tokens/skip/eol/usebackq 选项无法自动转换",
+                "for /f 仅支持 '命令' 与 usebackq 文件形式，字符串/反引号请手工转换",
             )
-        source = set_text.strip()
-        m = re.match(r"^'(.*)'$", source, re.S)
-        if not m or not m.group(1).strip():
-            return self._for_todo_lines(
-                lineno, text, body, "for /f 仅支持 '命令' 形式，字符串/文件解析请手工转换"
-            )
-        todo_mark = len(self.report.todos)
-        command_lines = self._convert_simple_no_pipe(lineno, m.group(1).strip())
-        if (
-            len(command_lines) != 1
-            or not command_lines[0].strip()
-            or command_lines[0].lstrip().startswith("#")
-        ):
-            del self.report.todos[todo_mark:]
-            return self._for_todo_lines(
-                lineno, text, body, "for /f 的命令无法自动转换，请手工改写为 while read"
-            )
-        command = command_lines[0].strip()
-        if "tokens=*" not in options:
-            self._warn(
-                lineno,
-                "for /f 默认只取每行第一个空白分隔 token，已按整行近似，请核对",
-                text,
-                category="control_flow",
-            )
-        header = self._indent + f"while IFS= read -r {var}; do"
-        close_word = f"done < <({command})"
+
+        if re.search(r"(?i)\bgoto\b", body):
+            return self._for_todo_lines(lineno, text, body, "循环体含 goto，无法保证跳出语义")
+
+        slots = _expand_tokens_spec(options.tokens if options.tokens is not None else "1")
+        if slots is None:
+            return self._for_todo_lines(lineno, text, body, "for /f 的 tokens 选项无法解析")
+        plan = _plan_for_f_read(slots, var)
+        if plan is None:
+            return self._for_todo_lines(lineno, text, body, "for /f 的 tokens 超出可映射变量范围")
+        read_vars, loop_vars = plan
+        ifs = _for_f_ifs(slots, options.delims)
+        if ifs is None:
+            return self._for_todo_lines(lineno, text, body, "for /f 的 delims 无法安全引用")
+
+        header = self._indent + f"while {ifs}read -r {' '.join(read_vars)}; do"
+        if command is not None:
+            close_word = f"done < <({command})"
+        else:
+            close_word = f"done < {file_target}"
+        self._loop_vars.extend(loop_vars)
+        block = _Block("for", close_word)
+        block.loop_vars = list(loop_vars)
+        self._stack.append(block)
+        prelude = [header, self._c(f'[ -z "${loop_vars[0]}" ] && continue')]
+
+        body = body.strip()
         if body.startswith("("):
             close = find_matching(body, "(", ")")
             if close < 0:
-                self._loop_vars.append(var)
-                self._stack.append(_Block("for", close_word, var))
-                lines = [header]
+                lines = list(prelude)
                 inner = body[1:].strip()
                 if inner:
                     lines.extend(self._convert_line(lineno, inner))
                 return lines
             inner = body[1:close]
-            self._loop_vars.append(var)
-            self._stack.append(_Block("for", close_word, var))
-            lines = [header]
+            lines = list(prelude)
             if inner.strip():
                 lines.extend(self._convert_line(lineno, inner))
             self._stack.pop()
-            self._loop_vars.remove(var)
+            for name in loop_vars:
+                self._loop_vars.remove(name)
             lines.append(self._indent + close_word)
             return lines
         if not body:
-            self._loop_vars.append(var)
-            self._stack.append(_Block("for", close_word, var))
-            return [header]
-        self._loop_vars.append(var)
-        self._stack.append(_Block("for", close_word, var))
-        inner_lines = self._convert_line(lineno, body)
+            return list(prelude)
+        lines = list(prelude)
+        lines.extend(self._convert_line(lineno, body))
         self._stack.pop()
-        self._loop_vars.remove(var)
-        lines = [header]
-        lines.extend(inner_lines)
+        for name in loop_vars:
+            self._loop_vars.remove(name)
         lines.append(self._indent + close_word)
         return lines
 
     @staticmethod
-    def _parse_for_f_options(opts: str) -> set[str] | None:
+    def _parse_for_f_options(opts: str) -> _ForFOptions | None:
         rest = re.sub(r"(?i)^/f\b\s*", "", opts).strip()
         if not rest:
-            return set()
+            return _ForFOptions()
         m = re.match(r'^"(.*)"$', rest, re.S)
         if not m:
             return None
-        options = {part.strip().lower() for part in m.group(1).split() if part.strip()}
-        return options if options <= {"tokens=*"} else None
+        options = _ForFOptions()
+        for part in m.group(1).split():
+            low = part.lower()
+            if low == "usebackq":
+                options.usebackq = True
+            elif low.startswith("tokens="):
+                options.tokens = part.split("=", 1)[1]
+            elif low.startswith("delims="):
+                options.delims = part.split("=", 1)[1]
+                if '"' in options.delims:
+                    return None
+            else:
+                return None
+        return options
 
     def _for_todo_lines(self, lineno: int, text: str, body: str, hint: str) -> list[str]:
         self._todo(lineno, text, hint, category="control_flow")
