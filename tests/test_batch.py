@@ -827,3 +827,37 @@ def test_no_exit_chain_regression(convert_bat, bash_check):
     assert 'echo "a"' in out
     assert 'echo "b"' in out
     bash_check(out)
+
+
+# ----------------------------------------------------------------------
+# @echo off / setlocal 链
+# ----------------------------------------------------------------------
+def test_chained_echo_off_and_delayed_expansion(convert_bat, bash_check, bash_run):
+    out, _ = convert_bat(
+        "@echo off&setlocal enabledelayedexpansion\nset x=1\necho !x!\n"
+    )
+    assert '"off"' not in out
+    assert 'x="1"' in out
+    assert 'echo "${x}"' in out
+    bash_check(out)
+    assert bash_run(out).stdout.strip() == "1"
+
+
+def test_echo_off_silent_mid_chain(convert_bat, bash_check):
+    out, _ = convert_bat("echo hi & echo off & echo done\n")
+    assert '"off"' not in out
+    assert 'echo "hi"' in out
+    assert 'echo "done"' in out
+    bash_check(out)
+
+
+def test_echo_on_mid_chain_comment(convert_bat, bash_check):
+    out, _ = convert_bat("echo off & echo on & echo hi\n")
+    assert "echo on 在 bash 中无对应行为" in out
+    assert '"off"' not in out
+    bash_check(out)
+
+
+def test_echo_offset_not_toggle(convert_bat):
+    out, _ = convert_bat("echo offset\n")
+    assert 'echo "offset"' in out

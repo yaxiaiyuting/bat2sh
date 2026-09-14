@@ -704,7 +704,7 @@ class BatchConverter:
                 for target in re.findall(r"(?i)\bgoto\s+:?([\w.\-]+)", stripped):
                     if target.lower() != "eof":
                         self._goto_targets.add(target.lower())
-            if re.match(r"(?i)^setlocal\b.*enabledelayedexpansion", stripped):
+            if re.search(r"(?i)(?:^|[&|])\s*@?setlocal\b[^&|]*enabledelayedexpansion", stripped):
                 self._delayed_expansion = True
             if (
                 _ERRORLEVEL_VAR_RE.search(stripped)
@@ -2143,6 +2143,11 @@ class BatchConverter:
 
         if first == "exit":
             return self._convert_exit(lineno, expanded)
+
+        if first.strip("@") == "echo" and rest.strip().lower() == "off":
+            return []
+        if first.strip("@") == "echo" and rest.strip().lower() == "on":
+            return [self._c("# 注意: echo on 在 bash 中无对应行为，已忽略")]
 
         line: str | None
         if first in rules.BATCH_HANDLER_MAP:
