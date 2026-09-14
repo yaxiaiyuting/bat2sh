@@ -37,6 +37,14 @@ from PySide6.QtWidgets import (
 )
 
 from .. import APP_DISPLAY_NAME
+from ..core.api import fixer
+from ..core.api.config import (
+    load_api_config,
+    missing_requirements,
+    resolve_api_config,
+    save_api_config,
+)
+from ..core.api.provider import ProviderConfigError, create_provider
 from ..core.encoding import SUPPORTED_ENCODINGS, read_source
 from ..core.engine import (
     ConversionResult,
@@ -48,7 +56,14 @@ from ..core.engine import (
 from ..core.recent import load_recent, save_recent, update_recent_list
 from ..core.settings import ConvertSettings, save_settings
 from ..core.types import ConvertReport, SourceKind, report_blocks
-from .dialogs import AboutDialog, DiffDialog, ReportDialog, RunConfirmDialog, SettingsDialog
+from .dialogs import (
+    AboutDialog,
+    DiffDialog,
+    ReportDialog,
+    RunConfirmDialog,
+    SettingsDialog,
+    TodoFixDialog,
+)
 from .editor import CodeEditor
 from .highlighter import highlighter_for
 from .theme import apply_theme, system_is_dark
@@ -142,6 +157,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: ConvertSettings, parent: QWidget | None = None):
         super().__init__(parent)
         self.settings = settings
+        self.api_config = load_api_config()
         self.files: list[SourceFile] = []
         self.current: SourceFile | None = None
         self.recent_files: list[Path] = load_recent()
@@ -227,6 +243,10 @@ class MainWindow(QMainWindow):
             "转换报告", self._icon("document-properties", std.SP_FileDialogInfoView),
             "Ctrl+R", self.open_report, "查看当前文件的转换报告",
         )
+        self.action_fix_todos = self._make_action(
+            "API 修复 TODO", self._icon("tools-wizard", std.SP_DialogApplyButton),
+            None, self.fix_todos, "调用已配置的 API 为无法自动转换的 TODO 生成修复建议（逐条确认）",
+        )
         self.action_theme = self._make_action(
             "切换主题", self._icon("weather-clear-night", std.SP_BrowserReload),
             "Ctrl+T", self.toggle_theme, "在跟随系统 / 浅色 / 深色之间切换",
@@ -276,6 +296,7 @@ class MainWindow(QMainWindow):
             None,
             self.action_diff,
             self.action_report,
+            self.action_fix_todos,
             None,
             self.action_theme,
             self.action_settings,
@@ -945,12 +966,69 @@ class MainWindow(QMainWindow):
             blocks.append(("所有语句均已自动转换。", "normal"))
         ReportDialog(f"转换报告 - {entry.path.name}", blocks, self.dark, self).exec()
 
+    def _has_fixable_todos(self) -> bool:
+        entry = self.current
+        if entry is None or entry.report is None or not entry.output_text:
+            return False
+        if fixer.is_degraded(entry.report):
+            return False
+        return bool(fixer.scan_todo_markers(entry.output_text, entry.report))
+
+    def fix_todos(self) -> None:
+        entry = self.current
+        if entry is None or entry.report is None or not entry.output_text:
+            QMessageBox.information(self, "API 修复 TODO", "请先选择并转换一个文件。")
+            return
+        if fixer.is_degraded(entry.report):
+            QMessageBox.information(
+                self,
+                "API 修复 TODO",
+                "生成脚本未通过 bash -n，已整体降级为注释；无可修复 TODO，请人工转换。",
+            )
+            return
+        api_config = resolve_api_config({}, os.environ, self.api_config)
+        missing = missing_requirements(api_config)
+        if missing:
+            QMessageBox.warning(
+                self,
+                "API 修复 TODO",
+                "API 配置不完整：\n  " + "\n  ".join(missing) + "\n\n请在“设置”中填写 API 地址与模型。",
+            )
+            return
+        try:
+            provider = create_provider(api_config)
+        except ProviderConfigError as exc:
+            QMessageBox.warning(self, "API 修复 TODO", f"API 配置错误：{exc}")
+            return
+        dialog = TodoFixDialog(
+            entry.output_text,
+            entry.report,
+            entry.source_text,
+            api_config,
+            provider_factory=lambda _config: provider,
+            dark=self.dark,
+            parent=self,
+        )
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.applied_count:
+            text = dialog.result_text()
+            entry.output_text = text
+            entry.output_path = entry.output_path or output_path_for(entry.path, self.settings)
+            self._loading = True
+            self.output_editor.setPlainText(text)
+            self._loading = False
+            self.status_label.setText(
+                f"API 修复建议已应用 {dialog.applied_count} 处；请检查后保存（API 建议需人工复核）"
+            )
+        self._update_actions()
+
     def open_settings(self) -> None:
-        dialog = SettingsDialog(self.settings, self)
+        dialog = SettingsDialog(self.settings, self.api_config, self)
         if dialog.exec() != SettingsDialog.DialogCode.Accepted:
             return
         self.settings = dialog.result_settings()
         save_settings(self.settings)
+        self.api_config = dialog.result_api_config()
+        save_api_config(self.api_config)
         app = QApplication.instance()
         self.dark = apply_theme(app, self.settings.theme)
         self._rebuild_highlighters()
@@ -1005,6 +1083,7 @@ class MainWindow(QMainWindow):
         self.action_batch.setEnabled(bool(self.files))
         self.action_remove.setEnabled(self.file_list.count() > 0)
         self.action_clear.setEnabled(self.file_list.count() > 0)
+        self.action_fix_todos.setEnabled(has_current and self._has_fixable_todos())
 
     def closeEvent(self, event) -> None:
         if self._run_is_active():

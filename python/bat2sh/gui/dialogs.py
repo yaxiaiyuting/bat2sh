@@ -1,10 +1,10 @@
-"""设置、差异预览、报告、关于对话框。"""
+"""设置、差异预览、报告、关于对话框、API 修复对话框。"""
 
 from __future__ import annotations
 
 import difflib
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -16,9 +16,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
+    QSplitter,
     QTextBrowser,
     QTextEdit,
     QVBoxLayout,
@@ -26,6 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 from .. import APP_DESCRIPTION, APP_DISPLAY_NAME, APP_HOMEPAGE, __version__
+from ..core.api import fixer
+from ..core.api.config import ApiConfig
+from ..core.api.provider import ProviderError, create_provider, redact
 from ..core.settings import (
     INDENT_CHOICES,
     ConvertSettings,
@@ -33,15 +38,23 @@ from ..core.settings import (
     load_presets,
     save_presets,
 )
+from ..core.syntax import bash_syntax_error
+from ..core.types import ConvertReport
 from .theme import report_level_color
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: ConvertSettings, parent: QWidget | None = None):
+    def __init__(
+        self,
+        settings: ConvertSettings,
+        api_config: ApiConfig | None = None,
+        parent: QWidget | None = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setMinimumWidth(520)
         self._settings = settings
+        self._api_config = api_config or ApiConfig()
         self._presets: dict[str, ConvertSettings] = {}
         self._build()
         self._load()
@@ -119,6 +132,38 @@ class SettingsDialog(QDialog):
         self.run_timeout_spin.setToolTip("“转换并运行”的默认超时；超时后自动终止脚本（含子进程）")
         form.addRow("运行超时", self.run_timeout_spin)
 
+        api_title = QLabel("API 修复（为无法自动转换的 TODO 获取建议）")
+        api_title.setStyleSheet("font-weight: bold;")
+        form.addRow(api_title)
+
+        self.api_provider_combo = QComboBox()
+        self.api_provider_combo.addItem("OpenAI 兼容", "openai")
+        form.addRow("API 类型", self.api_provider_combo)
+
+        self.api_base_edit = QLineEdit()
+        self.api_base_edit.setPlaceholderText("https://api.openai.com/v1 或本地端点（必填）")
+        form.addRow("API 地址", self.api_base_edit)
+
+        self.api_model_edit = QLineEdit()
+        self.api_model_edit.setPlaceholderText("如 gpt-4o-mini（必填）")
+        form.addRow("模型", self.api_model_edit)
+
+        self.api_key_edit = QLineEdit()
+        self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_edit.setPlaceholderText("留空则使用 BAT2SH_API_KEY 环境变量")
+        form.addRow("API key", self.api_key_edit)
+
+        self.api_timeout_spin = QSpinBox()
+        self.api_timeout_spin.setRange(1, 600)
+        self.api_timeout_spin.setSuffix(" 秒")
+        form.addRow("API 超时", self.api_timeout_spin)
+
+        self.api_context_spin = QSpinBox()
+        self.api_context_spin.setRange(0, 10)
+        self.api_context_spin.setSuffix(" 行")
+        self.api_context_spin.setToolTip("发送给 API 的源文件上下文行数（上限 10；不发送整文件）")
+        form.addRow("API 上下文", self.api_context_spin)
+
         self.theme_combo = QComboBox()
         self.theme_combo.addItem("跟随系统", "system")
         self.theme_combo.addItem("浅色", "light")
@@ -166,6 +211,17 @@ class SettingsDialog(QDialog):
         self.run_timeout_spin.setValue(int(settings.run_timeout))
         theme_index = self.theme_combo.findData(settings.theme)
         self.theme_combo.setCurrentIndex(max(0, theme_index))
+        self._apply_api_config(self._api_config)
+
+    def _apply_api_config(self, api_config: ApiConfig) -> None:
+        api_config = api_config.normalized()
+        provider_index = self.api_provider_combo.findData(api_config.provider)
+        self.api_provider_combo.setCurrentIndex(max(0, provider_index))
+        self.api_base_edit.setText(api_config.base_url)
+        self.api_model_edit.setText(api_config.model)
+        self.api_key_edit.setText(api_config.api_key)
+        self.api_timeout_spin.setValue(int(api_config.timeout))
+        self.api_context_spin.setValue(api_config.context_lines)
 
     def _reload_presets(self) -> None:
         self._presets = load_presets()
@@ -224,6 +280,18 @@ class SettingsDialog(QDialog):
             last_dir=self._settings.last_dir,
         )
         return settings.normalized()
+
+
+    def result_api_config(self) -> ApiConfig:
+        return ApiConfig(
+            provider=self.api_provider_combo.currentData(),
+            base_url=self.api_base_edit.text(),
+            model=self.api_model_edit.text(),
+            api_key=self.api_key_edit.text(),
+            timeout=float(self.api_timeout_spin.value()),
+            max_retries=self._api_config.max_retries,
+            context_lines=self.api_context_spin.value(),
+        ).normalized()
 
 
 def build_diff_html(
@@ -343,6 +411,278 @@ class RunConfirmDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+
+class TodoFixWorker(QThread):
+    """后台执行一次 Provider 调用，避免阻塞 GUI 事件循环。"""
+
+    succeeded = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, provider, prompt: str, timeout: float, parent=None):
+        super().__init__(parent)
+        self._provider = provider
+        self._prompt = prompt
+        self._timeout = timeout
+
+    def run(self) -> None:
+        try:
+            raw = self._provider.complete(self._prompt, timeout=self._timeout)
+        except ProviderError as exc:
+            self.failed.emit(str(exc))
+        except Exception as exc:  # GUI 不应因意外 Provider 异常崩溃
+            self.failed.emit(f"意外错误: {exc}")
+        else:
+            self.succeeded.emit(raw)
+
+
+class TodoFixDialog(QDialog):
+    """逐条 API 修复：标记列表 + 发送前 payload 展示 + diff 预览 + 应用/跳过。
+
+    变更只在内存中累积，关闭后由主窗口写回编辑器（不自动落盘，决策 7）。
+    """
+
+    def __init__(
+        self,
+        output_text: str,
+        report: ConvertReport | None,
+        source_text: str,
+        api_config: ApiConfig,
+        provider_factory=create_provider,
+        dark: bool = False,
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self.setWindowTitle("API 修复 TODO（建议需人工复核）")
+        self.resize(1200, 780)
+        self._source_text = source_text
+        self._api_config = api_config
+        self._provider_factory = provider_factory
+        self._dark = dark
+        self._markers = fixer.scan_todo_markers(output_text, report)
+        self._text = output_text
+        self._offset = 0
+        self._index = 0
+        self._pending_marker: fixer.TodoMarker | None = None
+        self._pending_prompt = ""
+        self._pending_replacement = ""
+        self._candidate = ""
+        self._applied = 0
+        self._worker: TodoFixWorker | None = None
+        self._closed = False
+        self._build()
+        self._select_current()
+
+    @property
+    def applied_count(self) -> int:
+        return self._applied
+
+    def result_text(self) -> str:
+        return self._text
+
+    def _build(self) -> None:
+        layout = QVBoxLayout(self)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.addWidget(QLabel("待处理标记"))
+        self.marker_list = QListWidget()
+        for index, marker in enumerate(self._markers):
+            self.marker_list.addItem(self._marker_label(index, marker))
+        left_layout.addWidget(self.marker_list, 1)
+        note = QLabel("逐条处理：发送前核对将离开本机的内容；应用前查看差异。")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid);")
+        left_layout.addWidget(note)
+        splitter.addWidget(left)
+
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(QLabel("将发送的内容（原文，可复核）"))
+        self.payload_view = QPlainTextEdit()
+        self.payload_view.setReadOnly(True)
+        right_layout.addWidget(self.payload_view, 1)
+        right_layout.addWidget(QLabel("修复建议差异（当前 → 建议）"))
+        self.diff_view = QTextBrowser()
+        self.diff_view.setOpenExternalLinks(False)
+        right_layout.addWidget(self.diff_view, 1)
+        splitter.addWidget(right)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([320, 880])
+        layout.addWidget(splitter, 1)
+
+        self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
+
+        buttons = QHBoxLayout()
+        self.privacy_label = QLabel()
+        self.privacy_label.setWordWrap(True)
+        self.privacy_label.setStyleSheet("color: palette(mid);")
+        buttons.addWidget(self.privacy_label, 1)
+        self.send_button = QPushButton("发送本条并获取建议")
+        self.send_button.clicked.connect(self._start_request)
+        self.apply_button = QPushButton("应用这条修改")
+        self.apply_button.setEnabled(False)
+        self.apply_button.clicked.connect(self._apply_current)
+        self.skip_button = QPushButton("跳过本条")
+        self.skip_button.clicked.connect(self._skip_current)
+        buttons.addWidget(self.send_button)
+        buttons.addWidget(self.apply_button)
+        buttons.addWidget(self.skip_button)
+        layout.addLayout(buttons)
+
+        footer = QHBoxLayout()
+        hint = QLabel("API 建议仍需人工复核，不保证语义正确；保存文件仍由主界面完成。")
+        hint.setStyleSheet("color: palette(mid);")
+        footer.addWidget(hint, 1)
+        discard_button = QPushButton("放弃本次修复")
+        discard_button.clicked.connect(self.reject)
+        done_button = QPushButton("完成")
+        done_button.setDefault(True)
+        done_button.clicked.connect(self.accept)
+        footer.addWidget(discard_button)
+        footer.addWidget(done_button)
+        layout.addLayout(footer)
+
+    def closeEvent(self, event) -> None:
+        self._closed = True
+        event.accept()
+        self.accept()
+
+    def _current_marker(self) -> fixer.TodoMarker | None:
+        if 0 <= self._index < len(self._markers):
+            return self._markers[self._index]
+        return None
+
+    def _marker_label(self, index: int, marker: fixer.TodoMarker) -> str:
+        text = marker.marker_text if len(marker.marker_text) <= 72 else marker.marker_text[:72] + "…"
+        return f"{index + 1}. 第 {marker.out_line} 行: {text}"
+
+    def _select_current(self) -> None:
+        marker = self._current_marker()
+        if marker is None:
+            self.marker_list.clearSelection()
+            self.payload_view.setPlainText("")
+            self.diff_view.clear()
+            self.send_button.setEnabled(False)
+            self.apply_button.setEnabled(False)
+            self.skip_button.setEnabled(False)
+            self.privacy_label.setText("")
+            self.status_label.setText(
+                f"全部处理完成：已应用 {self._applied} 处（关闭后写回编辑器，保存仍由主界面完成）。"
+            )
+            return
+        self.marker_list.setCurrentRow(self._index)
+        effective = marker.out_line + self._offset
+        self._pending_marker = marker
+        self._pending_prompt = fixer.build_prompt(
+            marker,
+            self._source_text,
+            "源脚本",
+            self._text,
+            self._api_config.context_lines,
+            out_line=effective,
+        )
+        self.payload_view.setPlainText(self._pending_prompt)
+        self.diff_view.clear()
+        self.privacy_label.setText(
+            f"点击“发送本条并获取建议”即确认将上方内容发送到 {self._api_config.base_url}"
+            "（内容将离开本机，可能被服务提供方记录）。"
+        )
+        self.status_label.setText(
+            f"待处理 {self._index + 1}/{len(self._markers)}：核对将发送的内容。"
+        )
+        self.send_button.setEnabled(True)
+        self.apply_button.setEnabled(False)
+        self.skip_button.setEnabled(True)
+
+    def _start_request(self) -> None:
+        marker = self._pending_marker
+        if marker is None or self._worker is not None:
+            return
+        try:
+            provider = self._provider_factory(self._api_config)
+        except ProviderError as exc:
+            self.status_label.setText(f"API 配置错误：{exc}")
+            return
+        self.send_button.setEnabled(False)
+        self.skip_button.setEnabled(False)
+        self.status_label.setText(f"请求中（{self._api_config.base_url}）…")
+        worker = TodoFixWorker(provider, self._pending_prompt, self._api_config.timeout)
+        worker.succeeded.connect(self._on_response)
+        worker.failed.connect(self._on_failure)
+        worker.finished.connect(self._on_worker_finished)
+        self._worker = worker
+        worker.start()
+
+    def _on_worker_finished(self) -> None:
+        self._worker = None
+
+    def _on_failure(self, message: str) -> None:
+        if self._closed:
+            return
+        self.status_label.setText(
+            "API 调用失败（本条保留 TODO）："
+            + redact(message, self._api_config.api_key)
+        )
+        self.send_button.setEnabled(True)
+        self.skip_button.setEnabled(True)
+
+    def _on_response(self, raw: str) -> None:
+        if self._closed:
+            return
+        marker = self._pending_marker
+        if marker is None:
+            return
+        replacement = fixer.clean_completion(raw)
+        if (
+            not replacement
+            or "# TODO" in replacement
+            or replacement.strip() == marker.line_text.strip()
+        ):
+            self.status_label.setText("模型未给出可用修改，本条保留 TODO（可跳过）。")
+            self.send_button.setEnabled(True)
+            self.skip_button.setEnabled(True)
+            return
+        effective = marker.out_line + self._offset
+        candidate = fixer.apply_replacement(self._text, effective, replacement)
+        problem = bash_syntax_error(candidate)
+        if problem:
+            self.status_label.setText(f"建议未通过 bash -n，已拒绝：{problem}")
+            self.send_button.setEnabled(True)
+            self.skip_button.setEnabled(True)
+            return
+        self._pending_replacement = replacement
+        self._candidate = candidate
+        self.diff_view.setHtml(
+            build_diff_html(self._text, candidate, "当前脚本", "修复建议", self._dark)
+        )
+        self.status_label.setText("已收到建议：核对差异后选择“应用这条修改”或“跳过本条”。")
+        self.apply_button.setEnabled(True)
+        self.skip_button.setEnabled(True)
+
+    def _apply_current(self) -> None:
+        if not self._candidate:
+            return
+        self._offset += fixer.replacement_line_count(self._pending_replacement) - 1
+        self._text = self._candidate
+        self._applied += 1
+        self._pending_replacement = ""
+        self._candidate = ""
+        self._advance()
+
+    def _skip_current(self) -> None:
+        self._pending_replacement = ""
+        self._candidate = ""
+        self._advance()
+
+    def _advance(self) -> None:
+        self._index += 1
+        self._select_current()
 
 
 class AboutDialog(QDialog):
