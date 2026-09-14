@@ -47,7 +47,7 @@ label_SHOW_ARGS() {
 # 复杂批处理测试脚本 - 用于测试 bat2sh 转换器
 # ============================================================
 
-SCRIPT_NAME="$(basename \"$0\")"
+SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="${SCRIPT_DIR}/"
 LOG_FILE="${TMPDIR:-/tmp}/complex_bat_test_$RANDOM.log"
 WORK_DIR="${TMPDIR:-/tmp}/complex_bat_test_$RANDOM"
@@ -209,7 +209,7 @@ echo "WMIC 查询:"
 # 网络查询
 echo "网络查询:"
 # bat 过滤语义：未匹配不终止脚本
-ip addr | grep -i "IPv4 地址 IPv4 Address" || true
+ip addr | grep -i -e "inet " -e "IPv4 Address" || true
 ping -c 1 127.0.0.1 >/dev/null && echo "本地回环可达"
 # TODO: 复杂管道需手动重写
 #  原命令: netstat -an | findstr "LISTENING" | findstr ":135" >nul && echo 端口135正在监听 || echo 端口135未监听
@@ -434,8 +434,8 @@ echo "文件权限:"
 echo "脚本完整路径: $(readlink -f "$0")"
 echo "脚本驱动器: ${SCRIPT_DIR}/"
 echo "脚本路径: ${SCRIPT_DIR}/"
-echo "脚本名称: \"$0\""
-echo "脚本扩展名: \"$0\""
+echo "脚本名称: $(basename "${0%.*}")"
+echo "脚本扩展名: $(echo ".${0##*.}")"
 # TODO: 手动检查: echo 脚本短名: %~s0
 # TODO: 手动检查: echo 脚本属性: %~a0
 # TODO: 手动检查: echo 脚本时间: %~t0
@@ -545,7 +545,11 @@ done < <(pwsh -NoProfile -Command "Write-Output 'PS line'")
 # TODO: 手动检查: for /f "tokens=2" %%a in ('netstat -an ^| findstr "LISTENING" ^| findstr ":135"') do echo 端口135: %%a
 
 # 使用 for /f 解析 tasklist
-# TODO: 手动检查: for /f "tokens=1,2" %%a in ('tasklist /fi "imagename eq explorer.exe" ^| findstr /i "explorer"') do echo 进程: %%a PID: %%b
+while read -r a b _; do
+    b="${b%$'\r'}"
+    [ -z "$a" ] && continue
+    echo "进程: ${a} PID: ${b}"
+done < <(ps aux | grep -i "explorer")
 
 # 使用 for /f 解析 sc query
 # TODO: 手动检查: for /f "tokens=1,2" %%a in ('sc query wuauserv ^| findstr "STATE"') do echo 服务状态: %%a %%b
@@ -558,13 +562,25 @@ while IFS= read -r a; do
 done < <(whoami)
 
 # 使用 for /f 解析 ipconfig
-# TODO: 手动检查: for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4"') do echo IP: %%a
+while IFS=: read -r _ a _; do
+    a="${a%$'\r'}"
+    [ -z "$a" ] && continue
+    echo "IP: ${a}"
+done < <(ip addr | grep -i "IPv4")
 
 # 使用 for /f 解析 systeminfo
-# TODO: 手动检查: for /f "tokens=2 delims=:" %%a in ('systeminfo ^| findstr /i "OS Name"') do echo OS: %%a
+while IFS=: read -r _ a _; do
+    a="${a%$'\r'}"
+    [ -z "$a" ] && continue
+    echo "OS: ${a}"
+done < <(uname -a | grep -i -e "OS" -e "Name")
 
 # 使用 for /f 解析 driverquery
-# TODO: 手动检查: for /f "tokens=1" %%a in ('driverquery ^| findstr /i "Running"') do echo 驱动: %%a
+while read -r a _; do
+    a="${a%$'\r'}"
+    [ -z "$a" ] && continue
+    echo "驱动: ${a}"
+done < <(lsmod | grep -i "Running")
 
 # 使用 for /f 解析 net user
 # TODO: 手动检查: for /f "tokens=*" %%a in ('net user ^| findstr /v "命令成功完成"') do echo 用户: %%a
@@ -583,7 +599,11 @@ done < <(query user)
 # TODO: 手动检查: for /f "tokens=*" %%a in ('icacls test1.txt') do echo 权限: %%a
 
 # 使用 for /f 解析 certutil
-# TODO: 手动检查: for /f "tokens=*" %%a in ('certutil -hashfile test1.txt MD5 ^| findstr /v "hash CertUtil"') do echo 哈希: %%a
+while IFS= read -r a; do
+    a="${a%$'\r'}"
+    [ -z "$a" ] && continue
+    echo "哈希: ${a}"
+done < <(md5sum "test1.txt" | grep -v -e "hash" -e "CertUtil")
 
 # 使用 for /f 解析 robocopy
 while IFS= read -r a; do
