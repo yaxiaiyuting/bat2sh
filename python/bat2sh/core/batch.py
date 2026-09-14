@@ -522,36 +522,63 @@ class BatchConverter:
     _VAR_ASSIGN_RE = re.compile(r"(?:local\s+|export\s+|readonly\s+|declare\s+)?([A-Za-z_]\w*)=")
 
     def _guard_unset_variable_refs(self, output: str) -> str:
-        assigned: set[str] = set()
-        for line in output.split("\n"):
+        lines = output.split("\n")
+        assigned_anywhere: set[str] = set()
+        for line in lines:
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
-            m = self._VAR_ASSIGN_RE.match(stripped)
-            if m:
-                assigned.add(m.group(1))
-            m = re.match(r"(?:for|select)\s+([A-Za-z_]\w*)\s+in\b", stripped)
-            if m:
-                assigned.add(m.group(1))
-            read_match = re.search(r"\bread\b", stripped)
-            if read_match and re.match(r"(?:while|until)\b", stripped):
-                for token in tokenize_args(stripped[read_match.end():]):
-                    if token.startswith("-") or token in ('""', "''"):
-                        continue
-                    if re.match(r"^[A-Za-z_]\w*$", token):
-                        assigned.add(token)
-
-        def guard(m: re.Match[str]) -> str:
-            name = m.group(1)
-            return m.group(0) if name in assigned else f"${{{name}:-}}"
+            assigned_anywhere |= self._collect_line_vars(stripped)
 
         pattern = re.compile(r"(?<!\\)\$\{([A-Za-z_]\w*)\}")
-        return "\n".join(
-            line
-            if line.strip().startswith("#")
-            else pattern.sub(guard, line)
-            for line in output.split("\n")
-        )
+        result: list[str] = []
+        in_function = False
+        # 主流程按"引用点之前的赋值"判定；函数体内按"全文任意赋值"判定（调用序静态不可知，避免 churn）
+        assigned_main: set[str] = set()
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                result.append(line)
+                continue
+            if not in_function and re.match(r"^[A-Za-z_]\w*\(\) \{$", line):
+                in_function = True
+                result.append(line)
+                continue
+            if in_function:
+                if line.startswith("}"):
+                    in_function = False
+                result.append(self._substitute_guarded(line, pattern, assigned_anywhere))
+                continue
+            assigned_main |= self._collect_line_vars(stripped)
+            result.append(self._substitute_guarded(line, pattern, assigned_main))
+        return "\n".join(result)
+
+    def _collect_line_vars(self, stripped: str) -> set[str]:
+        names: set[str] = set()
+        m = self._VAR_ASSIGN_RE.match(stripped)
+        if m:
+            names.add(m.group(1))
+        m = re.match(r"(?:for|select)\s+([A-Za-z_]\w*)\s+in\b", stripped)
+        if m:
+            names.add(m.group(1))
+        read_match = re.search(r"\bread\b", stripped)
+        if read_match and re.match(r"(?:while|until)\b", stripped):
+            for token in tokenize_args(stripped[read_match.end():]):
+                if token.startswith("-") or token in ('""', "''"):
+                    continue
+                if re.match(r"^[A-Za-z_]\w*$", token):
+                    names.add(token)
+        return names
+
+    @staticmethod
+    def _substitute_guarded(
+        line: str, pattern: re.Pattern[str], names: set[str]
+    ) -> str:
+        def guard(m: re.Match[str]) -> str:
+            name = m.group(1)
+            return m.group(0) if name in names else f"${{{name}:-}}"
+
+        return pattern.sub(guard, line)
 
     # ------------------------------------------------------------------
     # 基础工具
