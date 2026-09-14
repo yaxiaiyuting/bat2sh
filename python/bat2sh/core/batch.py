@@ -705,9 +705,15 @@ class BatchConverter:
         text = re.sub(r"%%%([A-Za-z_][A-Za-z0-9_]*)%%%", indirect_repl, text)
         text = re.sub(r"%%([A-Za-z_][A-Za-z0-9_]*)%%", escaped_percent_repl, text)
         text = re.sub(r"%%([A-Za-z])", loop_repl, text)
+        # %%~ 循环变量修饰符（%%~nxF / %%~nF / %%~xF）：必须先于 %% 占位符替换
+        text = re.sub(
+            r"%%~([dfnpx]*)([0-9*A-Za-z])",
+            lambda m: self._modifier(m, lineno, text),
+            text,
+        )
         text = text.replace("%%", _LITERAL_PERCENT)
 
-        # %~ 修饰符（%~dp0 / %~f1 / %%~nxF ...）
+        # %~ 修饰符（%~dp0 / %~f1）
         text = re.sub(r"%~([dfnpx]*)([0-9*A-Za-z])", lambda m: self._modifier(m, lineno, text), text)
         # %* / %N（cmd 缺参=空串；set -u 下用 ${N:-}）
         text = text.replace("%*", "$*")
@@ -803,6 +809,10 @@ class BatchConverter:
                     return f'$(basename "${{{var}}}")'
                 if "f" in mods:
                     return f'$(readlink -f "${{{var}}}")'
+                if "n" in mods:
+                    return f'$(basename "${{{var}%.*}}")'
+                if "x" in mods:
+                    return f'$(echo ".${{{var}##*.}}")'
                 return f"${{{var}}}"
             self._warn(lineno, f"循环变量 %~{mods}{target} 不在 for 循环上下文中", original, category="control_flow")
             return "%" + target
