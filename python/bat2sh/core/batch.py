@@ -58,6 +58,30 @@ _CARET_ESCAPES = {
 _CARET_RESTORES = {placeholder: char for char, placeholder in _CARET_ESCAPES.items()}
 _LITERAL_PERCENT = "\ue200"
 
+#: findstr 中文模式识别：CJK 统一表意文字（含扩展 A）
+_CJK_RE = re.compile(r"[\u3400-\u9fff]")
+
+#: 已知中文 findstr 模式 → (grep 等价模式, 差异说明)。
+#: 对齐 bat2sh 自身的 ``ipconfig → ip addr`` 转换：Windows 中文输出的关键词
+#: 在 Linux 英文输出中的写法。仅整模式精确匹配才替换，混合模式只告警（不假装等价）。
+_FINDSTR_CJK_MAP: dict[str, tuple[str, str]] = {
+    "IPv4 地址": (
+        "inet ",
+        "Windows ipconfig 的“IPv4 地址”对应 ip addr/ifconfig 英文输出的“inet ”"
+        "（不含 inet6；地址书写格式可能不同）",
+    ),
+    "IPv6 地址": (
+        "inet6 ",
+        "Windows ipconfig 的“IPv6 地址”对应 ip addr/ifconfig 英文输出的“inet6 ”"
+        "（地址书写格式可能不同）",
+    ),
+    "物理地址": (
+        "ether ",
+        "Windows ipconfig 的“物理地址”（MAC）对应 ip addr 英文输出的“ether ”"
+        "（分隔符不同：Windows 用 -，Linux 用 :）",
+    ),
+}
+
 
 def _protect_carets(text: str) -> str:
     """把引号外的 ``^X`` 替换为占位符；引号内的 ``^`` 是字面字符，保持原样。"""
@@ -2472,7 +2496,42 @@ class BatchConverter:
         files_text = " ".join(self._convert_path_token(t, lineno) for t in files)
         self._warn(lineno, "findstr 已转换为 grep，正则语法可能存在差异", original, category="command")
         pattern = pattern or '""'
+        pattern = self._translate_findstr_pattern(lineno, pattern, original)
         return (f"grep {mode_text}{opt_text}".rstrip() + f" {pattern} {files_text}").strip()
+
+    def _translate_findstr_pattern(self, lineno: int, pattern: str, original: str) -> str:
+        """中文模式处理：已知模式整段映射为英文等价物并附差异说明；其余含中文模式仅告警。"""
+        inner = strip_outer_quotes(pattern)[0].strip()
+        mapped = _FINDSTR_CJK_MAP.get(inner)
+        if mapped is not None:
+            replacement, note = mapped
+            self._warn(
+                lineno,
+                f"中文模式“{inner}”已映射为 {replacement!r}（{note}；若实际输出为中文请人工核对）",
+                original,
+                category="command",
+            )
+            return dq(replacement)
+        if not _CJK_RE.search(inner):
+            return pattern
+        known = [key for key in _FINDSTR_CJK_MAP if key in inner]
+        if known:
+            hints = "、".join(f"“{key}”→“{_FINDSTR_CJK_MAP[key][0]!r}”" for key in known)
+            self._warn(
+                lineno,
+                f"模式含已知中文短语（{hints}），但整体模式未收录，未自动替换；"
+                "中文模式在英文输出中可能永不匹配，请人工核对",
+                original,
+                category="command",
+            )
+        else:
+            self._warn(
+                lineno,
+                "模式含中文（未收录已知映射）：中文模式在英文输出中可能永不匹配，请人工核对",
+                original,
+                category="command",
+            )
+        return pattern
 
     def cmd_sort(self, lineno: int, args: str, original: str) -> str | None:
         tokens = tokenize_args(args)

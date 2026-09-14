@@ -27,6 +27,7 @@ FROZEN_WARNINGS = [
     (154, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
     (165, 'command', 'ipconfig 已转换为 ip addr，输出格式不同'),
     (165, 'command', 'findstr 已转换为 grep，正则语法可能存在差异'),
+    (165, 'command', "模式含已知中文短语（“IPv4 地址”→“'inet '”），但整体模式未收录，未自动替换；中文模式在英文输出中可能永不匹配，请人工核对"),
     (186, 'variables', '检测到转义百分号 %% ，已按字面 %% 处理'),
     (208, 'variables', '%SystemRoot% 的转换可能不完全等价'),
     (219, 'command', 'findstr 已转换为 grep，正则语法可能存在差异'),

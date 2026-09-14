@@ -295,6 +295,7 @@ GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未�
 | `del` / `erase` / `rmdir /s` / `md` | `rm -f`（`/s`→`rm -rf`）/ `rm -rf` / `mkdir -p` |
 | `type file` | `cat file` |
 | `find "s" f` / `findstr /i "s" f` | `grep -F` / `grep`（/i、/v、/n、/c 等已映射） |
+| `findstr /i "IPv4 地址" f`（中文模式） | 已知中文模式整段映射（如 `"IPv4 地址"`→`"inet "`、`"物理地址"`→`"ether "`），**带差异说明告警**；未收录/混合中文模式不替换、仅告警（英文输出中可能永不匹配） |
 | `start "" "file"` | `xdg-open "file" &`；可执行目标 → `nohup ... &` |
 | `if exist X (...) else (...)` | `if [ -e "X" ]; then ... else ... fi` |
 | `if "%A%"=="B" (...)`（equ/neq/lss/gtr…） | `if [ "$A" = "B" ]; then ...; fi` |
