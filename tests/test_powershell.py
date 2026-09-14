@@ -1029,3 +1029,75 @@ def test_assignment_testconnection_output_capture(convert_ps, bash_check):
     out, _ = convert_ps("$r = Test-Connection -ComputerName $C -Count 2\n")
     assert 'r=$(ping -c 2 "${C}")' in out
     bash_check(out)
+
+
+# ----------------------------------------------------------------------
+# 空体块 : 占位（bash 空块语法要求）
+# ----------------------------------------------------------------------
+def test_empty_if_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps("if ($x) {\n}\n")
+    assert "\n:\nfi" in out
+    bash_check(out)
+
+
+def test_empty_while_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps("while ($i -lt 3) {\n}\n")
+    assert "\n:\ndone" in out
+    bash_check(out)
+
+
+def test_empty_foreach_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps("foreach ($x in $items) {\n}\n")
+    assert "\n:\ndone" in out
+    bash_check(out)
+
+
+def test_empty_for_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps("for ($i = 0; $i -lt 3; $i++) {\n}\n")
+    assert "\n:\ndone" in out
+    bash_check(out)
+
+
+def test_empty_function_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps("function f {\n}\n")
+    assert "f() {" in out
+    assert "\n:\n}" in out
+    bash_check(out)
+
+
+def test_empty_branches_get_colon(convert_ps, bash_check):
+    out, _ = convert_ps("if ($a) {\n} elseif ($b) {\n}\n")
+    assert "\n    :\nelif" in out
+    assert "\n:\nfi" in out
+    bash_check(out)
+
+
+def test_empty_else_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps('if ($a) {\n    Write-Host "x"\n} else {\n}\n')
+    assert "else\n:\nfi" in out
+    bash_check(out)
+
+
+def test_comment_only_body_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps("if ($x) {\n    # comment only\n}\n")
+    assert "\n:\nfi" in out
+    bash_check(out)
+
+
+def test_empty_try_catch_gets_colon(convert_ps, bash_check):
+    out, _ = convert_ps("try {\n} catch {\n}\n")
+    assert "else  # TODO: catch 块\n:\nfi" in out
+    bash_check(out)
+
+
+def test_nonempty_blocks_no_colon_regression(convert_ps, bash_check):
+    out, _ = convert_ps('if ($x) {\n    Write-Host "a"\n}\n')
+    assert "\n:\n" not in out
+    bash_check(out)
+
+
+def test_function_params_only_no_colon(convert_ps, bash_check):
+    out, _ = convert_ps("function h {\n    param([string]$a)\n}\n")
+    assert 'local a="$1"' in out
+    assert "\n:\n}" not in out
+    bash_check(out)
