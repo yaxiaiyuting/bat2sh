@@ -2223,6 +2223,23 @@ class BatchConverter:
         redir_text = self._render_redirs(redirs, lineno)
         if not body.strip():
             return [self._c(redir_text)] if redir_text else []
+        prompt_only = re.match(r"(?i)^@?\s*set\s*/p\s*=\s*(.*)$", body.strip())
+        if prompt_only is not None:
+            # 语料惯用法：`<nul set /p=文本` 输出文本且不换行（进度条/同行提示）。
+            nul_input = [r for r in redirs if r[0] == "<" and r[1].strip('"').lower() == "nul"]
+            if nul_input:
+                kept = self._render_redirs([r for r in redirs if r not in nul_input], lineno)
+                payload = self._expand_vars(
+                    convert_backslashes(prompt_only.group(1).strip()), lineno
+                )
+                return [self._c(self._append_redirs(f"printf '%s' {dq(payload)}", kept))]
+            self._todo(
+                lineno,
+                text,
+                "set /p 无变量名且未从 nul 读取（等待输入语义无法确定），请手工处理",
+                category="command",
+            )
+            return [self._c("# TODO: 手动检查: " + text)]
         cd_alias = re.fullmatch(r"(?i)@?\s*(?:cd|chdir)\s*(\.{1,2})", body.strip())
         if cd_alias:
             body = "cd " + cd_alias.group(1)
