@@ -63,6 +63,25 @@ RETRYABLE_ERRORS = (
     ProviderNetworkError,
 )
 
+_ERROR_CATEGORIES: tuple[tuple[type[ProviderError], str], ...] = (
+    (ProviderConfigError, "配置"),
+    (ProviderAuthError, "认证"),
+    (ProviderRateLimitError, "限流"),
+    (ProviderServerError, "服务端"),
+    (ProviderTimeoutError, "超时"),
+    (ProviderNetworkError, "网络"),
+    (ProviderProtocolError, "格式"),
+    (ProviderRequestError, "请求"),
+)
+
+
+def error_category(exc: ProviderError) -> str:
+    """把 Provider 异常映射为界面用短分类（超时/认证/网络/格式/…）；未知子类返回 "错误"。"""
+    for error_type, label in _ERROR_CATEGORIES:
+        if isinstance(exc, error_type):
+            return label
+    return "错误"
+
 
 class TransportError(Exception):
     """transport 层错误基类。"""

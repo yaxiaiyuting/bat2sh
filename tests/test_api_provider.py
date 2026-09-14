@@ -15,6 +15,7 @@ from bat2sh.core.api.provider import (
     OpenAICompatibleProvider,
     ProviderAuthError,
     ProviderConfigError,
+    ProviderError,
     ProviderNetworkError,
     ProviderProtocolError,
     ProviderRateLimitError,
@@ -24,6 +25,7 @@ from bat2sh.core.api.provider import (
     TransportNetworkError,
     TransportTimeoutError,
     create_provider,
+    error_category,
     redact,
 )
 
@@ -223,3 +225,21 @@ def test_redact_hides_secrets():
     assert redact("key=sk-secret xx", "sk-secret") == "key=*** xx"
     assert redact("nothing", "") == "nothing"
     assert redact("a sk-1 b sk-1 c", "sk-1") == "a *** b *** c"
+
+
+@pytest.mark.parametrize(
+    ("exc", "label"),
+    [
+        (ProviderConfigError("x"), "配置"),
+        (ProviderAuthError("x"), "认证"),
+        (ProviderRateLimitError("x"), "限流"),
+        (ProviderServerError("x"), "服务端"),
+        (ProviderTimeoutError("x"), "超时"),
+        (ProviderNetworkError("x"), "网络"),
+        (ProviderProtocolError("x"), "格式"),
+        (ProviderRequestError("x"), "请求"),
+        (ProviderError("x"), "错误"),
+    ],
+)
+def test_error_category_maps_each_provider_error(exc, label):
+    assert error_category(exc) == label

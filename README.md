@@ -293,6 +293,8 @@ bat2sh --cli deploy.bat --fix-todos        # 在交互终端逐条确认
 - 环境变量：`BAT2SH_API_BASE`、`BAT2SH_API_MODEL`、`BAT2SH_API_KEY`、`BAT2SH_API_PROVIDER`、`BAT2SH_API_TIMEOUT`
 - 不内置任何服务商默认：`base_url`/`model` 缺失即报错（退出码 `6`），并给出配置指引
 - 兼容 OpenAI / Ollama(`/v1`) / vLLM / LM Studio 等 OpenAI 兼容端点；仅标准库实现
+- GUI 设置页提供"测试连接"按钮：用当前填写的地址/模型/key 发送一次最小请求（固定 10 秒超时，
+  不发送文件内容），成功显示延迟毫秒，失败显示分类（超时/认证/网络/格式/…）
 
 隐私与安全边界：
 

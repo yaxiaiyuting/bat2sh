@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import time
 
 from PySide6.QtCore import Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QTextCharFormat, QTextCursor
@@ -29,8 +30,13 @@ from PySide6.QtWidgets import (
 
 from .. import APP_DESCRIPTION, APP_DISPLAY_NAME, APP_HOMEPAGE, __version__
 from ..core.api import fixer
-from ..core.api.config import ApiConfig
-from ..core.api.provider import ProviderError, create_provider, redact
+from ..core.api.config import ApiConfig, missing_requirements
+from ..core.api.provider import (
+    ProviderError,
+    create_provider,
+    error_category,
+    redact,
+)
 from ..core.settings import (
     INDENT_CHOICES,
     ConvertSettings,
@@ -49,12 +55,16 @@ class SettingsDialog(QDialog):
         settings: ConvertSettings,
         api_config: ApiConfig | None = None,
         parent: QWidget | None = None,
+        api_test_factory=create_provider,
     ):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setMinimumWidth(520)
         self._settings = settings
         self._api_config = api_config or ApiConfig()
+        self._api_test_factory = api_test_factory
+        self._test_worker: ConnectionTestWorker | None = None
+        self._test_key = ""
         self._presets: dict[str, ConvertSettings] = {}
         self._build()
         self._load()
@@ -164,6 +174,25 @@ class SettingsDialog(QDialog):
         self.api_context_spin.setToolTip("发送给 API 的源文件上下文行数（上限 10；不发送整文件）")
         form.addRow("API 上下文", self.api_context_spin)
 
+        test_row = QWidget()
+        test_layout = QHBoxLayout(test_row)
+        test_layout.setContentsMargins(0, 0, 0, 0)
+        self.api_test_button = QPushButton("测试连接")
+        self.api_test_button.setToolTip(
+            "用当前填写的地址 / 模型 / key 发送一次最小请求"
+            "（固定 10 秒超时，不保存设置、不发送任何文件内容）"
+        )
+        self.api_test_button.clicked.connect(self._start_api_test)
+        self.api_test_status = QLabel("")
+        self.api_test_status.setWordWrap(True)
+        test_layout.addWidget(self.api_test_button)
+        test_layout.addWidget(self.api_test_status, 1)
+        form.addRow("连接测试", test_row)
+
+        for editor in (self.api_base_edit, self.api_model_edit, self.api_key_edit):
+            editor.textChanged.connect(self._clear_api_test_status_if_idle)
+        self.api_provider_combo.currentIndexChanged.connect(self._clear_api_test_status_if_idle)
+
         self.theme_combo = QComboBox()
         self.theme_combo.addItem("跟随系统", "system")
         self.theme_combo.addItem("浅色", "light")
@@ -222,6 +251,62 @@ class SettingsDialog(QDialog):
         self.api_key_edit.setText(api_config.api_key)
         self.api_timeout_spin.setValue(int(api_config.timeout))
         self.api_context_spin.setValue(api_config.context_lines)
+
+    # -- API 连接测试 ------------------------------------------------
+
+    def _clear_api_test_status_if_idle(self, *_args) -> None:
+        if self._test_worker is not None:
+            return
+        self.api_test_status.clear()
+        self.api_test_status.setToolTip("")
+
+    def _show_api_test_result(self, ok: bool, message: str) -> None:
+        color = "#43a047" if ok else "#e53935"
+        mark = "✓" if ok else "✗"
+        self.api_test_status.setStyleSheet(f"color: {color};")
+        self.api_test_status.setText(f"{mark} {message}")
+
+    def _start_api_test(self) -> None:
+        if self._test_worker is not None:
+            return
+        config = self.result_api_config()
+        missing = missing_requirements(config)
+        if missing:
+            self._show_api_test_result(False, "缺少配置：" + "；".join(missing))
+            return
+        try:
+            provider = self._api_test_factory(config)
+        except ProviderError as exc:
+            self._show_api_test_result(
+                False, f"{error_category(exc)}：{redact(str(exc), config.api_key)}"
+            )
+            return
+        self._test_key = config.api_key
+        self.api_test_button.setEnabled(False)
+        self.api_test_status.setStyleSheet("color: palette(mid);")
+        self.api_test_status.setText("正在连接 …")
+        self.api_test_status.setToolTip("")
+        worker = ConnectionTestWorker(provider)
+        _LIVE_TEST_WORKERS.add(worker)
+        worker.succeeded.connect(self._on_api_test_succeeded)
+        worker.failed.connect(self._on_api_test_failed)
+        worker.finished.connect(self._on_api_test_finished)
+        worker.finished.connect(lambda: _LIVE_TEST_WORKERS.discard(worker))
+        worker.finished.connect(worker.deleteLater)
+        self._test_worker = worker
+        worker.start()
+
+    def _on_api_test_succeeded(self, reply: str, elapsed_ms: float) -> None:
+        self._show_api_test_result(True, f"连接成功（{elapsed_ms:.0f} ms）")
+        if reply:
+            self.api_test_status.setToolTip(redact(reply[:200], self._test_key))
+
+    def _on_api_test_failed(self, message: str) -> None:
+        self._show_api_test_result(False, redact(message, self._test_key))
+
+    def _on_api_test_finished(self) -> None:
+        self._test_worker = None
+        self.api_test_button.setEnabled(True)
 
     def _reload_presets(self) -> None:
         self._presets = load_presets()
@@ -434,6 +519,38 @@ class TodoFixWorker(QThread):
             self.failed.emit(f"意外错误: {exc}")
         else:
             self.succeeded.emit(raw)
+
+
+_LIVE_TEST_WORKERS: set[ConnectionTestWorker] = set()
+
+
+class ConnectionTestWorker(QThread):
+    """后台执行一次最小请求（固定 10 秒超时），回传延迟毫秒，避免阻塞 GUI。"""
+
+    succeeded = Signal(str, float)
+    failed = Signal(str)
+
+    PROMPT = "say ok"
+    TIMEOUT = 10.0
+
+    def __init__(self, provider, parent=None):
+        super().__init__(parent)
+        self._provider = provider
+
+    def run(self) -> None:
+        started = time.monotonic()
+        try:
+            reply = self._provider.complete(self.PROMPT, timeout=self.TIMEOUT)
+        except ProviderError as exc:
+            self.failed.emit(f"{error_category(exc)}：{exc}")
+        except Exception as exc:  # GUI 不应因意外 Provider 异常崩溃
+            self.failed.emit(f"意外错误：{exc}")
+        else:
+            self.succeeded.emit(reply, (time.monotonic() - started) * 1000.0)
+
+
+# 保活集合：设置对话框关闭/销毁后，仍在运行的测试线程不被 GC 提前销毁（否则 Qt 直接 abort）。
+_LIVE_TEST_WORKERS: set[ConnectionTestWorker] = set()
 
 
 class TodoFixDialog(QDialog):
