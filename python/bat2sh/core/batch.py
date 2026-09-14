@@ -691,17 +691,17 @@ class BatchConverter:
                 continue
             if re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", stripped):
                 self._labels.add(stripped[1:].lower())
-            call = re.match(r"(?i)^call\s+:([\w.\-]+)", stripped)
+            call = re.match(r"(?i)^call\s*:\s*([\w.\-]+)", stripped)
             if call:
                 self._function_mode = True
                 self._call_targets.add(call.group(1).lower())
-            jump = re.match(r"(?i)^goto\s+:?([\w.\-]+)\s*$", stripped)
+            jump = re.match(r"(?i)^goto(?:\s*:\s*|\s+)([\w.\-]+)\s*$", stripped)
             if jump and jump.group(1).lower() != "eof":
                 self._goto_targets.add(jump.group(1).lower())
                 if self._code_follows_before_label(logical, index, jump.group(1)):
                     self._goto_dead_lines[number] = jump.group(1)
             if re.match(r"(?i)^@?\s*if\b", stripped):
-                for target in re.findall(r"(?i)\bgoto\s+:?([\w.\-]+)", stripped):
+                for target in re.findall(r"(?i)\bgoto(?:\s*:\s*|\s+)([\w.\-]+)", stripped):
                     if target.lower() != "eof":
                         self._goto_targets.add(target.lower())
             if re.search(r"(?i)(?:^|[&|])\s*@?setlocal\b[^&|]*enabledelayedexpansion", stripped):
@@ -1305,7 +1305,7 @@ class BatchConverter:
             self._func_out.pop()
 
     def _convert_goto(self, lineno: int, text: str) -> list[str]:
-        m = re.match(r"(?i)^goto\s+:?([\w.\-]+)\s*$", text)
+        m = re.match(r"(?i)^goto(?:\s*:\s*|\s+)([\w.\-]+)\s*$", text)
         if m and m.group(1).lower() == "eof":
             # 批处理的 goto :eof 不修改 errorlevel；函数内用 return 保留上一条命令的退出码，
             # 这样 ``if errorlevel`` 改写出的 ``if ! func; then`` 才能真正捕获失败。
@@ -1342,7 +1342,7 @@ class BatchConverter:
                     )
                 )
             ]
-        m = re.match(r"(?i)^call\s+:([\w.\-]+)\s*(.*)$", text)
+        m = re.match(r"(?i)^call\s*:\s*([\w.\-]+)\s*(.*)$", text)
         if m:
             name = m.group(1)
             func = "label_" + sanitize_identifier(name)
@@ -1361,11 +1361,10 @@ class BatchConverter:
                 )
             return [self._c(guard)]
         m = re.match(r"(?i)^call\s+(.+)$", text)
-        if not m:
-            return []
-        parts = tokenize_args(m.group(1))
+        parts = tokenize_args(m.group(1)) if m else []
         if not parts:
-            return []
+            self._todo(lineno, text, "call 语句无法解析，请手动处理", category="control_flow")
+            return [self._c("# TODO: 手动检查: " + text)]
         script, q = strip_outer_quotes(parts[0])
         rest = " ".join(
             tokenize_args(self._expand_vars(convert_backslashes(" ".join(parts[1:])), lineno))
@@ -2215,9 +2214,9 @@ class BatchConverter:
             return out
         # rem 注释：整行（含 `&` 分隔出来的片段、for /f 内层命令）都按注释处理，
         # 不再落入“未知命令”。cmd 的 rem 会吞掉行内其余内容，重定向符也不例外。
-        m = re.match(r"(?i)^rem(?:\s+(.*))?$", text.strip())
+        m = re.match(r"(?i)^rem(?![A-Za-z0-9_])(.*)$", text.strip())
         if m:
-            comment = m.group(1) or ""
+            comment = m.group(1).strip()
             return [self._c("# " + comment if comment else "#")]
         text = _normalize_echo_blank(text)
         body, redirs = split_redirects(text)
@@ -2242,6 +2241,11 @@ class BatchConverter:
             return []
         if first.strip("@") == "echo" and rest.strip().lower() == "on":
             return [self._c("# 注意: echo on 在 bash 中无对应行为，已忽略")]
+
+        if re.match(r"(?i)^@?goto(?:\s*:|\s|$)", body):
+            return self._convert_goto(lineno, body.strip().lstrip("@").strip())
+        if re.match(r"(?i)^@?call(?:\s|:|$)", body):
+            return self._convert_call(lineno, body.strip().lstrip("@").strip())
 
         line: str | None
         if first in rules.BATCH_HANDLER_MAP:
