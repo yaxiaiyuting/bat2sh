@@ -944,3 +944,61 @@ def test_non_glob_paths_stay_quoted(convert_bat):
     assert 'ls -1 "sub"' in out
     assert '"a.txt"' in out and '"b.txt"' in out
     assert 'rm -f "file.txt"' in out
+
+
+# ----------------------------------------------------------------------
+# 子串 / 替换语法（含延迟形态与负长度）
+# ----------------------------------------------------------------------
+def test_substring_negative_length_runtime(convert_bat, bash_check, bash_run):
+    out, _ = convert_bat("set v=abcdef\necho %v:~0,-1%\n")
+    assert 'echo "${v:0:-1}"' in out
+    bash_check(out)
+    assert bash_run(out).stdout.strip() == "abcde"
+
+
+def test_substring_variants(convert_bat):
+    out, _ = convert_bat("set v=abcdef\necho %v:~2%\necho %v:~-3%\necho %v:~1,3%\n")
+    assert "${v:2}" in out
+    assert "${v: -3}" in out
+    assert "${v:1:3}" in out
+
+
+def test_delayed_slice_runtime(convert_bat, bash_check, bash_run):
+    out, _ = convert_bat(
+        "setlocal enabledelayedexpansion\nset v=abcdef\necho !v:~-3!\n"
+    )
+    assert 'echo "${v: -3}"' in out
+    bash_check(out)
+    assert bash_run(out).stdout.strip() == "def"
+
+
+def test_delayed_replace_runtime(convert_bat, bash_check, bash_run):
+    out, _ = convert_bat(
+        "setlocal enabledelayedexpansion\nset s=aXbXc\necho !s:X=-!\n"
+    )
+    assert 'echo "${s//X/-}"' in out
+    bash_check(out)
+    assert bash_run(out).stdout.strip() == "a-b-c"
+
+
+def test_delayed_slice_variable_offset_runtime(convert_bat, bash_check, bash_run):
+    out, _ = convert_bat(
+        "setlocal enabledelayedexpansion\nset v=abcdef\nset i=2\necho !v:~%i%,1!\n"
+    )
+    assert 'echo "${v:${i}:1}"' in out
+    bash_check(out)
+    assert bash_run(out).stdout.strip() == "c"
+
+
+def test_delayed_wildcard_replacement_todo(convert_bat, bash_check):
+    out, report = convert_bat(
+        "setlocal enabledelayedexpansion\nset s=abc\necho !s:*=x!\n"
+    )
+    assert "# TODO" in out
+    assert report.todo_count >= 1
+    bash_check(out)
+
+
+def test_percent_replacement(convert_bat):
+    out, _ = convert_bat("set s=aXb\necho %s:X=-%\n")
+    assert "${s//X/-}" in out

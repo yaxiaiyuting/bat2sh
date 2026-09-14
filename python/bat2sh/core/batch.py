@@ -796,6 +796,12 @@ class BatchConverter:
         text = re.sub(r"%([0-9])", r"${\1:-}", text)
 
         # 字符串操作 %VAR:~N,M% / %VAR:old=new%（先子串后替换，避免 :~ 被替换式误吞）
+        def slice_operand(raw: str) -> str:
+            m = re.fullmatch(r"%([A-Za-z_][A-Za-z0-9_]*)%", raw)
+            if m:
+                return "${%s}" % sanitize_identifier(m.group(1))
+            return raw
+
         def substring_repl(m: re.Match[str]) -> str:
             raw_name = m.group(1)
             if raw_name.upper() in rules.BATCH_ENV_MAP:
@@ -807,18 +813,21 @@ class BatchConverter:
                 )
                 return m.group(0)
             name = sanitize_identifier(raw_name)
-            start = m.group(2)
+            start = slice_operand(m.group(2))
             offset = f" {start}" if start.startswith("-") else start
             if m.group(3) is None:
                 return "${%s:%s}" % (name, offset)
-            return "${%s:%s:%s}" % (name, offset, m.group(3))
+            return "${%s:%s:%s}" % (name, offset, slice_operand(m.group(3)))
 
         def replace_repl(m: re.Match[str]) -> str:
             name = sanitize_identifier(m.group(1))
             return "${%s//%s/%s}" % (name, m.group(2), m.group(3))
 
+        _SLICE_OPERAND = r"(?:-?\d+|\$\{?[A-Za-z_]\w*\}?|%[A-Za-z_]\w*%)"
         text = re.sub(
-            r"%([A-Za-z_][A-Za-z0-9_]*):~(-?\d+)(?:,(\d+))?%", substring_repl, text
+            r"%([A-Za-z_][A-Za-z0-9_]*):~(" + _SLICE_OPERAND + r")(?:,(" + _SLICE_OPERAND + r"))?%",
+            substring_repl,
+            text,
         )
         text = re.sub(
             r"%([A-Za-z_][A-Za-z0-9_]*):([^%*=]+?)=([^%]*)%", replace_repl, text
@@ -844,8 +853,36 @@ class BatchConverter:
             def delayed_indirect_repl(m: re.Match[str]) -> str:
                 return "${!%s}" % sanitize_identifier(m.group(1))
 
+            def delayed_slice_repl(m: re.Match[str]) -> str:
+                raw_name = m.group(1)
+                name = sanitize_identifier(raw_name)
+                start = slice_operand(m.group(2))
+                offset = f" {start}" if start.startswith("-") else start
+                if m.group(3) is None:
+                    return "${%s:%s}" % (name, offset)
+                return "${%s:%s:%s}" % (name, offset, slice_operand(m.group(3)))
+
+            def delayed_replace_repl(m: re.Match[str]) -> str:
+                name = sanitize_identifier(m.group(1))
+                return "${%s//%s/%s}" % (name, m.group(2), m.group(3))
+
+            text = re.sub(
+                r"!([A-Za-z_][A-Za-z0-9_]*):~(" + _SLICE_OPERAND + r")(?:,(" + _SLICE_OPERAND + r"))?!",
+                delayed_slice_repl,
+                text,
+            )
+            text = re.sub(
+                r"!([A-Za-z_][A-Za-z0-9_]*):([^!=*]+?)=([^!]*)!", delayed_replace_repl, text
+            )
             text = re.sub(r"!%([A-Za-z_][A-Za-z0-9_]*)%!", delayed_indirect_repl, text)
             text = re.sub(r"!([^\W\d]\w*)!", delayed_repl, text)
+            if re.search(r"![A-Za-z_]\w*:(?:~|\*|[^!]*=)[^!]*!", text):
+                self._warn(
+                    lineno,
+                    "检测到未能转换的延迟展开形态（子串/替换），请人工核对",
+                    text,
+                    category="variables",
+                )
 
         # %NAME%
         def env_repl(m: re.Match[str]) -> str:
@@ -992,7 +1029,7 @@ class BatchConverter:
                 "errorlevel",
             )
 
-        wildcard_op = re.search(r"%[A-Za-z_]\w*:([^%=]*)", text)
+        wildcard_op = re.search(r"[%!][A-Za-z_]\w*:([^%=!]*)", text)
         if (
             wildcard_op is not None
             and "*" in wildcard_op.group(1)
