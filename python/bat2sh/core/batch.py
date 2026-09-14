@@ -2223,6 +2223,11 @@ class BatchConverter:
         redir_text = self._render_redirs(redirs, lineno)
         if not body.strip():
             return [self._c(redir_text)] if redir_text else []
+        cd_alias = re.fullmatch(r"(?i)@?\s*(?:cd|chdir)\s*(\.{1,2})", body.strip())
+        if cd_alias:
+            body = "cd " + cd_alias.group(1)
+        elif re.fullmatch(r"(?i)@?\s*pause\s*\.+", body.strip()):
+            body = "pause"
         if re.match(r"(?i)^@?\s*echo(?:\s|$)", body):
             body = body.replace("$", _DOLLAR_PLACEHOLDER)
         expanded = self._expand_vars(body, lineno)
@@ -2326,7 +2331,7 @@ class BatchConverter:
         flags: set[str] = set()
         rest: list[str] = []
         for token in tokenize_args(args):
-            if re.fullmatch(r"/[a-z]{1,3}", token, re.I):
+            if re.fullmatch(r"/[a-z]{1,3}(?:[-:][a-z0-9]+)*", token, re.I):
                 flags.add(token.lower())
             else:
                 rest.append(token)
@@ -2393,7 +2398,7 @@ class BatchConverter:
             if "*" in pattern or "?" in pattern:
                 return f"compgen -G {dq(pattern)} || true"
         if "/b" in flags:
-            base = "ls -1"
+            base = "ls -1R" if "/s" in flags else "ls -1"
         elif "/s" in flags:
             base = "ls -laR"
         else:
