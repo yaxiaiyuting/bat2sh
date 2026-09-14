@@ -861,3 +861,34 @@ def test_echo_on_mid_chain_comment(convert_bat, bash_check):
 def test_echo_offset_not_toggle(convert_bat):
     out, _ = convert_bat("echo offset\n")
     assert 'echo "offset"' in out
+
+
+# ----------------------------------------------------------------------
+# !var! 延迟展开（未启用时不得静默泄漏）
+# ----------------------------------------------------------------------
+def test_bang_var_without_delayed_expansion_todo(convert_bat, bash_check):
+    out, report = convert_bat("set x=1\necho !x!\n")
+    assert "# TODO" in out
+    assert any("延迟展开" in d.message for d in report.todos)
+    bash_check(out)
+
+
+def test_bang_var_with_delayed_expansion_converts(convert_bat, bash_check):
+    out, report = convert_bat(
+        "setlocal enabledelayedexpansion\nset x=1\necho !x!\n"
+    )
+    assert 'echo "${x}"' in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_bang_indirect_with_delayed_expansion(convert_bat):
+    out, _ = convert_bat(
+        "setlocal enabledelayedexpansion\nset NAME=x\nset x=5\necho !%NAME%!\n"
+    )
+    assert 'echo "${!NAME}"' in out
+
+
+def test_literal_bang_text_no_todo(convert_bat):
+    out, report = convert_bat('echo "Hello World"\necho done!\n')
+    assert report.todo_count == 0

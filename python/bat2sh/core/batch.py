@@ -967,6 +967,16 @@ class BatchConverter:
         if lower == "echo on":
             return [self._c("# 注意: echo on 在 bash 中无对应行为，已忽略")]
 
+        if not self._delayed_expansion and re.search(
+            r"!(?:%[A-Za-z_]\w*%|[A-Za-z_]\w*(?::[^!\n]*)?)!", text
+        ):
+            return self._todo_block_line(
+                lineno,
+                text,
+                "检测到 !var! 但脚本未启用延迟展开（缺少 setlocal enabledelayedexpansion），请人工核对",
+                "variables",
+            )
+
         if (
             self.settings.last_exit_code != "map"
             and (
