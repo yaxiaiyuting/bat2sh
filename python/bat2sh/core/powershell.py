@@ -41,6 +41,12 @@ _LIKE_OP_RE = re.compile(r"(?<![\w-])(-like|-notlike|-clike|-ilike)(?![\w-])", r
 _MATCH_OP_RE = re.compile(r"(?<![\w-])(-match|-notmatch|-cmatch|-imatch)(?![\w-])", re.I)
 _LOGIC_OP_RE = re.compile(r"(?<![\w-])(-and|-or|-not|-xor)(?![\w-])", re.I)
 _LASTEXITCODE_RE = re.compile(r"(?i)\$\{LASTEXITCODE\}|\$LASTEXITCODE\b")
+_PS_ATTRIBUTE_NAMES = frozenset({"cmdletbinding", "parameter", "alias", "outputtype"})
+_PS_TYPE_NAMES = frozenset({
+    "string", "int", "int32", "int64", "bool", "double", "float", "decimal",
+    "array", "hashtable", "datetime", "guid", "char", "byte",
+})
+_ATTR_BUFFER_LIMIT = 40
 
 
 @dataclass
@@ -74,6 +80,7 @@ class PowerShellConverter:
         self._here_target = ""
         self._block_comment = False
         self._param_buffer: list[str] | None = None
+        self._attr_buffer: list[str] | None = None
         self._array_vars: set[str] = set()
         self._todo_reason = ""
         self._condition_fallback = ""
@@ -876,7 +883,83 @@ class PowerShellConverter:
         parts = split_top_level(text, ";")
         return [p.strip() for p in parts if p.strip()] or [text]
 
+    def _attribute_statement(self, lineno: int, text: str) -> list[str] | None:
+        stripped = text.strip()
+        if self._attr_buffer is not None:
+            self._attr_buffer.append(stripped)
+            joined = " ".join(self._attr_buffer)
+            if find_matching(joined, "[", "]", 0) >= 0:
+                self._attr_buffer = None
+                result = self._classify_annotated_statement(lineno, joined)
+                if result is not None:
+                    return result
+                return [self._c(self._todo(lineno, joined, "多行注解无法解析，未转换", category="misc"))]
+            if len(self._attr_buffer) >= _ATTR_BUFFER_LIMIT:
+                self._attr_buffer = None
+                return [self._c(self._todo(lineno, joined, "attribute 块未闭合，无法解析", category="misc"))]
+            return []
+        if not stripped.startswith("["):
+            return None
+        m = re.match(r"^\[([A-Za-z_]\w*)\s*\(\s*$", stripped)
+        if m and self._is_attribute_name(m.group(1)):
+            self._attr_buffer = [stripped]
+            return []
+        return self._classify_annotated_statement(lineno, stripped)
+
+    @staticmethod
+    def _is_attribute_name(name: str) -> bool:
+        low = name.lower()
+        return low in _PS_ATTRIBUTE_NAMES or low.startswith("validate")
+
+    def _annotation_kind(self, name: str) -> str:
+        base = name[:-2] if name.endswith("[]") else name
+        low = base.lower()
+        if low in _PS_TYPE_NAMES:
+            return "type"
+        if self._is_attribute_name(low):
+            return "attribute"
+        return ""
+
+    def _classify_annotated_statement(self, lineno: int, stripped: str) -> list[str] | None:
+        groups: list[str] = []
+        i = 0
+        n = len(stripped)
+        while i < n:
+            while i < n and stripped[i].isspace():
+                i += 1
+            if i >= n or stripped[i] != "[":
+                break
+            close = find_matching(stripped, "[", "]", i)
+            if close < 0:
+                break
+            groups.append(stripped[i + 1:close].strip())
+            i = close + 1
+        if not groups:
+            return None
+        rest = stripped[i:].strip()
+        names: list[str] = []
+        for group in groups:
+            name_match = re.match(r"^([A-Za-z_][\w.\[\]]*)", group)
+            names.append(name_match.group(1) if name_match else group)
+        kinds = [self._annotation_kind(name) for name in names]
+        if kinds and kinds[-1] == "type":
+            if not rest:
+                return []
+            if re.match(r"^\$[\w]+\s*[+\-*/%]?=", rest):
+                return self._convert_statement(lineno, rest)
+            return [self._c(self._todo(lineno, stripped, "类型转换在 bash 中无对应物（未做转换）", category="objects"))]
+        if all(kind == "attribute" for kind in kinds):
+            if not rest:
+                return []
+            return [self._c(self._todo(lineno, stripped, "语句级属性后的内容无法可靠转换", category="misc"))]
+        if rest and not rest.startswith("::"):
+            return [self._c(self._todo(lineno, stripped, f"类型注解 [{names[-1]}] 不在支持列表，未转换", category="objects"))]
+        return None
+
     def _convert_statement(self, lineno: int, text: str) -> list[str]:
+        attr_lines = self._attribute_statement(lineno, text)
+        if attr_lines is not None:
+            return attr_lines
         self._todo_reason = ""
 
         if self._try_buffer is not None and re.match(r"(?i)^(catch|finally)\b", text):

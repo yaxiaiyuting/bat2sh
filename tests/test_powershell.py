@@ -41,17 +41,17 @@ def test_param_attributes_stripped(convert_ps):
     assert all("attribute 已剥离" in d.message for d in report.warnings[1:])
 
 
-def test_cmdletbinding_current_behavior(convert_ps):
-    # 锁定当前行为：[CmdletBinding()] 未被剥离，原样保留并产生「未知命令」警告；
-    # 该写法无法通过 bash -n，P0 安全网会将其降级为注释并记 syntax error
+def test_cmdletbinding_ignored(convert_ps, bash_check):
     out, report = convert_ps(
         "[CmdletBinding()]\nparam(\n    [Parameter(Position=0)]\n    [string]$Path\n)\n"
     )
-    assert any("未知命令 '[CmdletBinding()]'" in d.message for d in report.warnings)
-    assert report.error_count == 1
-    assert report.errors[0].category == "syntax"
-    assert "未通过 bash -n" in out
-    assert "# [CmdletBinding()]" in out
+    assert "[CmdletBinding" not in out
+    assert 'Path="$1"' in out
+    assert report.error_count == 0
+    assert report.todo_count == 0
+    assert not any("未知命令" in d.message for d in report.warnings)
+    assert any("attribute 已剥离" in d.message for d in report.warnings)
+    bash_check(out)
 
 
 def test_function_param_defaults_and_attrs(convert_ps):
@@ -786,4 +786,95 @@ def test_complex_condition_elif_structure_kept(convert_ps, bash_check):
     assert "elif false; then" in out
     assert "elif 0 -eq 1" not in out
     assert report.todo_count == 1
+    bash_check(out)
+
+
+# ----------------------------------------------------------------------
+# 属性声明与类型注解（整行忽略 / 去注解，不做类型转换）
+# ----------------------------------------------------------------------
+def test_attribute_only_line_ignored(convert_ps, bash_check):
+    out, report = convert_ps('[CmdletBinding()]\nWrite-Host "hi"\n')
+    assert "[CmdletBinding" not in out
+    assert 'echo "hi"' in out
+    assert report.error_count == 0
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_attribute_multiline_ignored(convert_ps, bash_check):
+    out, report = convert_ps(
+        "[CmdletBinding(\n"
+        "    SupportsShouldProcess = $true,\n"
+        '    ConfirmImpact = "High"\n'
+        ")]\n"
+        'Write-Host "hi"\n'
+    )
+    assert "CmdletBinding" not in out
+    assert "SupportsShouldProcess" not in out
+    assert 'echo "hi"' in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_validate_alias_outputtype_ignored(convert_ps):
+    out, report = convert_ps(
+        "[ValidateSet('a', 'b')]\n[Alias('x')]\n[OutputType([string])]\n"
+    )
+    assert "ValidateSet" not in out
+    assert "Alias" not in out
+    assert "OutputType" not in out
+    assert report.todo_count == 0
+
+
+def test_type_annotation_stripped_known_types(convert_ps, bash_check):
+    out, _ = convert_ps('[string]$name = "foo"\n[int]$count = 5\n')
+    assert 'name="foo"' in out
+    assert "count=5" in out
+    bash_check(out)
+
+
+def test_type_annotation_bool_and_array(convert_ps):
+    out, _ = convert_ps("[bool]$flag = $true\n[array]$arr = @()\n")
+    assert "flag=true" in out
+    assert "arr=()" in out
+
+
+def test_type_annotation_alone_on_line_ignored(convert_ps):
+    out, report = convert_ps('[string]\n$name = "foo"\n')
+    assert "[string]" not in out
+    assert 'name="foo"' in out
+    assert report.todo_count == 0
+
+
+def test_unknown_type_annotation_todo(convert_ps, bash_check):
+    out, report = convert_ps("[UnknownType]$x = 1\n")
+    assert report.todo_count == 1
+    assert "不在支持列表" in report.todos[0].message
+    assert not any(
+        "[UnknownType]" in line and not line.lstrip().startswith("#")
+        for line in out.splitlines()
+    )
+    bash_check(out)
+
+
+def test_type_cast_statement_todo(convert_ps, bash_check):
+    out, report = convert_ps('[int]"5"\n')
+    assert report.todo_count == 1
+    assert "类型转换" in report.todos[0].message
+    assert not any(
+        line.lstrip().startswith("[") for line in out.splitlines()
+    )
+    bash_check(out)
+
+
+def test_dotnet_static_call_still_objects_todo(convert_ps, bash_check):
+    out, report = convert_ps("$l = @()\n[System.Threading.Monitor]::Enter($l)\n")
+    assert any(
+        ".NET" in d.message and d.category == "objects" for d in report.todos
+    )
+    assert "::Enter" in out
+    assert not any(
+        "Monitor" in line and not line.lstrip().startswith("#")
+        for line in out.splitlines()
+    )
     bash_check(out)
