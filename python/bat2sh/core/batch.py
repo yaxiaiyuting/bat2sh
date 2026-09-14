@@ -2368,7 +2368,8 @@ class BatchConverter:
         return guard_read('read -rp "Press Enter to continue..."', self.settings.strict_mode)
 
     def cmd_cls(self, lineno: int, args: str, original: str) -> str:
-        return "clear"
+        # bash 会把未设置的 TERM 置为未导出的 "dumb"；unset/dumb 下 clear 报错 rc=1，跳过
+        return '[[ -n "${TERM:-}" && "${TERM}" != "dumb" ]] && clear || true'
 
     def cmd_cd(self, lineno: int, args: str, original: str) -> str:
         args = re.sub(r"(?i)^/d\s*", "", args.strip())

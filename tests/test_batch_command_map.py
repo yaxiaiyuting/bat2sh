@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -501,3 +504,104 @@ def test_echo_with_parenthesized_condition_chain(convert_bat, bash_run):
     proc = bash_run(out)
     assert "条件执行: (echo C)" in proc.stdout
     assert "D" in proc.stdout
+
+
+def _with_fake_clear(
+    tmp_path: Path,
+    env_extra: dict | None = None,
+    clear_body: str = "echo FAKE-CLEAR",
+) -> dict:
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir(exist_ok=True)
+    fake = bin_dir / "clear"
+    fake.write_text("#!/usr/bin/env bash\n" + clear_body + "\n", encoding="utf-8")
+    fake.chmod(0o755)
+    env = dict(env_extra or {})
+    env["PATH"] = str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
+    return env
+
+
+def _run_converted(
+    text: str,
+    tmp_path: Path,
+    env_extra: dict | None = None,
+    timeout: float = 30,
+) -> subprocess.CompletedProcess:
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("未找到 bash")
+    script = tmp_path / "converted.sh"
+    script.write_text(text, encoding="utf-8")
+    env = {key: value for key, value in os.environ.items() if key != "TERM"}
+    env.update(env_extra or {})
+    return subprocess.run(
+        [bash, str(script)],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        timeout=timeout,
+        env=env,
+    )
+
+
+def test_cls_conversion_guards_unusable_term(convert_bat, bash_check):
+    out, report = convert_bat("@echo off\ncls\n")
+    assert report.todo_count == 0
+    assert report.warning_count == 0
+    assert '[[ -n "${TERM:-}" && "${TERM:-}" != "dumb" ]] && clear || true' in out
+    bash_check(out)
+
+
+def test_cls_without_term_is_silent(convert_bat, tmp_path):
+    out, _ = convert_bat("@echo off\ncls\n")
+    proc = _run_converted(out, tmp_path, _with_fake_clear(tmp_path))
+    assert proc.returncode == 0
+    assert proc.stderr == ""
+    assert "FAKE-CLEAR" not in proc.stdout
+
+
+def test_cls_with_dumb_term_is_silent(convert_bat, tmp_path):
+    out, _ = convert_bat("@echo off\ncls\n")
+    proc = _run_converted(
+        out, tmp_path, _with_fake_clear(tmp_path, {"TERM": "dumb"})
+    )
+    assert proc.returncode == 0
+    assert proc.stderr == ""
+    assert "FAKE-CLEAR" not in proc.stdout
+
+
+def test_cls_with_term_calls_clear(convert_bat, tmp_path):
+    out, _ = convert_bat("@echo off\ncls\n")
+    proc = _run_converted(
+        out, tmp_path, _with_fake_clear(tmp_path, {"TERM": "xterm-256color"})
+    )
+    assert proc.returncode == 0
+    assert "FAKE-CLEAR" in proc.stdout
+
+
+def test_cls_clear_failure_does_not_abort_script(convert_bat, tmp_path):
+    out, _ = convert_bat("@echo off\ncls\necho after\n")
+    env = _with_fake_clear(
+        tmp_path, {"TERM": "xterm-256color"}, clear_body="echo FAKE-CLEAR\nexit 7"
+    )
+    proc = _run_converted(out, tmp_path, env)
+    assert proc.returncode == 0
+    assert "after" in proc.stdout
+
+
+def test_cls_redirect_binds_to_clear(convert_bat, tmp_path):
+    out, _ = convert_bat("@echo off\ncls >nul\n")
+    assert "clear >/dev/null || true" in out
+    proc = _run_converted(
+        out, tmp_path, _with_fake_clear(tmp_path, {"TERM": "xterm-256color"})
+    )
+    assert proc.returncode == 0
+    assert "FAKE-CLEAR" not in proc.stdout
+
+
+def test_cls_in_pipe_without_term_keeps_script_alive(convert_bat, tmp_path):
+    out, _ = convert_bat("@echo off\ncls | grep x\n")
+    proc = _run_converted(out, tmp_path, timeout=15)
+    assert proc.returncode == 0
+    assert proc.stderr == ""
