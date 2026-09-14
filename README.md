@@ -304,7 +304,7 @@ GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未�
 | `if errorlevel N` / `if not errorlevel N` | `if [ $? -ge N ]` / `[ $? -lt N ]`（含 `$?` 时机警告） |
 | `if defined VAR` | `[ -n "${VAR:-}" ]` |
 | `for %%i in (*.txt) do ...`（含嵌套、多行块） | `for i in *.txt; do ...; done` |
-| `for /f "tokens=*" %%i in ('cmd') do ...`（或无选项） | `while IFS= read -r i; do ...; done < <(cmd)`（仅简单形式；其余选项仍 TODO） |
+| `for /f "tokens=*" %%i in ('cmd') do ...`（或无选项） | `while IFS= read -r i; do ...; done < <(cmd)`（选项已支持；`'CMD ^| FILTER'` 两段内管道直译；三段以上/含重定向仍 TODO） |
 | `for /l %%i in (1,1,10) do ...` | `for i in $(seq 1 1 10); do ...; done` |
 | `for /d %%d in (dir\*) do ...` | `for d in dir/*/; do ...; done` |
 | `call :label args` / `:label` | `label_<name> args` / `label_<name>() { ... }`（子程序重构为函数并前置定义） |
@@ -522,6 +522,9 @@ echo "清理完成"
      裸文件名（`done < "file"`）。
    - 结构：命令输出统一用进程替换 `done < <(cmd)`（避免 `| while` 子 shell 丢变量）；
      循环体首变量为空的行自动跳过；行尾 `\r`（CRLF）自动去除。
+   - 内管道：`'CMD ^| FILTER'` 两段自动直译为 `done < <(CMD | FILTER)`；过滤无匹配时
+     循环体不执行、脚本继续（进程替换不向外传播失败）。三段及以上、含重定向或 `&`
+     连接的管道仍整行 TODO。
    **仍不支持**：`usebackq` 反引号命令、字符串字面量 `("文本")` → 整行 `# TODO`；
    循环体内 `goto`（整行 TODO + 告警，无法保证跳出语义）、循环体引用未声明的
    `%%x`（仅告警，不生成变量）。`for /r` 递归遍历仍 TODO（提示改用 `find`）。
@@ -657,7 +660,7 @@ echo "清理完成"
 | `cmdextversion` | Linux 无对应检查：保留为恒假条件 + TODO（不能当作成功分支执行） |
 | 复杂管道 | 多级（>2 段）、含重定向（如 `2>nul`、`2>&1`）或 `&` 连接的管道，逐段重写会改变执行顺序与错误传播 → 整行 TODO |
 | `choice` 后接 `%ERRORLEVEL%` | `read` 无法保留"选项序号"退出码语义；检测到后续依赖即整行 TODO |
-| `for /f` 中的 `%DATE%`/`%TIME%`/`%ERRORLEVEL%`/管道 | 循环按该输出解析字段，格式与捕获时机无法保证 → 整行 TODO |
+| `for /f` 中的 `%DATE%`/`%TIME%`/`%ERRORLEVEL%`/多级管道（≥3 段） | 循环按该输出解析字段，格式与捕获时机无法保证 → 整行 TODO（`'CMD ^| FILTER'` 两段已支持直译） |
 | `%ERRORLEVEL%`（默认 warn 策略） | `$?` 只反映紧邻一条命令；用 `--last-exit-code map` 才会近似映射为 `__bat2sh_rc` |
 
 对应的"干净映射"（无下游格式依赖，已自动转换）：

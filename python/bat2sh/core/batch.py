@@ -341,6 +341,60 @@ def _split_pipeline(text: str) -> list[str]:
     return [p for p in parts if p.strip()]
 
 
+def _split_for_f_pipeline(text: str) -> list[str]:
+    """按 for /f 命令层的管道切分：``^|`` 转义与裸 ``|`` 都是管道，引号内不切。"""
+    parts: list[str] = []
+    buf: list[str] = []
+    quote = ""
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            buf.append(c)
+            if c == quote:
+                quote = ""
+            i += 1
+            continue
+        if c in "\"'":
+            quote = c
+            buf.append(c)
+            i += 1
+            continue
+        if c == "^" and i + 1 < len(text) and text[i + 1] == "|":
+            parts.append("".join(buf))
+            buf = []
+            i += 2
+            continue
+        if c == "|":
+            if i + 1 < len(text) and text[i + 1] == "|":
+                buf.append("||")
+                i += 2
+                continue
+            parts.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(c)
+        i += 1
+    parts.append("".join(buf))
+    return [p for p in parts if p.strip()]
+
+
+def _unescape_for_f_command(text: str) -> str:
+    """还原 for /f '命令' 内层的 ``^X`` 转义（``^|``→``|``、``^>``→``>`` 等）。"""
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == "^" and i + 1 < len(text) and text[i + 1] in "&|<>^!":
+            out.append(text[i + 1])
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 @dataclass
 class _Block:
     kind: str          # if / else / for / group / comment
@@ -1709,22 +1763,33 @@ class BatchConverter:
                 return self._for_todo_lines(
                     lineno, text, body, "for /f 命令中的 %ERRORLEVEL% 无法保证捕获时机，请手工处理"
                 )
-            if len(_split_pipeline(raw)) > 1:
+            pipeline_parts = _split_for_f_pipeline(raw)
+            if len(pipeline_parts) > 2:
                 return self._for_todo_lines(
-                    lineno, text, body, "for /f 的命令包含管道，输出格式无法保证，请手工处理"
+                    lineno, text, body, "for /f 的命令包含多级管道（三段及以上），请手工处理"
                 )
             todo_mark = len(self.report.todos)
-            command_lines = self._convert_simple_no_pipe(lineno, raw)
-            if (
-                len(command_lines) != 1
-                or not command_lines[0].strip()
-                or command_lines[0].lstrip().startswith("#")
-            ):
-                del self.report.todos[todo_mark:]
-                return self._for_todo_lines(
-                    lineno, text, body, "for /f 的命令无法自动转换，请手工改写为 while read"
-                )
-            command = command_lines[0].strip()
+            if len(pipeline_parts) == 2:
+                segments = [_unescape_for_f_command(part.strip()) for part in pipeline_parts]
+                bodies, reason = self._convert_two_segment_pipeline(lineno, segments)
+                if bodies is None:
+                    del self.report.todos[todo_mark:]
+                    return self._for_todo_lines(
+                        lineno, text, body, f"for /f 的两段管道无法自动转换（{reason}）"
+                    )
+                command = " | ".join(bodies)
+            else:
+                command_lines = self._convert_simple_no_pipe(lineno, raw)
+                if (
+                    len(command_lines) != 1
+                    or not command_lines[0].strip()
+                    or command_lines[0].lstrip().startswith("#")
+                ):
+                    del self.report.todos[todo_mark:]
+                    return self._for_todo_lines(
+                        lineno, text, body, "for /f 的命令无法自动转换，请手工改写为 while read"
+                    )
+                command = command_lines[0].strip()
         elif (
             options.usebackq
             and len(source) >= 2
@@ -1962,6 +2027,24 @@ class BatchConverter:
     # ------------------------------------------------------------------
     # 简单命令
     # ------------------------------------------------------------------
+    def _convert_two_segment_pipeline(
+        self, lineno: int, parts: list[str]
+    ) -> tuple[list[str] | None, str]:
+        """转换两段管道；返回 (各段结果, 失败原因)，失败时由调用方决定 TODO 形态。"""
+        if any(self._pipeline_segment_unsafe(part) for part in parts):
+            return None, "管道中包含重定向或 & 连接，无法自动转换"
+        bodies: list[str] = []
+        for seg in parts:
+            seg_lines = self._convert_simple_no_pipe(lineno, seg.strip())
+            if (
+                len(seg_lines) != 1
+                or not seg_lines[0].strip()
+                or seg_lines[0].lstrip().startswith("#")
+            ):
+                return None, "复杂管道无法自动转换"
+            bodies.append(seg_lines[0].strip())
+        return bodies, ""
+
     def _convert_simple(self, lineno: int, text: str) -> list[str]:
         pipe_parts = _split_pipeline(text)
         if len(pipe_parts) > 2:
@@ -1969,20 +2052,9 @@ class BatchConverter:
                 lineno, text, "多级管道（超过两级）无法保证输出语义，请手工处理"
             )
         if len(pipe_parts) == 2:
-            if any(self._pipeline_segment_unsafe(part) for part in pipe_parts):
-                return self._pipeline_todo(
-                    lineno, text, "管道中包含重定向或 & 连接，无法自动转换"
-                )
-            bodies: list[str] = []
-            for seg in pipe_parts:
-                seg_lines = self._convert_simple_no_pipe(lineno, seg.strip())
-                if (
-                    len(seg_lines) != 1
-                    or not seg_lines[0].strip()
-                    or seg_lines[0].lstrip().startswith("#")
-                ):
-                    return self._pipeline_todo(lineno, text, "复杂管道无法自动转换")
-                bodies.append(seg_lines[0].strip())
+            bodies, reason = self._convert_two_segment_pipeline(lineno, pipe_parts)
+            if bodies is None:
+                return self._pipeline_todo(lineno, text, reason)
             line = self._indent + " | ".join(bodies)
             if self._is_filter_segment(bodies[-1]):
                 return [

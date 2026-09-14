@@ -308,12 +308,11 @@ def test_pipeline_with_ampersand_todo(convert_bat):
     assert "# TODO" in out
 
 
-def test_pipeline_inside_for_f_command_todo(convert_bat):
+def test_pipeline_inside_for_f_command_converts(convert_bat):
     text = "@echo off\nfor /f \"delims=\" %%i in ('dir ^| findstr x') do echo %%i\n"
     out, report = convert_bat(text)
-    assert report.todo_count == 1
-    assert "# TODO" in out
-    assert "grep" not in out
+    assert report.todo_count == 0
+    assert "done < <(ls -la | grep x)" in out
 
 
 def test_delayed_errorlevel_warn_is_todo(convert_bat):

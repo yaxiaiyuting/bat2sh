@@ -89,12 +89,12 @@ def test_redirect_and_multistage_pipelines_get_suggestions(convert_bat):
     assert "#  参考(中): ls | grep a | grep b" in out
 
 
-def test_for_f_pipeline_keeps_plain_todo(convert_bat):
+def test_for_f_pipeline_converts_without_suggestion(convert_bat):
     text = "@echo off\nfor /f \"delims=\" %%i in ('dir ^| findstr x') do echo %%i\n"
     out, report = convert_bat(text)
     assert "参考(" not in out
-    assert "# TODO: 手动检查: for /f" in out
-    assert report.todo_count == 1
+    assert "done < <(ls -la | grep x)" in out
+    assert report.todo_count == 0
 
 
 def test_unknown_segment_keeps_plain_todo(convert_bat):
