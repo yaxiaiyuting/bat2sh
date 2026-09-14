@@ -924,3 +924,85 @@ def test_trailing_pipe_at_eof_records_todo(convert_ps, bash_check):
     out, report = convert_ps("$x = Get-Process |\n")
     assert report.todo_count >= 1
     bash_check(out)
+
+
+# ----------------------------------------------------------------------
+# 条件中的命令调用与 Test-Connection 参数映射
+# ----------------------------------------------------------------------
+def test_condition_testconnection_maps_to_ping(convert_ps, bash_check):
+    out, report = convert_ps(
+        'if (Test-Connection -ComputerName $C -Count 1 -Quiet) {\n    Write-Host "ok"\n}\n'
+    )
+    assert 'if ping -c 1 "${C}"; then' in out
+    assert "[[ " not in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_condition_negated_testconnection_silentlycontinue(convert_ps, bash_check):
+    out, report = convert_ps(
+        "if (-not (Test-Connection -ComputerName $C -Count 1 "
+        '-ErrorAction SilentlyContinue)) {\n    Write-Host "fail"\n}\n'
+    )
+    assert 'if ! ping -c 1 "${C}" 2>/dev/null; then' in out
+    assert report.todo_count == 0
+    bash_check(out)
+
+
+def test_condition_testconnection_unknown_param_kept_and_todo(convert_ps, bash_check):
+    out, report = convert_ps(
+        'if (Test-Connection -ComputerName $C -UnknownParam X) {\n    Write-Host "x"\n}\n'
+    )
+    assert "-UnknownParam X" in out
+    assert report.todo_count >= 1
+    bash_check(out)
+
+
+def test_condition_testpath_control_unchanged(convert_ps, bash_check):
+    out, _ = convert_ps('if (Test-Path $p) {\n    Write-Host "yes"\n}\n')
+    assert 'if [[ -e "${p:-}" ]]; then' in out
+    bash_check(out)
+
+
+def test_condition_custom_command_todo(convert_ps, bash_check):
+    out, report = convert_ps('if (Some-CustomCmdlet -X) {\n    Write-Host "x"\n}\n')
+    assert "if false; then" in out
+    assert report.todo_count >= 1
+    bash_check(out)
+
+
+def test_condition_dotnet_static_todo(convert_ps, bash_check):
+    out, report = convert_ps(
+        "if ([string]::IsNullOrWhiteSpace($Name)) {\n    Write-Host \"x\"\n}\n"
+    )
+    assert "if false; then" in out
+    assert report.todo_count >= 1
+    bash_check(out)
+
+
+def test_condition_user_function_todo(convert_ps, bash_check):
+    out, report = convert_ps(
+        "function Test-Foo {\n    return $true\n}\n"
+        'if (Test-Foo -Bar $x) {\n    Write-Host "x"\n}\n'
+    )
+    assert "if false; then" in out
+    assert report.todo_count >= 1
+    bash_check(out)
+
+
+def test_testconnection_colon_form(convert_ps, bash_check):
+    out, _ = convert_ps("if (Test-Connection -ComputerName:$C -Quiet) {\n    Write-Host \"ok\"\n}\n")
+    assert 'if ping -c 1 "${C}"; then' in out
+    bash_check(out)
+
+
+def test_testconnection_standalone_count_and_stop(convert_ps, bash_check):
+    out, _ = convert_ps("Test-Connection -ComputerName $C -Count 2 -ErrorAction Stop\n")
+    assert 'ping -c 2 "${C}"' in out
+    bash_check(out)
+
+
+def test_testconnection_missing_host_todo(convert_ps, bash_check):
+    out, report = convert_ps("Test-Connection -Count 1\n")
+    assert report.todo_count >= 1
+    bash_check(out)

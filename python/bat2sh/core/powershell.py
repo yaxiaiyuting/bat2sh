@@ -1226,11 +1226,64 @@ class PowerShellConverter:
         lines.append(base + close_word)
         return lines
 
+    @staticmethod
+    def _strip_condition_strings(text: str) -> str:
+        return re.sub(r'"[^"]*"|\'[^\']*\'', '""', text)
+
+    def _command_condition(self, expr: str, lineno: int) -> tuple[bool, str, str]:
+        stripped = expr.strip()
+        negated = False
+        body = stripped
+        m = re.match(r"(?is)^(-not|!)\s*\(", stripped)
+        if m:
+            negated = True
+            body = stripped[m.end() - 1:]
+            close = find_matching(body, "(", ")", 0)
+            if close != len(body) - 1:
+                return False, "", ""
+            body = body[1:close].strip()
+        elif stripped.startswith("("):
+            if find_matching(stripped, "(", ")", 0) != len(stripped) - 1:
+                return False, "", ""
+            body = stripped[1:-1].strip()
+        probe = self._strip_condition_strings(body)
+        if "::" in probe:
+            return True, "", "条件中的 .NET 静态调用无法自动转换"
+        tokens = tokenize_args(body)
+        if not tokens:
+            return False, "", ""
+        first = tokens[0].strip("\"'")
+        if first.lower() == "test-path":
+            return False, "", ""
+        cmdlet_shaped = re.match(r"^[A-Za-z][\w-]*-\w+$", first)
+        if _LOGIC_OP_RE.search(probe) or _COMPARE_OP_RE.search(probe):
+            if cmdlet_shaped:
+                return True, "", f"条件中的复合表达式（含 {first}）无法自动转换"
+            return False, "", ""
+        if not cmdlet_shaped:
+            return False, "", ""
+        low = first.lower()
+        if low in self._function_map:
+            return True, "", f"本文件函数 {first} 在条件中的调用无法可靠转换"
+        if low != "test-connection":
+            return True, "", f"条件中的命令 {first} 无对应映射"
+        self._current_cmdlet = low
+        converted = self._convert_cmdlet_line(lineno, body)
+        if converted is None:
+            return True, "", f"条件中的命令 {first} 无法转换"
+        return True, (f"! {converted}" if negated else converted), ""
+
     def _convert_condition(self, expr: str, lineno: int) -> str:
         expr = expr.strip()
         if "$_" in expr or re.search(r"\$\w+\.\w+", expr):
             self._condition_fallback = "复杂条件（含 $_ 或对象属性访问）无法自动转换，已用占位条件"
             return "false"
+        handled, test, reason = self._command_condition(expr, lineno)
+        if handled:
+            if reason:
+                self._condition_fallback = reason
+                return "false"
+            return test
         # $null 比较
         expr = re.sub(r"(?i)\$null\s*-eq\s*(\$\w+)", r'-z "$\1"', expr)
         expr = re.sub(r"(?i)(\$\w+)\s*-ne\s*\$null", r'-n "$\1"', expr)
@@ -2286,6 +2339,66 @@ class PowerShellConverter:
         paths = [a for a in args if not a.startswith("-")]
         path = paths[0] if paths else '""'
         return f"[ -e {self._convert_arg(path, lineno)} ]"
+
+    def cmd_test_connection(self, lineno: int, args: list[str], original: str) -> str | None:
+        host: str | None = None
+        count: str | None = None
+        redirect = ""
+        extra: list[str] = []
+        i = 0
+        while i < len(args):
+            token = args[i]
+            low = token.lower()
+            if low == "-computername" and i + 1 < len(args):
+                host = args[i + 1]
+                i += 2
+                continue
+            if low.startswith("-computername:"):
+                host = token.split(":", 1)[1]
+                i += 1
+                continue
+            if low == "-count" and i + 1 < len(args):
+                count = args[i + 1]
+                i += 2
+                continue
+            if low.startswith("-count:"):
+                count = token.split(":", 1)[1]
+                i += 1
+                continue
+            if low == "-quiet":
+                i += 1
+                continue
+            error_action = None
+            if low == "-erroraction" and i + 1 < len(args):
+                error_action = args[i + 1]
+                consumed = 2
+            elif low.startswith("-erroraction:"):
+                error_action = token.split(":", 1)[1]
+                consumed = 1
+            if error_action is not None:
+                value = error_action.strip("\"'").lower()
+                if value == "silentlycontinue":
+                    redirect = "2>/dev/null"
+                    i += consumed
+                    continue
+                if value == "stop":
+                    i += consumed
+                    continue
+                self._todo(lineno, original, f"-ErrorAction {value} 无法映射，已原样保留", category="command")
+                extra.extend(args[i:i + consumed])
+                i += consumed
+                continue
+            self._todo(lineno, original, f"参数 {token} 无法映射，已原样保留", category="command")
+            extra.append(token)
+            i += 1
+        if host is None:
+            return None
+        parts = ["ping", "-c", self._convert_arg(count if count is not None else "1", lineno)]
+        parts.append(self._convert_arg(host, lineno))
+        parts.extend(extra)
+        if redirect:
+            parts.append(redirect)
+        return " ".join(parts)
 
     def _warn_join_path_child(self, lineno: int, original: str, child: str) -> None:
         """子路径可能包含目录时提醒：bash 的 ``cp/mv`` 不会自动创建父目录。"""

@@ -353,6 +353,7 @@ PS_HANDLER_MAP: dict[str, str] = {
     "rename-item": "cmd_rename_item",
     "new-item": "cmd_new_item",
     "test-path": "cmd_test_path",
+    "test-connection": "cmd_test_connection",
     "join-path": "cmd_join_path",
     "split-path": "cmd_split_path",
     "resolve-path": "cmd_resolve_path",
