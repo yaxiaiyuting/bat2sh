@@ -8,7 +8,6 @@ from bat2sh.core.settings import ConvertSettings
 
 BROKEN = "#!/usr/bin/env bash\nif\n"
 
-# 真实还原：多行管道链在当前 PS 转换器下产出 topProcesses=$(ps aux |)（bash -n 失败）
 MULTILINE_PIPE_CHAIN = (
     "$topProcesses = Get-Process |\n"
     "    Where-Object { $_.WorkingSet64 -gt 50MB } |\n"
@@ -36,11 +35,11 @@ def test_broken_output_is_degraded(monkeypatch, bash_check):
     assert converter.report.errors[0].category == "syntax"
 
 
-def test_ps_pipe_chain_syntax_failure_is_error(convert_ps, bash_check):
+def test_ps_pipe_chain_todo_not_degraded(convert_ps, bash_check):
     out, report = convert_ps(MULTILINE_PIPE_CHAIN)
-    assert report.error_count == 1
-    assert report.errors[0].category == "syntax"
-    assert "未通过 bash -n" in out
+    assert report.error_count == 0
+    assert report.todo_count >= 1
+    assert "未通过 bash -n" not in out
     bash_check(out)
 
 

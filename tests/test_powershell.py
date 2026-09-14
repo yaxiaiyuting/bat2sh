@@ -878,3 +878,49 @@ def test_dotnet_static_call_still_objects_todo(convert_ps, bash_check):
         for line in out.splitlines()
     )
     bash_check(out)
+
+
+# ----------------------------------------------------------------------
+# 算术误报与行尾管道续行
+# ----------------------------------------------------------------------
+def test_cmdlet_rhs_not_treated_as_arithmetic(convert_ps, bash_check):
+    out, report = convert_ps("$x = Get-WmiObject -Class Win32_Foo -ComputerName $C\n")
+    assert "$((" not in out
+    assert any("无法确定右值类型" in d.message for d in report.warnings)
+    bash_check(out)
+
+
+def test_trailing_pipe_joins_next_line(convert_ps, bash_check):
+    out, report = convert_ps(
+        "$x = Get-WmiObject -Class Win32_Foo -ComputerName $C |\n"
+        "    Where-Object { $_.A -eq 1 }\n"
+    )
+    assert "$((" not in out
+    assert "$( Get-WmiObject" not in out
+    assert report.todo_count >= 1
+    bash_check(out)
+
+
+def test_legit_arithmetic_unchanged(convert_ps):
+    out, _ = convert_ps("$x = $a + 1 * 2\n$total = $total - 1\n")
+    assert "x=$(( ${a:-0} + 1 * 2 ))" in out
+    assert "total=$(( ${total:-0} - 1 ))" in out
+
+
+def test_trailing_pipe_in_here_string_not_joined(convert_ps, bash_check):
+    out, _ = convert_ps('$t = @"\na |\nb\n"@\nWrite-Host $t\n')
+    assert "a |" in out
+    assert "b" in out
+    bash_check(out)
+
+
+def test_trailing_pipe_in_comment_not_joined(convert_ps):
+    out, _ = convert_ps("# 注释 |\n$y = 1\n")
+    assert "# 注释 |" in out
+    assert "y=1" in out
+
+
+def test_trailing_pipe_at_eof_records_todo(convert_ps, bash_check):
+    out, report = convert_ps("$x = Get-Process |\n")
+    assert report.todo_count >= 1
+    bash_check(out)

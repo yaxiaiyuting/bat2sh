@@ -81,6 +81,7 @@ class PowerShellConverter:
         self._block_comment = False
         self._param_buffer: list[str] | None = None
         self._attr_buffer: list[str] | None = None
+        self._pipe_buffer: list[str] | None = None
         self._array_vars: set[str] = set()
         self._todo_reason = ""
         self._condition_fallback = ""
@@ -812,6 +813,17 @@ class PowerShellConverter:
             return self._close_block_line(lineno, text)
         if text.startswith("#"):
             return [self._c(text)]
+
+        if self._pipe_buffer is not None:
+            self._pipe_buffer.append(text)
+            joined = " ".join(self._pipe_buffer)
+            if joined.rstrip().endswith("|") and not joined.rstrip().endswith("||"):
+                return []
+            self._pipe_buffer = None
+            text = joined
+        elif text.endswith("|") and not text.endswith("||"):
+            self._pipe_buffer = [text]
+            return []
 
         # 顶层分号拆分为多条语句
         statements = self._split_statements(text)
@@ -1709,6 +1721,8 @@ class PowerShellConverter:
 
     def _try_arithmetic(self, rhs: str, lineno: int) -> str | None:
         if re.search(r"[+\-*/%]|--|\+\+", rhs) and re.search(r"\d", rhs):
+            if "|" in rhs or re.match(r"^[A-Za-z][A-Za-z0-9_]*-\w", rhs):
+                return None
             converted = self._replace_vars(rhs, lineno)
             converted = re.sub(r"\$\{(\w+)\}", r"${\1:-0}", converted)
             if re.search(r"\$\(|\$\{[\w]+\}\s*[a-z]", converted):
@@ -2796,6 +2810,12 @@ class PowerShellConverter:
     # 收尾
     # ------------------------------------------------------------------
     def _finish(self) -> None:
+        if self._pipe_buffer is not None:
+            joined = " ".join(self._pipe_buffer)
+            self._pipe_buffer = None
+            self._out.append(
+                self._c(self._todo(0, joined, "行尾管道未找到后续命令行，未转换", category="misc"))
+            )
         if self._try_buffer is not None:
             self._warn(
                 self._try_lineno,
