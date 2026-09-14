@@ -2141,6 +2141,9 @@ class BatchConverter:
         rest = expanded[len(raw_first):].strip()
         self._current_command = first
 
+        if first == "exit":
+            return self._convert_exit(lineno, expanded)
+
         line: str | None
         if first in rules.BATCH_HANDLER_MAP:
             handler = getattr(self, rules.BATCH_HANDLER_MAP[first])

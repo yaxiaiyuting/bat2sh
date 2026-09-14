@@ -794,3 +794,36 @@ def test_bash_n_on_complex_script(convert_bat, bash_check):
     )
     out, _ = convert_bat(text)
     bash_check(out)
+
+
+# ----------------------------------------------------------------------
+# & 链内 exit（崩溃修复）
+# ----------------------------------------------------------------------
+def test_exit_in_sequential_chain(convert_bat, bash_check, bash_run):
+    out, report = convert_bat('echo a & exit /b 1\n')
+    assert 'echo "a"' in out
+    assert "exit 1" in out
+    assert report.error_count == 0
+    bash_check(out)
+    proc = bash_run(out)
+    assert proc.returncode == 1
+    assert proc.stdout.strip() == "a"
+
+
+def test_exit_bare_in_sequential_chain(convert_bat, bash_check):
+    out, _ = convert_bat("echo a & exit\n")
+    assert "exit $?" in out
+    bash_check(out)
+
+
+def test_exit_in_function_chain_returns(convert_bat, bash_check):
+    out, _ = convert_bat("call :foo\ngoto :eof\n:foo\necho x & exit /b 3\n")
+    assert "return 3" in out
+    bash_check(out)
+
+
+def test_no_exit_chain_regression(convert_bat, bash_check):
+    out, _ = convert_bat("echo a & echo b\n")
+    assert 'echo "a"' in out
+    assert 'echo "b"' in out
+    bash_check(out)
