@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from . import rules
 from .settings import ConvertSettings
+from .syntax import bash_syntax_error, degraded_script, record_syntax_error
 from .types import ConvertReport, Diagnostic, SourceKind
 from .utils import (
     convert_backslashes,
@@ -103,7 +104,13 @@ class PowerShellConverter:
             else:
                 self.report.unchanged_lines += 1
         self._finish()
-        return self._compose()
+        output = self._compose()
+        if self.settings.bash_check:
+            syntax_error = bash_syntax_error(output)
+            if syntax_error is not None:
+                record_syntax_error(self.report, syntax_error)
+                return degraded_script(text, self.source_name, syntax_error)
+        return output
 
     # ------------------------------------------------------------------
     # 基础工具

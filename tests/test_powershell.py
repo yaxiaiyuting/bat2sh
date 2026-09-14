@@ -42,13 +42,16 @@ def test_param_attributes_stripped(convert_ps):
 
 
 def test_cmdletbinding_current_behavior(convert_ps):
-    # 锁定当前行为：[CmdletBinding()] 未被剥离，原样保留并产生「未知命令」警告
+    # 锁定当前行为：[CmdletBinding()] 未被剥离，原样保留并产生「未知命令」警告；
+    # 该写法无法通过 bash -n，P0 安全网会将其降级为注释并记 syntax error
     out, report = convert_ps(
         "[CmdletBinding()]\nparam(\n    [Parameter(Position=0)]\n    [string]$Path\n)\n"
     )
-    assert "[CmdletBinding()]" in out
-    assert 'Path="$1"' in out
     assert any("未知命令 '[CmdletBinding()]'" in d.message for d in report.warnings)
+    assert report.error_count == 1
+    assert report.errors[0].category == "syntax"
+    assert "未通过 bash -n" in out
+    assert "# [CmdletBinding()]" in out
 
 
 def test_function_param_defaults_and_attrs(convert_ps):

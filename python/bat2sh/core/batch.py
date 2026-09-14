@@ -8,16 +8,13 @@
 
 from __future__ import annotations
 
-import os
 import re
-import shutil
-import subprocess
 from dataclasses import dataclass, field
-from tempfile import NamedTemporaryFile
 
 from . import rules
 from .settings import ConvertSettings
 from .suggestions import suggest_pipeline
+from .syntax import bash_syntax_error, degraded_script, record_syntax_error
 from .types import ConvertReport, Diagnostic, SourceKind
 from .utils import (
     convert_backslashes,
@@ -410,10 +407,10 @@ class BatchConverter:
         output = self._ensure_block_bodies(output)
         output = self._guard_unset_variable_refs(output)
         if self.settings.bash_check:
-            syntax_error = self._bash_syntax_error(output)
+            syntax_error = bash_syntax_error(output)
             if syntax_error is not None:
-                self._degrade_syntax(syntax_error)
-                return self._degraded_script(text, syntax_error)
+                record_syntax_error(self.report, syntax_error)
+                return degraded_script(text, self.source_name, syntax_error)
         return output
 
     def _convert_logical(self, logical: list[tuple[int, str]]) -> None:
@@ -452,58 +449,6 @@ class BatchConverter:
                 self.report.converted_lines += 1
             else:
                 self.report.unchanged_lines += 1
-
-    def _bash_syntax_error(self, script: str) -> str | None:
-        bash = shutil.which("bash")
-        if bash is None:
-            return None
-        try:
-            with NamedTemporaryFile(
-                "w", suffix=".sh", delete=False, encoding="utf-8"
-            ) as handle:
-                handle.write(script)
-                tmp_name = handle.name
-        except OSError:
-            return None
-        try:
-            completed = subprocess.run(
-                [bash, "-n", tmp_name],
-                capture_output=True,
-                text=True,
-                timeout=15,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return None
-        finally:
-            try:
-                os.unlink(tmp_name)
-            except OSError:
-                pass
-        if completed.returncode == 0:
-            return None
-        first = (completed.stderr or "").strip().splitlines()
-        message = first[0] if first else "bash -n 检查失败"
-        return message.replace(tmp_name, "<生成脚本>")
-
-    def _degrade_syntax(self, error: str) -> None:
-        message = "生成脚本未通过 bash -n 语法检查，已降级为注释（可用 --no-bash-check 关闭校验）"
-        self.report.errors.append(Diagnostic(0, message, error, category="syntax"))
-
-    def _degraded_script(self, original_text: str, error: str) -> str:
-        body = [
-            f"# {line}" if line.strip() else "#"
-            for line in original_text.split("\n")
-        ]
-        header = [
-            "#!/usr/bin/env bash",
-            f"# 由 bat2sh 自动转换生成，源文件: {self.source_name}",
-            "# TODO: 生成脚本未通过 bash -n 语法检查，已降级为注释",
-            f"# 语法错误: {error}",
-            "# 原脚本内容（保留为注释，供人工转换）:",
-            "",
-        ]
-        return "\n".join(header + body).rstrip() + "\n"
 
     def _ensure_block_bodies(self, output: str) -> str:
         """bash 不允许空/仅注释的 then/do/函数/组块体；为这类块补一行 ``:``。"""
