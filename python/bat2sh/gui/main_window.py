@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -16,6 +19,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -50,7 +54,8 @@ from .highlighter import highlighter_for
 from .theme import apply_theme, system_is_dark
 
 SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1", ".psm1")
-RUN_TIMEOUT_MS = 30_000
+RUN_TERMINATE_GRACE_MS = 2_000
+SETSID_PATH = shutil.which("setsid")
 
 
 def collect_script_paths(
@@ -147,6 +152,9 @@ class MainWindow(QMainWindow):
         self._run_timer: QTimer | None = None
         self._run_tmp_path: Path | None = None
         self._run_timeout_hit = False
+        self._run_stop_requested = False
+        self._run_timeout_ms = 0
+        self._run_active_name = ""
         app = QApplication.instance()
         self.dark = system_is_dark(app) if app is not None else False
 
@@ -209,7 +217,7 @@ class MainWindow(QMainWindow):
         )
         self.action_run = self._make_action(
             "转换并运行", self._icon("media-playback-start", std.SP_MediaPlay),
-            "Ctrl+Shift+Return", self.run_current, "转换并在内嵌面板中运行（30 秒超时）",
+            "Ctrl+Shift+Return", self.run_current, "转换并在内嵌面板中运行（超时可在设置中调整）",
         )
         self.action_diff = self._make_action(
             "预览差异", self._icon("document-preview", std.SP_FileDialogContentsView),
@@ -304,24 +312,44 @@ class MainWindow(QMainWindow):
         header = QHBoxLayout()
         self.run_status_label = QLabel("尚未运行")
         self.run_status_label.setStyleSheet("color: palette(mid);")
+        self.run_stop_button = QPushButton("停止")
+        self.run_stop_button.setToolTip("终止正在运行的脚本及其子进程")
+        self.run_stop_button.setEnabled(False)
+        self.run_stop_button.clicked.connect(self._stop_run)
         self.run_toggle_button = QToolButton()
         self.run_toggle_button.setText("展开")
         self.run_toggle_button.setCheckable(True)
         self.run_toggle_button.toggled.connect(self._toggle_run_panel)
         header.addWidget(self.run_status_label, 1)
+        header.addWidget(self.run_stop_button)
         header.addWidget(self.run_toggle_button)
         layout.addLayout(header)
+        self.run_input_row = QWidget()
+        input_row = QHBoxLayout(self.run_input_row)
+        input_row.setContentsMargins(0, 0, 0, 0)
+        self.run_input = QLineEdit()
+        self.run_input.setPlaceholderText("向脚本发送输入（运行中可用，回车发送）")
+        self.run_input.setEnabled(False)
+        self.run_input.returnPressed.connect(self._send_run_input)
+        self.run_send_button = QPushButton("发送")
+        self.run_send_button.setEnabled(False)
+        self.run_send_button.clicked.connect(self._send_run_input)
+        input_row.addWidget(self.run_input, 1)
+        input_row.addWidget(self.run_send_button)
+        layout.addWidget(self.run_input_row)
         self.run_output = QPlainTextEdit()
         self.run_output.setReadOnly(True)
         self.run_output.setPlaceholderText("运行输出将显示在这里")
         self.run_output.setMinimumHeight(120)
         self.run_output.setMaximumHeight(300)
         self.run_output.hide()
+        self.run_input_row.hide()
         layout.addWidget(self.run_output)
         return self.run_panel
 
     def _toggle_run_panel(self, expanded: bool) -> None:
         self.run_output.setVisible(expanded)
+        self.run_input_row.setVisible(expanded)
         self.run_toggle_button.setText("折叠" if expanded else "展开")
 
     def _build_left_panel(self) -> QWidget:
@@ -713,11 +741,18 @@ class MainWindow(QMainWindow):
             return
         self._run_tmp_path = Path(handle.name)
         self._run_timeout_hit = False
+        self._run_stop_requested = False
+        self._run_timeout_ms = self._current_run_timeout_ms()
+        self._run_active_name = entry.path.name
         process = QProcess(self)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         process.setWorkingDirectory(str(entry.path.parent))
-        process.setProgram("bash")
-        process.setArguments([str(self._run_tmp_path)])
+        if SETSID_PATH:
+            process.setProgram(SETSID_PATH)
+            process.setArguments(["bash", str(self._run_tmp_path)])
+        else:
+            process.setProgram("bash")
+            process.setArguments([str(self._run_tmp_path)])
         process.readyReadStandardOutput.connect(self._on_run_output)
         process.finished.connect(self._on_run_finished)
         process.errorOccurred.connect(self._on_run_process_error)
@@ -729,8 +764,17 @@ class MainWindow(QMainWindow):
         self.run_toggle_button.setChecked(True)
         self.run_status_label.setText(f"运行中：{entry.path.name}")
         self.status_label.setText(f"正在运行 {entry.path.name} …")
-        self._run_timer.start(RUN_TIMEOUT_MS)
+        self._update_run_controls(True)
+        self._run_timer.start(self._run_timeout_ms)
         process.start()
+
+    def _current_run_timeout_ms(self) -> int:
+        return max(1, int(self.settings.run_timeout * 1000))
+
+    def _update_run_controls(self, running: bool) -> None:
+        self.run_stop_button.setEnabled(running)
+        self.run_input.setEnabled(running)
+        self.run_send_button.setEnabled(running)
 
     def _on_run_output(self) -> None:
         process = self._run_process
@@ -747,8 +791,10 @@ class MainWindow(QMainWindow):
         if self._run_timer is not None:
             self._run_timer.stop()
         self._on_run_output()
-        if self._run_timeout_hit:
-            summary = f"运行超时（{RUN_TIMEOUT_MS // 1000} 秒），已终止"
+        if self._run_stop_requested:
+            summary = "已停止（用户中断）"
+        elif self._run_timeout_hit:
+            summary = f"运行超时（{self._run_timeout_ms / 1000:g} 秒），已终止"
         elif exit_status == QProcess.ExitStatus.CrashExit:
             summary = f"进程被强制终止（退出码 {exit_code}）"
         else:
@@ -756,14 +802,64 @@ class MainWindow(QMainWindow):
         self.run_status_label.setText(summary)
         self.status_label.setText(summary)
         self.run_output.appendPlainText(f"[{summary}]")
+        self._update_run_controls(False)
         self._cleanup_run_tmp()
+
+    def _stop_run(self) -> None:
+        """用户点击“停止”：先 SIGTERM 整个进程组，宽限后 SIGKILL 兜底。"""
+        process = self._run_process
+        if process is None or not self._run_is_active():
+            return
+        self._run_stop_requested = True
+        self.run_status_label.setText("正在停止…")
+        self._kill_process_group(process, signal.SIGTERM)
+        QTimer.singleShot(RUN_TERMINATE_GRACE_MS, self._force_kill_run)
+
+    def _force_kill_run(self) -> None:
+        process = self._run_process
+        if process is not None and self._run_is_active():
+            self._kill_process_group(process, signal.SIGKILL)
+
+    @staticmethod
+    def _kill_process_group(process: QProcess, sig: int) -> None:
+        """优先终止整个进程组（setsid 会话），失败时回退为只杀主进程。"""
+        pid: int | None = None
+        try:
+            pid = process.processId()
+        except Exception:
+            pid = None
+        if pid:
+            try:
+                pgid = os.getpgid(pid)
+            except OSError:
+                pgid = None
+            if pgid and pgid == pid and pgid != os.getpgid(0):
+                try:
+                    os.killpg(pgid, sig)
+                    return
+                except OSError:
+                    pass
+        process.kill()
+
+    def _send_run_input(self) -> None:
+        process = self._run_process
+        if process is None or not self._run_is_active():
+            return
+        text = self.run_input.text()
+        self.run_input.clear()
+        process.write((text + "\n").encode("utf-8"))
+        current = self.run_output.toPlainText()
+        separator = "" if not current or current.endswith("\n") else "\n"
+        cursor = self.run_output.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.insertText(f"{separator}> {text}\n")
 
     def _on_run_timeout(self) -> None:
         process = self._run_process
         if process is None or process.state() == QProcess.ProcessState.NotRunning:
             return
         self._run_timeout_hit = True
-        process.kill()
+        self._kill_process_group(process, signal.SIGKILL)
 
     def _on_run_process_error(self, error) -> None:
         if error != QProcess.ProcessError.FailedToStart:
@@ -774,6 +870,7 @@ class MainWindow(QMainWindow):
         self.run_status_label.setText(summary)
         self.status_label.setText(summary)
         self.run_output.appendPlainText(f"[{summary}]")
+        self._update_run_controls(False)
         self._cleanup_run_tmp()
 
     def _run_is_active(self) -> bool:
@@ -911,7 +1008,22 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         if self._run_is_active():
-            self._run_process.kill()
-        self._cleanup_run_tmp()
+            name = self._run_active_name or "脚本"
+            reply = QMessageBox.question(
+                self,
+                "脚本运行中",
+                f"{name} 仍在运行，是否终止并退出？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+            if self._run_timer is not None:
+                self._run_timer.stop()
+            process = self._run_process
+            if process is not None:
+                self._kill_process_group(process, signal.SIGKILL)
+            self._cleanup_run_tmp()
         save_settings(self.settings)
         super().closeEvent(event)

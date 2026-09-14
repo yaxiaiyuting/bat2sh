@@ -48,6 +48,15 @@ def test_preset_from_dict_non_dict_returns_defaults():
     assert preset_to_dict(preset_from_dict(None)) == preset_to_dict(ConvertSettings())
 
 
+def test_preset_from_dict_run_timeout_tolerates_bad_values():
+    defaults = ConvertSettings()
+    assert preset_from_dict({"run_timeout": "soon"}).run_timeout == defaults.run_timeout
+    assert preset_from_dict({"run_timeout": True}).run_timeout == defaults.run_timeout
+    assert preset_from_dict({"run_timeout": -5}).run_timeout == defaults.run_timeout
+    assert preset_from_dict({"run_timeout": 12}).run_timeout == 12.0
+    assert preset_from_dict({"run_timeout": 99999}).run_timeout == 3600.0
+
+
 def test_parse_presets_json_filters_invalid_entries():
     assert parse_presets_json("{bad") == {}
     assert parse_presets_json("[1, 2]") == {}

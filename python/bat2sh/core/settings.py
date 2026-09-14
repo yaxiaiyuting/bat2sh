@@ -39,6 +39,9 @@ class ConvertSettings:
     last_exit_code: str = "warn"  # 退出码策略（PowerShell $LASTEXITCODE / 批处理 %ERRORLEVEL%）: warn | map
     bash_check: bool = True        # 生成脚本 bash -n 后置校验；失败则降级为注释（CLI: --no-bash-check）
 
+    # 运行（GUI“转换并运行”）
+    run_timeout: float = 60.0      # 超时秒数；超时自动终止脚本（含子进程）
+
     # 界面
     theme: str = "system"
     last_dir: str = ""
@@ -56,6 +59,15 @@ class ConvertSettings:
             data["last_exit_code"] = "warn"
         if not isinstance(data["bash_check"], bool):
             data["bash_check"] = True
+        timeout = data["run_timeout"]
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or timeout <= 0
+        ):
+            data["run_timeout"] = 60.0
+        else:
+            data["run_timeout"] = min(max(float(timeout), 1.0), 3600.0)
         if not data["suffix"]:
             data["suffix"] = ".sh"
         if not data["suffix"].startswith("."):
@@ -114,6 +126,13 @@ def preset_from_dict(data: dict) -> ConvertSettings:
             values[name] = candidate if isinstance(candidate, str) else None
         elif isinstance(default, bool):
             values[name] = candidate if isinstance(candidate, bool) else default
+        elif isinstance(default, (int, float)):
+            values[name] = (
+                candidate
+                if isinstance(candidate, (int, float))
+                and not isinstance(candidate, bool)
+                else default
+            )
         elif isinstance(default, str):
             values[name] = candidate if isinstance(candidate, str) else default
         else:

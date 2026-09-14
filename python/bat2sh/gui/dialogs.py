@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QSpinBox,
     QTextBrowser,
     QTextEdit,
     QVBoxLayout,
@@ -112,6 +113,12 @@ class SettingsDialog(QDialog):
         self.last_exit_combo.addItem("map（近似映射为 $?）", "map")
         form.addRow("$LASTEXITCODE 策略", self.last_exit_combo)
 
+        self.run_timeout_spin = QSpinBox()
+        self.run_timeout_spin.setRange(1, 3600)
+        self.run_timeout_spin.setSuffix(" 秒")
+        self.run_timeout_spin.setToolTip("“转换并运行”的默认超时；超时后自动终止脚本（含子进程）")
+        form.addRow("运行超时", self.run_timeout_spin)
+
         self.theme_combo = QComboBox()
         self.theme_combo.addItem("跟随系统", "system")
         self.theme_combo.addItem("浅色", "light")
@@ -156,6 +163,7 @@ class SettingsDialog(QDialog):
         self.strict_check.setChecked(settings.strict_mode)
         exit_index = self.last_exit_combo.findData(settings.last_exit_code)
         self.last_exit_combo.setCurrentIndex(max(0, exit_index))
+        self.run_timeout_spin.setValue(int(settings.run_timeout))
         theme_index = self.theme_combo.findData(settings.theme)
         self.theme_combo.setCurrentIndex(max(0, theme_index))
 
@@ -211,6 +219,7 @@ class SettingsDialog(QDialog):
             quote_variables=self.quote_check.isChecked(),
             strict_mode=self.strict_check.isChecked(),
             last_exit_code=self.last_exit_combo.currentData(),
+            run_timeout=float(self.run_timeout_spin.value()),
             theme=self.theme_combo.currentData(),
             last_dir=self._settings.last_dir,
         )
