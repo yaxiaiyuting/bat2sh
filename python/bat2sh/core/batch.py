@@ -1216,9 +1216,17 @@ class BatchConverter:
             ]
         m = re.match(r"(?i)^call\s+:([\w.\-]+)\s*(.*)$", text)
         if m:
-            func = "label_" + sanitize_identifier(m.group(1))
+            name = m.group(1)
+            func = "label_" + sanitize_identifier(name)
             args = self._expand_vars(convert_backslashes(m.group(2).strip()), lineno)
-            return [self._c((func + " " + args).strip())]
+            call_expr = (func + " " + args).strip()
+            if name.lower() not in self._labels:
+                return [
+                    self._c(
+                        f"if declare -F {func} >/dev/null 2>&1; then {call_expr}; fi"
+                    )
+                ]
+            return [self._c(call_expr)]
         m = re.match(r"(?i)^call\s+(.+)$", text)
         if not m:
             return []
