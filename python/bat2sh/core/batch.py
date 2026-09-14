@@ -464,10 +464,7 @@ class BatchConverter:
 
     def _degrade_syntax(self, error: str) -> None:
         message = "生成脚本未通过 bash -n 语法检查，已降级为注释（可用 --no-bash-check 关闭校验）"
-        self.report.warnings.append(Diagnostic(0, message, error, category="syntax"))
-        self.report.todos.append(
-            Diagnostic(0, "生成脚本未通过 bash -n 语法检查，已降级为注释", error, category="syntax")
-        )
+        self.report.errors.append(Diagnostic(0, message, error, category="syntax"))
 
     def _degraded_script(self, original_text: str, error: str) -> str:
         body = [
@@ -606,14 +603,33 @@ class BatchConverter:
         comment = "# TODO: 手动检查: " + original
         return comment
 
-    def _todo_block_line(self, lineno: int, text: str, hint: str, category: str) -> list[str]:
-        comment = self._todo(lineno, text, hint, category)
+    def _error(
+        self, lineno: int, original: str, hint: str = "", category: str = ""
+    ) -> str:
+        """记录必须处理项（error 层）：生成脚本已无法保证正确执行。
+
+        生成脚本中的 ``# TODO: 手动检查`` 注释约定保持不变，便于用户统一检索；
+        严重程度由报告的错误段与红色着色呈现。
+        """
+        message = f"必须人工处理: {original}"
+        if hint:
+            message += f"（{hint}）"
+        self.report.errors.append(Diagnostic(lineno, message, original, category))
+        return "# TODO: 手动检查: " + original
+
+    def _manual_block_line(self, comment: str, text: str) -> list[str]:
         lines = [self._c(comment)]
         if "(" in text and find_matching(text, "(", ")") == -1:
             block = _Block("comment", "")
             block.paren_depth = 1
             self._stack.append(block)
         return lines
+
+    def _todo_block_line(self, lineno: int, text: str, hint: str, category: str) -> list[str]:
+        return self._manual_block_line(self._todo(lineno, text, hint, category), text)
+
+    def _error_block_line(self, lineno: int, text: str, hint: str, category: str) -> list[str]:
+        return self._manual_block_line(self._error(lineno, text, hint, category), text)
 
     def _pipeline_todo(self, lineno: int, text: str, hint: str) -> list[str]:
         self._todo(lineno, text, hint, category="pipeline")
@@ -1178,7 +1194,7 @@ class BatchConverter:
     # ------------------------------------------------------------------
     def _label_line(self, lineno: int, name: str) -> list[str]:
         if self._stack:
-            return self._todo_block_line(
+            return self._error_block_line(
                 lineno,
                 f"标签 :{name} 位于控制块内，无法自动转换（bat 危险写法）",
                 "",

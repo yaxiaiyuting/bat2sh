@@ -88,11 +88,25 @@ def filter_new_paths(existing: set[Path], candidates: list[Path]) -> list[Path]:
 
 
 def needs_todo_confirmation(report: ConvertReport | None) -> bool:
-    return bool(report is not None and report.todo_count)
+    return bool(report is not None and (report.todo_count or report.error_count))
+
+
+def error_display_lines(report: ConvertReport) -> list[str]:
+    return [diagnostic.format() for diagnostic in report.errors]
 
 
 def todo_display_lines(report: ConvertReport) -> list[str]:
     return [diagnostic.format() for diagnostic in report.todos]
+
+
+def counts_text(report: ConvertReport | None) -> str:
+    """状态栏计数文本；三色报告下错误/警告/TODO 分别计数。"""
+    if report is None:
+        return "错误 0 · 警告 0 · TODO 0 · 已转换 0/0"
+    return (
+        f"错误 {report.error_count} · 警告 {report.warning_count} · "
+        f"TODO {report.todo_count} · 已转换 {report.converted_lines}/{report.total_lines}"
+    )
 
 
 @dataclass
@@ -599,6 +613,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         saved = 0
         errors: list[str] = []
+        total_errors = 0
         total_warnings = 0
         total_todos = 0
         for index, entry in enumerate(self.files, start=1):
@@ -612,6 +627,7 @@ class MainWindow(QMainWindow):
                     entry.output_path = output_path_for(entry.path, self.settings)
                     result = entry_to_result(entry, self.settings)
                     write_output(result, self.settings)
+                    total_errors += report.error_count
                     total_warnings += report.warning_count
                     total_todos += report.todo_count
                     if result.error:
@@ -632,6 +648,7 @@ class MainWindow(QMainWindow):
             f"共处理文件: {len(self.files)}",
             f"成功写出: {saved}",
             f"失败: {len(errors)}",
+            f"错误总数: {total_errors}",
             f"警告总数: {total_warnings}",
             f"无法自动转换（TODO）总数: {total_todos}",
         ]
@@ -659,10 +676,13 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "转换并运行", "转换结果为空，无法执行。")
             return
         if needs_todo_confirmation(entry.report):
-            body = "\n".join(todo_display_lines(entry.report))
+            body = "\n".join(
+                error_display_lines(entry.report) + todo_display_lines(entry.report)
+            )
+            manual_count = entry.report.error_count + entry.report.todo_count
             todo_dialog = RunConfirmDialog(
                 "存在无法自动转换的语句",
-                f"以下 {entry.report.todo_count} 处需要人工检查，执行结果可能不正确：",
+                f"以下 {manual_count} 处需要人工检查，执行结果可能不正确：",
                 body,
                 "仍要执行",
                 self,
@@ -813,12 +833,19 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "转换报告", "尚无转换报告，请先转换文件。")
             return
         blocks = report_blocks(entry.report)
-        if entry.report.todo_count == 0:
+        if entry.report.error_count or entry.report.todo_count:
             blocks.append(("", "normal"))
-            blocks.append(("所有语句均已自动转换。", "normal"))
+            if entry.report.error_count:
+                blocks.append(
+                    ("提示：“错误”表示生成脚本存在必须人工处理的问题。", "error")
+                )
+            if entry.report.todo_count:
+                blocks.append(
+                    ("提示：输出脚本中以 # TODO 开头的行需要人工确认。", "normal")
+                )
         else:
             blocks.append(("", "normal"))
-            blocks.append(("提示：输出脚本中以 # TODO 开头的行需要人工确认。", "normal"))
+            blocks.append(("所有语句均已自动转换。", "normal"))
         ReportDialog(f"转换报告 - {entry.path.name}", blocks, self.dark, self).exec()
 
     def open_settings(self) -> None:
@@ -865,13 +892,7 @@ class MainWindow(QMainWindow):
             event.acceptProposedAction()
 
     def _update_counts(self, report: ConvertReport | None) -> None:
-        if report is None:
-            self.counts_label.setText("警告 0 · 错误 0 · 已转换 0/0")
-            return
-        self.counts_label.setText(
-            f"警告 {report.warning_count} · 错误 {report.todo_count} · "
-            f"已转换 {report.converted_lines}/{report.total_lines}"
-        )
+        self.counts_label.setText(counts_text(report))
 
     def _update_actions(self) -> None:
         has_current = self.current is not None

@@ -21,6 +21,9 @@ def test_label_in_if_block_does_not_break_structure(convert_bat, bash_check):
     bash_check(out)
     assert "label_SKIP" not in out
     assert "位于控制块内" in out
+    assert report.error_count == 1
+    # 同脚本内 goto :SKIP 跨函数跳转仍单独记为 TODO
+    assert report.todo_count == 1
     assert not any("多余" in d.message for d in report.warnings)
     assert not any("未正常闭合" in d.message for d in report.warnings)
 

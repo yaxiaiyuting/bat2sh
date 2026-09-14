@@ -22,14 +22,16 @@ def test_broken_output_is_degraded(monkeypatch, bash_check):
     assert "原脚本内容（保留为注释，供人工转换）:" in out
     assert "# echo hi" in out
     bash_check(out)
-    assert converter.report.todo_count == 1
-    assert any("bash -n" in d.message for d in converter.report.warnings)
+    assert converter.report.error_count == 1
+    assert converter.report.todo_count == 0
+    assert any("bash -n" in d.message for d in converter.report.errors)
 
 
 def test_valid_output_not_degraded(convert_bat):
     out, report = convert_bat("@echo off\necho hi\n")
     assert "未通过 bash -n" not in out
     assert report.todo_count == 0
+    assert report.error_count == 0
 
 
 def test_no_bash_check_skips_validation(monkeypatch):

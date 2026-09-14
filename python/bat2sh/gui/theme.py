@@ -106,6 +106,7 @@ def apply_theme(app: QApplication, mode: str) -> bool:
 def report_level_color(level: str, dark: bool) -> str | None:
     """报告行级别 → 前景色 hex；info/normal → None（使用默认前景色）。"""
     colors = {
+        "error": "#ff6b6b" if dark else "#c62828",
         "warning": "#ffb454" if dark else "#b26a00",
         "todo": "#8c9196" if dark else "#787d82",
     }

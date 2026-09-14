@@ -74,6 +74,7 @@ class ConvertReport:
     unchanged_lines: int = 0
     warnings: list[Diagnostic] = field(default_factory=list)
     todos: list[Diagnostic] = field(default_factory=list)
+    errors: list[Diagnostic] = field(default_factory=list)
 
     @property
     def warning_count(self) -> int:
@@ -85,7 +86,7 @@ class ConvertReport:
 
     @property
     def error_count(self) -> int:
-        return len(self.todos)
+        return len(self.errors)
 
     @staticmethod
     def _diagnostic_dict(diagnostic: Diagnostic) -> dict:
@@ -105,8 +106,10 @@ class ConvertReport:
             "total_lines": self.total_lines,
             "converted_lines": self.converted_lines,
             "unchanged_lines": self.unchanged_lines,
+            "error_count": self.error_count,
             "warning_count": self.warning_count,
             "todo_count": self.todo_count,
+            "errors": [self._diagnostic_dict(d) for d in self.errors],
             "warnings": [self._diagnostic_dict(d) for d in self.warnings],
             "todos": [self._diagnostic_dict(d) for d in self.todos],
         }
@@ -122,10 +125,15 @@ class ConvertReport:
             f"总行数      : {self.total_lines}",
             f"已转换行数  : {self.converted_lines}",
             f"保持不变行数: {self.unchanged_lines}",
+            f"错误数量    : {self.error_count}",
             f"警告数量    : {self.warning_count}",
             f"无法自动转换: {self.todo_count}",
         ]
-        for title, diagnostics in (("警告", self.warnings), ("需要人工检查", self.todos)):
+        for title, diagnostics in (
+            ("错误", self.errors),
+            ("警告", self.warnings),
+            ("需要人工检查", self.todos),
+        ):
             if not diagnostics:
                 continue
             lines.append("")
@@ -153,9 +161,9 @@ class ConvertReport:
 
 
 def report_blocks(report: ConvertReport) -> list[tuple[str, str]]:
-    """把报告拆成 (text, level) 行块，level ∈ {"info", "warning", "todo", "normal"}。
+    """把报告拆成 (text, level) 行块，level ∈ {"info", "error", "warning", "todo", "normal"}。
 
-    独立生成 to_text() 的行结构（由测试守护两者一致），供 GUI 按级别着色。
+    独立生成 to_text() 的行结构（由测试守护两者一致），供 GUI/CLI 按级别着色。
     """
     blocks: list[tuple[str, str]] = [
         (f"源文件      : {report.source}", "info"),
@@ -164,10 +172,12 @@ def report_blocks(report: ConvertReport) -> list[tuple[str, str]]:
         (f"总行数      : {report.total_lines}", "info"),
         (f"已转换行数  : {report.converted_lines}", "info"),
         (f"保持不变行数: {report.unchanged_lines}", "info"),
+        (f"错误数量    : {report.error_count}", "info"),
         (f"警告数量    : {report.warning_count}", "info"),
         (f"无法自动转换: {report.todo_count}", "info"),
     ]
     for title, diagnostics, level in (
+        ("错误", report.errors, "error"),
         ("警告", report.warnings, "warning"),
         ("需要人工检查", report.todos, "todo"),
     ):

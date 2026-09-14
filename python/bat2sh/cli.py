@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,11 +20,53 @@ from .core.engine import (
     output_path_for,
 )
 from .core.settings import ConvertSettings
-from .core.types import ConvertReport, SourceKind
+from .core.types import ConvertReport, SourceKind, report_blocks
 
 RUN_EXIT_TODO = 4
 RUN_EXIT_FAILED = 5
 DEFAULT_RUN_TIMEOUT = 30.0
+
+_ANSI_COLORS = {
+    "error": "\x1b[31m",
+    "warning": "\x1b[33m",
+    "todo": "\x1b[90m",
+    "ok": "\x1b[32m",
+}
+_ANSI_RESET = "\x1b[0m"
+
+
+def color_enabled(stream) -> bool:
+    """终端支持色时启用：NO_COLOR（非空）优先关闭，FORCE_COLOR 强制开启（重定向/测试用），
+    其余情况要求 TTY 且 TERM != dumb。"""
+    env = os.environ
+    if env.get("NO_COLOR"):
+        return False
+    if env.get("TERM", "") == "dumb":
+        return False
+    force = env.get("FORCE_COLOR", "")
+    if force.lower() in ("0", "false"):
+        return False
+    if force:
+        return True
+    try:
+        return bool(stream.isatty())
+    except (AttributeError, ValueError):
+        return False
+
+
+def _paint(text: str, level: str) -> str:
+    """按级别着色；level 无对应颜色或空行时原样返回。"""
+    color = _ANSI_COLORS.get(level)
+    if not text or color is None:
+        return text
+    return f"{color}{text}{_ANSI_RESET}"
+
+
+def render_report_text(report: ConvertReport, color: bool) -> str:
+    """渲染报告文本；color=True 时按错误红/警告黄/TODO 灰着色（与 GUI 共用 report_blocks）。"""
+    blocks = report_blocks(report)
+    lines = [_paint(text, level) if color else text for text, level in blocks]
+    return "\n".join(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -70,11 +113,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="以 JSON 格式打印转换报告（与 --report 互斥）",
     )
-    parser.add_argument("--fail-on-todo", action="store_true", help="存在 TODO 时返回退出码 3")
+    parser.add_argument("--fail-on-todo", action="store_true", help="存在 TODO 或错误时返回退出码 3")
     parser.add_argument(
         "--run",
         action="store_true",
-        help="转换后执行生成的脚本（不写文件；含 TODO 时默认拒绝，退出码 4）",
+        help="转换后执行生成的脚本（不写文件；含 TODO/错误时默认拒绝，退出码 4）",
     )
     parser.add_argument("--force", action="store_true", help="跳过 TODO 防护与执行确认")
     parser.add_argument(
@@ -115,7 +158,8 @@ def settings_from_args(args: argparse.Namespace) -> ConvertSettings:
 
 def _emit_report(convert_report: ConvertReport, args: argparse.Namespace) -> None:
     if args.report:
-        sys.stderr.write(convert_report.to_text() + "\n")
+        text = render_report_text(convert_report, color_enabled(sys.stderr))
+        sys.stderr.write(text + "\n")
     elif args.report_json:
         payload = convert_report.to_json() + "\n"
         # --print 时 stdout 属于脚本本身，JSON 报告只能走 stderr
@@ -158,7 +202,7 @@ def _print_only(
             sys.stderr,
         )
     _emit_report(convert_report, args)
-    return 3 if convert_report.todo_count else 0
+    return 3 if (convert_report.todo_count or convert_report.error_count) else 0
 
 
 def run_one(
@@ -202,13 +246,23 @@ def run_one(
             print(f"[dry-run] 将写出: {out_path}{suffix}", file=sys.stderr)
     elif not args.quiet:
         status = "已写出" if result.written else "未写出"
-        print(
+        report = result.report
+        if report.error_count:
+            level = "error"
+        elif report.warning_count or report.todo_count:
+            level = "warning"
+        else:
+            level = "ok"
+        status_line = (
             f"[{status}] {result.source_path} -> {result.output_path}"
-            f" | 转换 {result.report.converted_lines} 行"
-            f" | 警告 {result.report.warning_count}"
-            f" | TODO {result.report.todo_count}",
-            file=sys.stderr,
+            f" | 转换 {report.converted_lines} 行"
+            f" | 错误 {report.error_count}"
+            f" | 警告 {report.warning_count}"
+            f" | TODO {report.todo_count}"
         )
+        if color_enabled(sys.stderr):
+            status_line = _paint(status_line, level)
+        sys.stderr.write(status_line + "\n")
     if args.diff:
         try:
             decoded = decode_bytes(path.read_bytes(), encoding)
@@ -223,7 +277,7 @@ def run_one(
                 sys.stdout,
             )
     _emit_report(result.report, args)
-    return (3 if result.report.todo_count else 0), result
+    return (3 if (result.report.todo_count or result.report.error_count) else 0), result
 
 
 def _confirm(prompt: str) -> bool:
@@ -238,10 +292,11 @@ def _confirm(prompt: str) -> bool:
 
 def _emit_run_todos(convert_report: ConvertReport) -> None:
     sys.stderr.write(
-        f"bat2sh: 转换结果包含 {convert_report.todo_count} 处无法自动转换（TODO），已拒绝执行。\n"
+        f"bat2sh: 转换结果包含 {convert_report.error_count} 处错误、"
+        f"{convert_report.todo_count} 处无法自动转换（TODO），已拒绝执行。\n"
     )
     sys.stderr.write("bat2sh: 请人工检查以下位置，或使用 --force 强制执行：\n")
-    for diagnostic in convert_report.todos:
+    for diagnostic in (*convert_report.errors, *convert_report.todos):
         sys.stderr.write("  " + diagnostic.format() + "\n")
 
 
@@ -292,7 +347,7 @@ def _run_flow(path: Path, settings: ConvertSettings, args: argparse.Namespace) -
     text, convert_report = convert_text(decoded.text, kind, settings, path.name)
     convert_report.encoding = decoded.encoding
 
-    if convert_report.todo_count and not args.force:
+    if (convert_report.todo_count or convert_report.error_count) and not args.force:
         _emit_run_todos(convert_report)
         return RUN_EXIT_TODO
 
@@ -341,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"bat2sh: 文件不存在: {path}", file=sys.stderr)
             return 2
         return _run_flow(path, settings, args)
-    todo_total = 0
+    blocking_total = 0
     has_error = False
     for raw_path in args.inputs:
         path = Path(raw_path)
@@ -353,12 +408,12 @@ def main(argv: list[str] | None = None) -> int:
         if code == 2:
             has_error = True
         if result is not None:
-            todo_total += result.report.todo_count
+            blocking_total += result.report.todo_count + result.report.error_count
         elif code == 3:
-            todo_total += 1
+            blocking_total += 1
     if has_error:
         return 2
-    if args.fail_on_todo and todo_total:
+    if args.fail_on_todo and blocking_total:
         return 3
     return 0
 

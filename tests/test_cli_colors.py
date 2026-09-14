@@ -1,0 +1,191 @@
+"""CLI 三色输出回归测试：颜色启用条件 / NO_COLOR / JSON 纯净 / 错误退出码。"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_PYTHON = Path(__file__).resolve().parents[1] / "python"
+
+ERROR_BAT = "@echo off\nif 1==1 (\n:SKIP\necho done\n)\n"
+WARNING_BAT = "@echo off\nipconfig\n"
+CLEAN_BAT = "@echo off\necho hello\n"
+
+RED = "\x1b[31m"
+YELLOW = "\x1b[33m"
+GREEN = "\x1b[32m"
+RESET = "\x1b[0m"
+
+
+def run_cli(
+    *args: str, env_extra: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in ("NO_COLOR", "FORCE_COLOR", "TERM")
+    }
+    env["PYTHONPATH"] = str(REPO_PYTHON)
+    env["TERM"] = "xterm-256color"
+    if env_extra:
+        env.update(env_extra)
+    return subprocess.run(
+        [sys.executable, "-m", "bat2sh", "--cli", *args],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def make_bat(tmp_path: Path, text: str) -> Path:
+    path = tmp_path / "demo.bat"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+# ----------------------------------------------------------------------
+# 颜色启用条件
+# ----------------------------------------------------------------------
+def test_color_enabled_respects_no_color_and_force_color(monkeypatch):
+    from bat2sh import cli
+
+    class _FakeTty:
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    assert cli.color_enabled(_FakeTty()) is True
+
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert cli.color_enabled(_FakeTty()) is False
+
+    monkeypatch.delenv("NO_COLOR")
+    monkeypatch.setenv("TERM", "dumb")
+    assert cli.color_enabled(_FakeTty()) is False
+
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setenv("FORCE_COLOR", "0")
+    assert cli.color_enabled(_FakeTty()) is False
+
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    assert cli.color_enabled(_FakeTty()) is True
+
+
+def test_render_report_text_plain_matches_to_text():
+    from bat2sh.cli import render_report_text
+    from bat2sh.core.types import ConvertReport, Diagnostic, SourceKind
+
+    report = ConvertReport(source="x.bat", kind=SourceKind.BATCH)
+    report.errors = [Diagnostic(1, "必须人工处理", category="syntax")]
+    report.warnings = [Diagnostic(2, "路径一", category="path")]
+    assert render_report_text(report, color=False) == report.to_text()
+
+
+# ----------------------------------------------------------------------
+# 三色渲染（FORCE_COLOR 强制开启，便于在管道中测试）
+# ----------------------------------------------------------------------
+def test_error_report_is_red_with_force_color(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(
+        str(path), "--report", "-o", str(tmp_path / "out.sh"), env_extra={"FORCE_COLOR": "1"}
+    )
+    assert proc.returncode == 0
+    assert "── 错误" in proc.stderr
+    assert RED in proc.stderr
+    assert RESET in proc.stderr
+
+
+def test_warning_report_is_yellow(tmp_path):
+    path = make_bat(tmp_path, WARNING_BAT)
+    proc = run_cli(
+        str(path), "--report", "-o", str(tmp_path / "out.sh"), env_extra={"FORCE_COLOR": "1"}
+    )
+    assert proc.returncode == 0
+    assert "── 警告" in proc.stderr
+    assert YELLOW in proc.stderr
+    assert RED not in proc.stderr
+
+
+def test_clean_status_line_is_green(tmp_path):
+    path = make_bat(tmp_path, CLEAN_BAT)
+    proc = run_cli(
+        str(path), "-o", str(tmp_path / "out.sh"), env_extra={"FORCE_COLOR": "1"}
+    )
+    assert proc.returncode == 0
+    assert GREEN in proc.stderr
+    assert RED not in proc.stderr
+    assert YELLOW not in proc.stderr
+
+
+def test_error_status_line_is_red(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(
+        str(path), "-o", str(tmp_path / "out.sh"), env_extra={"FORCE_COLOR": "1"}
+    )
+    assert proc.returncode == 0
+    assert RED in proc.stderr
+    assert "错误 1" in proc.stderr
+
+
+def test_no_color_disables_ansi_even_with_force_color(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(
+        str(path),
+        "--report",
+        "-o",
+        str(tmp_path / "out.sh"),
+        env_extra={"FORCE_COLOR": "1", "NO_COLOR": "1"},
+    )
+    assert proc.returncode == 0
+    assert "\x1b[" not in proc.stderr
+    assert "\x1b[" not in proc.stdout
+
+
+def test_pipe_without_force_color_has_no_ansi(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(str(path), "--report", "-o", str(tmp_path / "out.sh"))
+    assert proc.returncode == 0
+    assert "\x1b[" not in proc.stderr
+
+
+# ----------------------------------------------------------------------
+# JSON 纯净与错误字段
+# ----------------------------------------------------------------------
+def test_report_json_includes_errors_and_stays_pure(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(str(path), "--report-json", "-o", str(tmp_path / "out.sh"))
+    assert proc.returncode == 0
+    assert proc.stdout.startswith("{")
+    assert "\x1b[" not in proc.stdout
+    data = json.loads(proc.stdout)
+    assert data["error_count"] == 1
+    assert data["errors"][0]["category"] == "control_flow"
+    assert data["errors"][0]["message"]
+
+
+# ----------------------------------------------------------------------
+# 错误并入阻断逻辑
+# ----------------------------------------------------------------------
+def test_fail_on_todo_counts_errors(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(str(path), "--fail-on-todo", "-o", str(tmp_path / "out.sh"))
+    assert proc.returncode == 3
+
+
+def test_print_mode_with_fail_on_todo_counts_errors(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(str(path), "--print", "--fail-on-todo")
+    assert proc.returncode == 3
+    assert proc.stdout.startswith("#!/usr/bin/env bash")
+
+
+def test_run_refuses_errors(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(str(path), "--run", "--yes")
+    assert proc.returncode == 4
+    assert "已拒绝执行" in proc.stderr

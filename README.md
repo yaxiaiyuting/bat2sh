@@ -5,7 +5,9 @@
 在 Wayland（KWin）下原生运行；核心转换引擎只依赖 Python 标准库。
 
 > 转换是"尽力而为"的静态翻译：能自动转换的语句会直接翻译，无法等价转换的语句会
-> 插入 `# TODO: 手动检查: <原命令>` 注释并在预览中红色高亮。**生成脚本务必人工复核。**
+> 插入 `# TODO: 手动检查: <原命令>` 注释并在预览中红色高亮。报告分
+> **错误（红）/ 警告（黄）/ 无法自动转换（TODO，灰）** 三层；错误表示生成脚本可能
+> 无法正确执行，务必优先处理。**生成脚本务必人工复核。**
 
 ---
 
@@ -14,11 +16,11 @@
 - 三栏主界面：文件列表（支持拖拽）｜源文件预览（语法高亮、只读）｜转换结果（语法高亮、可编辑）
 - 自动识别 `.bat`/`.cmd`（批处理）与 `.ps1`（PowerShell）
 - 顶部工具栏：打开文件、打开文件夹、转换、保存、批量转换、预览差异、转换报告、主题、设置、关于
-- 底部状态栏：转换进度、警告数、错误数、已转换行数
+- 底部状态栏：转换进度、错误数、警告数、TODO 数、已转换行数
 - 深色/浅色主题切换，默认跟随系统（KDE 下可用系统配色）
 - 编码自动检测：UTF-8 BOM → UTF-8 → GBK → GB18030 → Latin-1，可手动覆盖
 - 输出统一 UTF-8（无 BOM）、LF 行尾，可自动 `chmod +x`
-- 转换报告：已转换行数、保持不变行数、警告、无法自动转换（TODO）清单
+- 转换报告：已转换行数、保持不变行数、错误、警告、无法自动转换（TODO）清单（错误红/警告黄高亮）
 - 差异预览：`difflib` 生成源文件与转换结果的对照表
 - 命令行模式：`bat2sh --cli input.bat -o output.sh`，适合脚本/CI 调用
 - 规则集中定义在 `core/rules.py`，扩展翻译规则只需改表或加 `cmd_*` 方法
@@ -186,9 +188,9 @@ bat2sh --cli a.bat b.ps1 --outdir build/   # 多文件到指定目录
 bat2sh --cli a.bat --print                 # 只打印到 stdout，不写文件
 bat2sh --cli a.bat --diff                  # 打印源文件与结果的 unified diff
 bat2sh --cli a.bat --dry-run               # 只显示将写出的文件，不落盘
-bat2sh --cli a.bat --report --fail-on-todo # CI: 有 TODO 时退出码 3
+bat2sh --cli a.bat --report --fail-on-todo # CI: 有错误/TODO 时退出码 3
 bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出到 stdout（--print 时走 stderr）
-bat2sh --cli a.bat --run --yes             # 转换后执行（含 TODO 时拒绝，退出码 4）
+bat2sh --cli a.bat --run --yes             # 转换后执行（含错误/TODO 时拒绝，退出码 4）
 bat2sh --cli a.bat --run --force           # 强制执行（跳过 TODO 防护与确认）
 ```
 
@@ -210,17 +212,19 @@ bat2sh --cli a.bat --run --force           # 强制执行（跳过 TODO 防护�
 | `--dry-run` | 只显示将写出的文件，不实际写盘、不改权限 |
 | `--report` | 打印转换报告（纯文本，stderr） |
 | `--report-json` | 以 JSON 格式打印转换报告（普通模式 stdout，`--print` 时 stderr；与 `--report` 互斥） |
-| `--fail-on-todo` | 存在 TODO 时返回 3 |
-| `--run` | 转换后立即执行（不写文件；含 TODO 时拒绝，退出码 4；仅单文件） |
+| `--fail-on-todo` | 存在 TODO 或错误时返回 3 |
+| `--run` | 转换后立即执行（不写文件；含错误/TODO 时拒绝，退出码 4；仅单文件） |
 | `--force` | 跳过 TODO 防护与执行确认（谨慎使用） |
 | `--yes` | 跳过执行确认（非交互环境必需；仍受 TODO 防护） |
 | `--run-timeout N` | 执行超时秒数（默认 30；超时退出码 5） |
 | `--run-cwd DIR` | 执行工作目录（默认脚本所在目录） |
 | `-q, --quiet` | 静默 |
 
-退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在 TODO；
-`4` 使用 `--run` 且存在 TODO（未加 `--force`）；`5` 执行超时或无法启动 bash。
+退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在错误或 TODO；
+`4` 使用 `--run` 且存在错误或 TODO（未加 `--force`）；`5` 执行超时或无法启动 bash。
 `--diff` 与 `--report-json` 在普通文件模式下输出到 stdout（便于管道解析）、`--print` 模式下走 stderr；`--report` 纯文本报告与状态行（`[已写出]`/`[dry-run]`）始终走 stderr。
+支持颜色的终端下，状态行与 `--report` 按 错误红 / 警告黄 / 成功绿 着色（TODO 灰）；
+`NO_COLOR=1` 关闭着色，`FORCE_COLOR=1` 可在管道中强制开启。
 `--print` 与 `--dry-run` 同时给出时，`--print` 优先，`--dry-run` 被忽略。
 
 ### 4.3 设置项
@@ -498,12 +502,15 @@ echo "清理完成"
 
 ## 8. 无法完美转换、需要人工干预的特性
 
-> 下列内容会生成警告或 `# TODO`。请在保存前逐条核对转换报告。
+> 下列内容会生成错误、警告或 `# TODO`。报告分三层：**错误**（生成脚本可能无法执行，
+> 如 `bash -n` 语法校验失败、标签位于控制块内等危险写法）、**警告**（可能语义偏差）、
+> **无法自动转换（TODO）**（需人工改写）。请在保存前逐条核对转换报告。
 
 ### 8.1 批处理
 
 1. **`goto`/标签控制流**：仅 `call :label` 子程序会被重构为函数。普通 `goto` 跳转、
-   循环式 goto、跨标签 fall-through 无法等价转换 → `# TODO`。
+   循环式 goto、跨标签 fall-through 无法等价转换 → `# TODO`。位于控制块内的标签
+   （危险写法）记为**错误**（红）：bat 允许跳入块内，bash 无法表达该结构。
 2. **`for /f`、`for /r`**：**支持**并转换为 `while read`：
    - 选项：`tokens=*` / `tokens=N` / `tokens=1,2` / `tokens=1-3` / `tokens=1*`、
      `delims=X`（未指定时按空白拆词，tokens 默认 1）、`skip=N`（命令侧为
@@ -627,7 +634,8 @@ echo "清理完成"
 ### 8.3 通用
 
 - 转换不做数据流/类型分析，**不保证行为等价**；请把生成的 `.sh` 当"高级草稿"。
-- `# TODO` 行与菜单"转换报告"是人工复核清单；`--fail-on-todo` 可用于 CI 卡点。
+- `# TODO` 行与菜单"转换报告"（错误红/警告黄/TODO 灰）是人工复核清单；
+  `--fail-on-todo`（存在错误或 TODO 时退出码 3）可用于 CI 卡点。
 - 复杂脚本建议先分段转换、逐段验证，再合并。
 
 ### 8.4 有意不做自动映射的命令（设计决策）
