@@ -949,6 +949,8 @@ class PowerShellConverter:
         if not groups:
             return None
         rest = stripped[i:].strip()
+        if rest.startswith("::"):
+            return None
         names: list[str] = []
         for group in groups:
             name_match = re.match(r"^([A-Za-z_][\w.\[\]]*)", group)
@@ -964,7 +966,7 @@ class PowerShellConverter:
             if not rest:
                 return []
             return [self._c(self._todo(lineno, stripped, "语句级属性后的内容无法可靠转换", category="misc"))]
-        if rest and not rest.startswith("::"):
+        if rest:
             return [self._c(self._todo(lineno, stripped, f"类型注解 [{names[-1]}] 不在支持列表，未转换", category="objects"))]
         return None
 
@@ -1678,7 +1680,7 @@ class PowerShellConverter:
         if low == "$false":
             return [self._c(f"{name}=false")]
 
-        if re.match(r"(?i)^(Get-Date|Join-Path|Split-Path|Resolve-Path|Test-Path|Get-Content|Get-Item|Get-Process|Get-ChildItem)\b", rhs):
+        if re.match(r"(?i)^(Get-Date|Join-Path|Split-Path|Resolve-Path|Test-Path|Test-Connection|Get-Content|Get-Item|Get-Process|Get-ChildItem)\b", rhs):
             if re.match(r"(?i)^Test-Path\b", rhs):
                 test = self._replace_test_path(rhs)
                 return [self._c(f"{name}=$({test} && echo true || echo false)")]
@@ -1687,6 +1689,8 @@ class PowerShellConverter:
             if converted is None:
                 return [self._c(self._todo(lineno, original, "cmdlet 结果无法自动赋值", category="objects"))]
             converted = converted.strip()
+            if re.match(r"(?i)^Test-Connection\b", rhs) and re.search(r"(?i)-quiet\b", rhs):
+                return [self._c(f"{name}=$({converted} && echo true || echo false)")]
             if converted.startswith(("$(", '"', "'", "${", "$@")):
                 return [self._c(f"{name}={converted}")]
             return [self._c(f"{name}=$({converted})")]

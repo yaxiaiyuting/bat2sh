@@ -1006,3 +1006,26 @@ def test_testconnection_missing_host_todo(convert_ps, bash_check):
     out, report = convert_ps("Test-Connection -Count 1\n")
     assert report.todo_count >= 1
     bash_check(out)
+
+
+def test_primitive_type_static_call_still_objects_todo(convert_ps, bash_check):
+    out, report = convert_ps("[string]::IsNullOrWhiteSpace($name)\n")
+    assert any(".NET" in d.message and d.category == "objects" for d in report.todos)
+    bash_check(out)
+
+
+def test_assignment_testconnection_quiet_bool(convert_ps, bash_check):
+    out, _ = convert_ps(
+        "$pingResult = Test-Connection -ComputerName $C -Count 1 "
+        "-Quiet -ErrorAction SilentlyContinue\n"
+    )
+    assert (
+        'pingResult=$(ping -c 1 "${C}" 2>/dev/null && echo true || echo false)' in out
+    )
+    bash_check(out)
+
+
+def test_assignment_testconnection_output_capture(convert_ps, bash_check):
+    out, _ = convert_ps("$r = Test-Connection -ComputerName $C -Count 2\n")
+    assert 'r=$(ping -c 2 "${C}")' in out
+    bash_check(out)
