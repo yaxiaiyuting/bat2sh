@@ -351,6 +351,7 @@ class BatchConverter:
         self._stack: list[_Block] = []
         self._loop_vars: list[str] = []
         self._labels: set[str] = set()
+        self._functions: set[str] = set()
         self._call_targets: set[str] = set()
         self._goto_targets: set[str] = set()
         self._goto_dead_lines: dict[int, str] = {}
@@ -373,6 +374,25 @@ class BatchConverter:
         logical = self._logical_lines(text)
         self.report.total_lines = len(logical)
         self._prescan(logical)
+        # 两遍处理：先探测哪些 call 目标真正被函数化（前向调用需要先验结论），再正式转换
+        if self._call_targets:
+            probe = BatchConverter(self.settings, self.source_name)
+            probe._prescan(logical)
+            probe._convert_logical(logical)
+            self._functions = probe._functions
+        self._convert_logical(logical)
+        self._finish()
+        output = self._compose()
+        output = self._ensure_block_bodies(output)
+        output = self._guard_unset_variable_refs(output)
+        if self.settings.bash_check:
+            syntax_error = self._bash_syntax_error(output)
+            if syntax_error is not None:
+                self._degrade_syntax(syntax_error)
+                return self._degraded_script(text, syntax_error)
+        return output
+
+    def _convert_logical(self, logical: list[tuple[int, str]]) -> None:
         for start, line in logical:
             produced = self._convert_line(start, line)
             produced = [_restore_placeholders(item) for item in produced]
@@ -408,16 +428,6 @@ class BatchConverter:
                 self.report.converted_lines += 1
             else:
                 self.report.unchanged_lines += 1
-        self._finish()
-        output = self._compose()
-        output = self._ensure_block_bodies(output)
-        output = self._guard_unset_variable_refs(output)
-        if self.settings.bash_check:
-            syntax_error = self._bash_syntax_error(output)
-            if syntax_error is not None:
-                self._degrade_syntax(syntax_error)
-                return self._degraded_script(text, syntax_error)
-        return output
 
     def _bash_syntax_error(self, script: str) -> str | None:
         bash = shutil.which("bash")
@@ -1168,6 +1178,7 @@ class BatchConverter:
             out.append("}")
             out.append("")
         func = "label_" + sanitize_identifier(name)
+        self._functions.add(func)
         self._current_func = func
         out.append(f"{func}() {{")
         return out
@@ -1220,13 +1231,18 @@ class BatchConverter:
             func = "label_" + sanitize_identifier(name)
             args = self._expand_vars(convert_backslashes(m.group(2).strip()), lineno)
             call_expr = (func + " " + args).strip()
-            if name.lower() not in self._labels:
-                return [
-                    self._c(
-                        f"if declare -F {func} >/dev/null 2>&1; then {call_expr}; fi"
-                    )
-                ]
-            return [self._c(call_expr)]
+            guard = f"if declare -F {func} >/dev/null 2>&1; then {call_expr}; fi"
+            if name.lower() in self._labels and func in self._functions:
+                return [self._c(call_expr)]
+            if name.lower() in self._labels:
+                self._warn(
+                    lineno,
+                    f"call 目标 :{name} 在源脚本中有定义但未生成函数"
+                    "（位于控制块内或转换失败），已生成运行时存在性检查",
+                    text,
+                    category="control_flow",
+                )
+            return [self._c(guard)]
         m = re.match(r"(?i)^call\s+(.+)$", text)
         if not m:
             return []
