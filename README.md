@@ -321,17 +321,18 @@ bat2sh --cli deploy.bat --fix-todos        # 在交互终端逐条确认
 
 | 源语法 | 转换结果 |
 | --- | --- |
-| `rem x` / `:: x` | `# x` |
+| `rem x` / `:: x` / `REM.-- x` | `# x`（`rem` 后跟标点也算注释；`remfoo` 不算） |
 | `%VAR%`、`%1`、`%*`、`%~dp0`、`%~nx0`、`%~f1` | `${VAR}`、`$1`、`"$@"`、`${SCRIPT_DIR}/`、`$(basename "$0")`、`$(readlink -f "$1")` |
 | `set VAR=value` | `VAR="value"`（去除尾随空格，自动加引号可配置） |
 | `set /p VAR=提示` | `read -rp "提示" VAR` |
+| `<nul set /p=文本`（无变量名） | `printf '%s' "文本"`（无换行打印惯用法）；非 nul 形式 → TODO |
 | `set /a x=1+2`、`set /a x+=1` | `x=$(( 1+2 ))`、`x=$(( x + (1) ))`，按位取反 `!`→`~` |
 | `echo text` / `echo.` | `echo "text"` / `echo` |
 | `pause` / `pause >nul` | `read -rp "Press Enter to continue..."` |
 | `cls` | `clear` |
-| `cd /d path` / `cd` | `cd "path"` / `pwd` |
-| `dir [/b] [/s] [path]` | `ls -la` / `ls -1` / `ls -laR` |
-| `copy` / `move` / `xcopy` / `robocopy` | `cp` / `mv` / `cp -r` / `rsync -a`（开关尽力映射，未知开关告警） |
+| `cd /d path` / `cd.` / `cd..` / `cd` | `cd "path"` / `cd "."` / `cd ".."` / `pwd` |
+| `dir [/b] [/s] [path]` | `ls -la` / `ls -1`（`/s` 时 `ls -1R`）/ `ls -laR`（`/a`、`/a-d` 等属性开关忽略并告警） |
+| `copy` / `move` / `xcopy` / `robocopy` | `cp` / `mv` / `cp -r` / `rsync -a`（`/MIR`→`--delete`；源/目标补尾斜杠以匹配“复制目录内容”语义；未知开关→TODO） |
 | `del` / `erase` / `rmdir /s` / `md` | `rm -f`（`/s`→`rm -rf`）/ `rm -rf` / `mkdir -p` |
 | `type file` | `cat file` |
 | `find "s" f` / `findstr /i "s" f` | `grep -F` / `grep`（/i、/v、/n、/c 等已映射） |
@@ -347,9 +348,9 @@ bat2sh --cli deploy.bat --fix-todos        # 在交互终端逐条确认
 | `for /f "tokens=*" %%i in ('cmd') do ...`（或无选项） | `while IFS= read -r i; do ...; done < <(cmd)`（选项已支持；`'CMD ^| FILTER'` 两段内管道直译；三段以上/含重定向仍 TODO） |
 | `for /l %%i in (1,1,10) do ...` | `for i in $(seq 1 1 10); do ...; done` |
 | `for /d %%d in (dir\*) do ...` | `for d in dir/*/; do ...; done` |
-| `call :label args` / `:label` | `label_<name> args` / `label_<name>() { ... }`（子程序重构为函数并前置定义） |
+| `call :label args` / `call:label args` / `:label` | `label_<name> args` / `label_<name>() { ... }`（子程序重构为函数并前置定义） |
 | `call other.bat args` | `bash "other.sh" args`（提示确认已转换） |
-| `goto :eof` | 函数内 `return 0`；顶层 `exit 0` |
+| `goto :eof` / `goto:eof` | 函数内 `return`；顶层 `exit 0`（`&` 串联中的 goto 同样处理） |
 | `exit /b N` / `exit N` | 函数内 `return N`；顶层 `exit N` |
 | `%~dp0` 路径分隔符 `\` | `/`（含 `"dir\"` 尾反斜杠、驱动器前缀告警） |
 | `>nul` / `2>&1` / `> file` | `>/dev/null` / 原样 / `>file`（顺序保持） |

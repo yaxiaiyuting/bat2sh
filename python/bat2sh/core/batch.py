@@ -120,6 +120,10 @@ _ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
 _DELAYED_ERRORLEVEL_RE = re.compile(r"!ERRORLEVEL!", re.I)
 _UNSUPPORTED_MODIFIER_RE = re.compile(r"%~([a-zA-Z$]+)([0-9*A-Za-z])")
 _DATE_TIME_VAR_RE = re.compile(r"(?<!%)%(?:DATE|TIME)%(?!%)", re.I)
+# robocopy 输出类开关（仅影响控制台/日志显示，不影响复制结果）：rsync -a 下无对应物，安全忽略
+_ROBOCOPY_IGNORED_FLAGS = frozenset(
+    {"/e", "/s", "/np", "/njh", "/njs", "/nfl", "/ndl", "/nc", "/ns", "/ndd", "/tee"}
+)
 _IF_COMPARE_RE = re.compile(
     r'^\s*("(?:[^"]*)"|\S+?)\s*(===|==|equ|neq|lss|leq|gtr|geq)\s*'
     r'("(?:[^"]*)"|\S+)(?:\s+(.*))?$',
@@ -2474,9 +2478,46 @@ class BatchConverter:
         return ("cp -r " + paths).strip()
 
     def cmd_robocopy(self, lineno: int, args: str, original: str) -> str:
-        self._warn(lineno, "robocopy 已转换为 rsync -a，请检查选项语义", original, category="command")
-        expanded = self._expand_vars(convert_backslashes(args), lineno)
-        return ("rsync -a " + expanded).strip()
+        tokens = tokenize_args(args)
+        flags = [t.lower() for t in tokens if t.startswith("/") and len(t) > 1]
+        paths = [t for t in tokens if not (t.startswith("/") and len(t) > 1)]
+        unknown = [f for f in flags if f != "/mir" and f not in _ROBOCOPY_IGNORED_FLAGS]
+        if unknown:
+            return self._todo(
+                lineno,
+                original,
+                f"robocopy 开关 {' '.join(unknown)} 在 rsync 无等价映射，请手工处理",
+                category="command",
+            )
+        if len(paths) != 2:
+            return self._todo(
+                lineno,
+                original,
+                "robocopy 仅支持 源 目标 两个路径（文件筛选形式无 rsync 等价），请手工处理",
+                category="command",
+            )
+        self._warn(
+            lineno,
+            "robocopy 已转换为 rsync -a（/MIR → --delete；输出类开关已忽略），请检查选项语义",
+            original,
+            category="command",
+        )
+        extra = "--delete " if "/mir" in flags else ""
+        converted = " ".join(self._robocopy_dir_token(p, lineno) for p in paths)
+        return f"rsync -a {extra}{converted}".strip()
+
+    def _robocopy_dir_token(self, token: str, lineno: int) -> str:
+        """robocopy 复制的是目录内容（目标不嵌套源目录）；rsync 需两边尾斜杠才等价。"""
+        converted = self._convert_path_token(token, lineno)
+        if "*" in converted or "?" in converted:
+            return converted
+        if converted.endswith("\\"):
+            return converted[:-1] + "/"
+        if converted.endswith("/"):
+            return converted
+        if len(converted) >= 2 and converted.endswith(converted[0]) and converted[0] in "'\"":
+            return converted[:-1] + "/" + converted[-1]
+        return converted + "/"
 
     def cmd_start(self, lineno: int, args: str, original: str) -> str | None:
         tokens = tokenize_args(args)
