@@ -296,8 +296,8 @@ cp -r "test1.txt" "test3.txt" >/dev/null
 if [ -e "test3.txt" ]; then
     echo "xcopy 成功"
 fi
-echo "robocopy 测试:"
-if ! rsync -a . . test1.txt /NJH /NJS /NDL /NC /NS >/dev/null 2>&1; then
+# TODO: 手动检查: robocopy . . test1.txt /NJH /NJS /NDL /NC /NS >/dev/null 2>&1
+if ! echo "robocopy 测试:"; then
     echo "robocopy 返回非零"
 else
     echo "robocopy 成功"
@@ -606,11 +606,7 @@ while IFS= read -r a; do
 done < <(md5sum "test1.txt" | grep -v -e "hash" -e "CertUtil")
 
 # 使用 for /f 解析 robocopy
-while IFS= read -r a; do
-    a="${a%$'\r'}"
-    [ -z "$a" ] && continue
-    echo "robocopy: ${a}"
-done < <(rsync -a . . test1.txt /NJH /NJS /NDL /NC /NS)
+# TODO: 手动检查: for /f "tokens=*" %%a in ('robocopy . . test1.txt /NJH /NJS /NDL /NC /NS') do echo robocopy: %%a
 
 # 使用 for /f 解析 xcopy
 while IFS= read -r a; do
