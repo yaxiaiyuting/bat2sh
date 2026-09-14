@@ -121,6 +121,151 @@
    - 届时再做第二轮挖掘，重点补全：多级过滤链上限、引号/转义在管道中的边界、`for /f` 内管道（当前整行 TODO）
    - 不建议在语料 <10 脚本时扩大 C 档（语义接近）的自动转换面
 
+## 7. 第二轮扩充诊断（2026-09-14 · AI 生成语料）
+
+> 新增语料：`~/下载/deepseek_bat_20260914_*.bat` ×10 + `deepseek_powershell_20260914_*.ps1` ×10（均为 AI 生成）。
+> 方法与第一轮对齐；统计脚本 `/tmp/opencode/pipeline_mine3.py`、`pipeline_probe.py`、`pipeline_handling.py`（只读，未入库）。
+> 转换行为实测基于 HEAD `b91df72`。**本节为追加，不覆盖第 1–6 节；对第一轮结论的修订见 7.7。**
+
+### 7.1 语料规模
+
+| 子集 | 文件 | 行数 | 管道实例 | 有管道的文件 |
+|---|---|---|---|---|
+| .bat 20260914（新） | 10 | 677 | 9（直接 5 + 命令上下文 4） | 3/10 |
+| .ps1 20260914（新） | 10 | 395 | 18（逻辑行） | 8/10 |
+
+- .bat 新语料是"语法演示片段"集合：`FOR /L`、字符串定义、日期格式化、ping 扫段、服务巡检、菜单工具等，10 个文件里 7 个零管道
+- .ps1 新语料同样是特性演示：哈希表遍历、动态命令、Here-String、目录树、重试包装、日志统计、系统报告（含后台作业）
+- 误报剔除示例：`echo Header: %%a ^| %%b ^| %%c`（735127）是转义竖线字面量，非管道（本轮脚本已正确排除）
+
+### 7.2 新旧对比（.bat / .ps1 分开统计）
+
+#### .bat — 直接行管道（第一轮同口径）
+
+| 指标 | 第一轮（旧） | 第二轮（新） | 合并 |
+|---|---|---|---|
+| 独立源文件 | 5 | 10 | 15 |
+| 管道行实例 | 36 | 5 | 41 |
+| **唯一形态数** | **20** | **5** | **25** |
+| 频次 ≥2 形态数 | 16 | 0 | 16 |
+| 真新 / 变体 / 重复（vs 原清单） | — | 2 / 3 / 0 | — |
+
+- 第一轮 16 条高频几乎全部来自 `stress_test` 与 `895203` 孪生重复；新语料**没有任何一条达到频次 2**（10 个文件彼此独立、无复用）
+
+#### .bat — 命令上下文管道（`for /f ('... ^| ...')`；第一轮未统计，本次补录）
+
+| 指标 | 旧语料（补算） | 新语料 | 合并 |
+|---|---|---|---|
+| 管道实例 | 24 | 4 | 28 |
+| **唯一形态数** | **13** | **4** | **17** |
+| 频次 ≥2 形态数 | 11（孪生重复） | 0 | 11 |
+| 真新 / 变体 / 重复 | — | 1 / 1 / 2 | — |
+
+- 第一轮口径遗漏了这一大类（第一轮脚本把单引号内命令整体剔除）。**补录后，命令上下文管道是与直接行同量级的需求面**，且目前 24+4 条**全部 TODO/被注释**，是当前最大单一缺口
+
+#### .ps1
+
+| 指标 | 第一轮 | 第二轮 | 合并 |
+|---|---|---|---|
+| 独立源文件 | 2 | 10 | 12 |
+| 管道逻辑行 | 1 | 18 | 19 |
+| **唯一形态数** | **1** | **16**（链级 15） | **17** |
+| 频次 ≥2 形态数 | 0 | 2（链级 3） | 2 |
+| 真新 | — | 16 | — |
+
+#### 总览（仅合计，不混表）
+
+- 同第一轮口径（bat 直接 + ps）：唯一形态 **21 → 42**
+- 含命令上下文补录：**34 → 59**（bat 25 + bat 上下文 17 + ps 17）
+- 新增 25 条模式中：**真新 19、重复 2、变体 4**；其中 **23/25 频次 = 1**
+- 频次 ≥2：bat 16 条全部来自第一轮（torture 孪生）；ps 2 条全部来自第二轮（跨文件复用）
+
+### 7.3 新增模式清单（原 21 条之外）
+
+#### .bat（9 条：直接 5 + 命令上下文 4）
+
+| # | 归一化模式（原样） | 来源 | 真新/重复/变体 | AI 味 | 现状（b91df72 实测） |
+|---|---|---|---|---|---|
+| 1 | `ipconfig /all \| findstr /i STR` | 6375a0:54 | 变体（#1） | 低 | 自动+警告；**多词 OR 语义错**（grep 按字面短语，永不匹配） |
+| 2 | `nslookup google.com 2>nul \| findstr /v STR` | 6375a0:60 | 真新 | 高 | TODO（管道+重定向） |
+| 3 | `systeminfo \| findstr /b /c:…×4` | 6375a0:73 | 变体（#9） | 中 | 自动+警告；**/b 被忽略、仅保留最后 1 个 /c:（丢 3 个模式）** |
+| 4 | `tasklist /fi STR 2>nul \| findstr /i STR >nul` | ad2b59:42 | 变体（#4） | 低 | TODO（含参考建议） |
+| 5 | `tasklist /fi STR /fo csv \| findstr /v STR` | ad2b59:45 | 真新（/fo csv） | 中 | 位于 TODO 的 if 块内，被注释 |
+| 6 | `sc query "%VAR%" ^\| findstr "STATE"`（for /f 内） | ad2b59:16 | 重复（旧上下文同类） | 低 | TODO 块内注释 |
+| 7 | `systeminfo ^\| findstr /b /c:"OS Name"`（for /f 内） | ad2b59:53 | 重复 | 中 | TODO |
+| 8 | `wmic … /value ^\| findstr "="`（for /f 内） | ad2b59:59 | 变体（旧 wmic Caption 同类） | 高 | TODO |
+| 9 | `ping … ^\| findstr "time="`（for /f 内） | a36f6f:23 | 真新 | 低（真实惯用法） | TODO 块内被注释 |
+
+#### .ps1（16 条唯一形态 · 行级归一化；链级 15）
+
+| # | 链（归一化） | 频次 | AI 味 | 现状（b91df72 实测） |
+|---|---|---|---|---|
+| 1 | `N..N \| ForEach-Object {` | 2 | 高（合成范围） | TODO |
+| 2 | `$VAR \| Format-Table -AutoSize` | 2 | 中高（装饰性显示） | TODO |
+| 3 | `$VAR \| ConvertTo-Json -Depth N \| Out-File STR` | 1 | 高（序列化演示） | TODO |
+| 4 | `$VAR = Get-Content -Raw \| ConvertFrom-Json` | 1 | 高（序列化演示） | **半自动：静默丢 ConvertFrom-Json（退化为 cat）** |
+| 5 | `$VAR \| Select-Object -First N \| ForEach-Object { Write-Host }` | 1 | 中 | TODO |
+| 6 | `Get-ChildItem \| Sort-Object {…}, Name` | 1 | 中 | TODO |
+| 7 | `Group-Object \| Select-Object \| Sort-Object` | 1 | 中（统计惯用） | **半自动坏行**（`levelStats="${…} \| Group-Object …"`） |
+| 8 | `$VAR \| ForEach-Object {`（含赋值形态 ×1） | 2 | 中 | TODO |
+| 9 | `$VAR \| Out-File STR` | 1 | 中 | 半自动（上游变量已是坏行） |
+| 10 | `Sort-Object \| Select-Object -First $VAR \| Format-Table` | 1 | 中 | TODO |
+| 11 | `@(STR…) \| Get-SystemReport … -Verbose` | 1 | 高（自定义函数演示） | TODO |
+| 12 | `Get-Process \| Where-Object \| Sort-Object \| Select-Object` | 1 | 中（真实惯用） | **半自动坏行**（`topProcesses=$(ps aux \|)` 语法错误） |
+| 13 | `$VAR \| Wait-Job -Timeout N \| Out-Null` | 1 | 高（作业演示） | TODO |
+| 14 | `Get-ChildItem \| Where-Object \| ForEach-Object` | 1 | 中（真实惯用） | TODO |
+| 15 | `$VAR \| Export-Csv -NoTypeInformation` | 1 | 中 | TODO |
+
+- .ps1 段级频次（剥离赋值前缀）：`ForEach-Object` 6、`Select-Object` 4、`Sort-Object` 4、`Format-Table` 3、`Out-File`/`Where-Object`/`Get-ChildItem` 各 2
+- 链签名频次 ≥2：`N..N \| ForEach-Object`、`$VAR \| ForEach-Object`、`$VAR \| Format-Table`（各 2）
+
+### 7.4 "AI 味"判据与标注
+
+**判据**（可用文件本身复核，不依赖单文件直觉）：
+
+1. **主题 = 语言特性演示**：注释标题即 `:: FOR /L - 数值范围循环`、`# Here-String 多行字符串`、`# 格式化运算符 -f`、`# 动态命令构建与调用`——脚本存在目的是"展示语法"，不是完成某任务
+2. **合成数据**：`1..10 \| ForEach-Object`、`1..3 \| ForEach-Object`、`@("Server01","Server02","Server03")`、固定阈值 `50MB`、玩具日志
+3. **教程式组合**：`nslookup google.com \| findstr /v "#"`（教材 DNS 检查范例）
+4. **装饰性输出**：`Format-Table -AutoSize` 单独成行、`===` 分隔线、全量 `-ForegroundColor`、`echo Header: %%a ^| %%b`（用转义竖线画表格）
+5. **模板脚手架**：菜单 `choice`+`goto` 循环、`Initialize→Process→Cleanup→Summary` 四段式、时间戳日志流水线
+
+**标注结果**：
+- **高 AI 味（不建议作为频次证据）**：.bat 清单 #2 nslookup、#8 wmic；PS `N..N\|ForEach-Object`、`ConvertTo-Json`/`ConvertFrom-Json` 往返、`Wait-Job\|Out-Null`、`@(Server01…) \| 自定义函数`；以及全部菜单/四段式脚手架
+- **真实惯用法（AI 从真实语料习得，可作"惯用法存在性"证据，但频次由第一轮为准）**：`ipconfig \| findstr`、`tasklist /fi \| findstr`、`ping \| findstr "time="`、`sc query \| findstr "STATE"`、PS `Get-ChildItem \| Where-Object \| ForEach-Object`、`Get-Process \| Where-Object \| Sort-Object \| Select-Object`、`Group-Object` 统计、`Export-Csv`
+- **勿混淆**："AI 语料高频" ≠ "真实脚本高频"：新语料中频次≥2 的仅 3 条链，且 bat 侧新模式的实例频次全部 = 1；AI 生成集中复现的是**教材级 idiom**，对"哪些模式值得入库"只能提供广度（缺口发现），不能提供权重
+
+### 7.5 转换行为实测：新发现（只读诊断）
+
+1. **P0 · PowerShell 路径没有 `bash -n` 后置校验**（`powershell.py` 全文 0 处 `bash_check`；守卫只存在于 `BatchConverter`）：
+   - 新 .ps1 语料 **9/10 个文件**转换产物 `bash -n` 失败，且 `error_count=0`、无降级、无告警——CLI/GUI 会照常写出坏脚本
+   - 失败样例：`topProcesses=$(ps aux |)`（语法错误）、`levelStats="${parsedEntries} | Group-Object -Property Level |"`（字面泄漏）、条件块结构错位
+2. **P0 · PS 管道"半自动"产出坏行而非诚实 TODO**：18 条管道逻辑行中，起始行被标 TODO 的 12 条、未标 6 条；对 6 条逐一复核：**3 条产出语法/语义坏的 bash**（`topProcesses=$(ps aux |)`、`levelStats="${parsedEntries} | Group-Object -Property Level |"`、`sanitized="${logLines} | ForEach-Object {"`）、**1 条静默丢段**（`Get-Content -Raw | ConvertFrom-Json` → `cat`）、2 条实为段行 TODO 或坏产物的后续行。即：**新语料中没有一条 PS 管道链被正确完整转换**
+3. **P1 · findstr 多词 OR 语义**：`findstr "A B C"` 在 cmd 是 OR 多模式，转换后成为单条 grep 字面短语、永不匹配。老语料 2 实例（中文+英文）+ 新语料 1 实例（`"IPv4 Subnet Gateway DNS"`）——全部处于"自动转换成功"状态，属最危险的"看起来对、实际错"象限
+4. **P1 · findstr `/b` + 多个 `/c:`**：新发现——`/b` 忽略告警，但多个 `/c:` 仅保留最后一个，**其余模式被静默丢弃**（6375a0:73 丢 3/4）
+5. **bat 侧防线有效**：新 .bat 10/10 产出通过 `bash -n`、无降级、无坏行（`_bash_syntax_error` 守卫 + TODO 纪律生效）；问题集中在 PS 路径
+
+### 7.6 覆盖率估算（新语料口径）
+
+| 子集 | 行数 | 干净自动 | 假自动（语义错） | TODO/注释 | 坏行 |
+|---|---|---|---|---|---|
+| .bat 管道 9 行 | 9 | 0 | 2（#1、#3） | 7 | 0 |
+| .ps1 管道 18 行 | 18 | 0 | 0 | 13（含段行标注 1） | 3 坏行 + 1 静默丢段 + 1 坏产物后续行 |
+
+- 修复 P0 后：.ps1 的 18 行应全部收敛为"安全输出或诚实 TODO"（坏行 3 + 丢段 1 清零），可靠性提升不体现在自动化率
+- 修复 P1 后：.bat 的 2 条"假自动"（多词 OR / 多 `/c:`）变为正确输出或诚实 TODO
+- 入库 P2（`for /f` 内两段管道直译）后：.bat 9 条中约 4 条可转为可自动类（`ping`/`sc query`/`systeminfo` 上游可迁移），`wmic`/`nslookup` 保持 TODO
+- 口径说明：新语料实例频次多为 1，**百分比覆盖率在本轮说服力弱于第一轮**（第一轮至少来自孪生 torture 的重复），建议以"缺口类型是否收敛"而非百分比评估
+
+### 7.7 结论（对第一轮结论的修订）
+
+1. **语料量：21 → 42（同口径）/ 34 → 59（含命令上下文补录），但仍不足以支撑按频次驱动的完整模式库**。新增量来自 AI 教程片段：主题分散、实例频次全为 1、bat 侧零跨文件复用。**AI 语料应定位为"鲁棒性探针 + 惯用法发现"，不能当真实频次证据**。
+2. **够做的是"定向修复 + 少量段级模板"**，建议排序：
+   - **P0（先于一切）**：PS 转换路径补 `bash -n` 后置校验/安全降级；将管道半转换（含坏行 3 类）一律降级为诚实 TODO。理由：本轮 9/10 文件触发，是"产出坏脚本"的底线问题，与模式库无关
+   - **P1**：findstr 正确性修复——多词 OR 语义（3 实例，全部"假自动"）+ 多 `/c:` 合并 + `/b` 处理。理由：属最危险象限且修复成本低
+   - **P2**：`for /f` 命令上下文内的两段管道直译（`'CMD ^| FILTER'` → 复用现有段级管道能力 + 进程替换）。理由：17 条唯一形态同构（命令|过滤），是当前最大单一缺口，且样板极窄
+3. **明确暂缓**：PS 管道链模板（`Format-Table`/`ForEach-Object` 脚本块/序列化链/`Wait-Job`）、`nslookup`、`wmic` 上游、bat 单例（`/fo csv` 等）——待 P0 落地 + 真实 PS 语料积累后再评估
+4. **语料目标不变**：真实脚本 ≥10 个独立源；本轮 AI 语料可作为回归 fixture（尤其"必须不产出坏行"的负样本）
+
 ---
 
-*统计脚本：`/tmp/pipeline_mine2.py`（只读，未入库）。行为对照基于当前 HEAD `c7c1c85` 的转换器实测。*
+*统计脚本：`/tmp/pipeline_mine2.py`（第一轮）与 `/tmp/opencode/pipeline_mine3.py`、`pipeline_probe.py`、`pipeline_handling.py`（第二轮）（均只读，未入库）。第一轮行为对照基于 HEAD `c7c1c85`；第二轮（第 7 节）基于 HEAD `b91df72`。*
