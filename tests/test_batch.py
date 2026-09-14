@@ -892,3 +892,55 @@ def test_bang_indirect_with_delayed_expansion(convert_bat):
 def test_literal_bang_text_no_todo(convert_bat):
     out, report = convert_bat('echo "Hello World"\necho done!\n')
     assert report.todo_count == 0
+
+
+# ----------------------------------------------------------------------
+# dir /b 通配（引号通配修复）
+# ----------------------------------------------------------------------
+def test_dir_b_glob_uses_compgen(convert_bat, bash_check):
+    out, _ = convert_bat("dir /b *.txt\n")
+    assert 'compgen -G "*.txt"' in out
+    bash_check(out)
+
+
+def test_for_f_dir_b_glob_uses_compgen(convert_bat, bash_check):
+    out, _ = convert_bat("for /f \"delims=\" %%i in ('dir /b *.txt') do echo %%i\n")
+    assert 'done < <(compgen -G "*.txt" || true)' in out
+    bash_check(out)
+
+
+def test_dir_b_glob_runtime_with_spaces(convert_bat, tmp_path, bash_run):
+    (tmp_path / "a.txt").write_text("x")
+    (tmp_path / "my file.txt").write_text("y")
+    (tmp_path / "b.md").write_text("z")
+    out, _ = convert_bat("dir /b *.txt\n")
+    proc = bash_run(f'cd "{tmp_path}"\n' + out)
+    assert proc.returncode == 0, proc.stderr
+    assert set(proc.stdout.splitlines()) == {"a.txt", "my file.txt"}
+
+
+def test_dir_b_glob_no_match_runtime(convert_bat, tmp_path, bash_run):
+    out, _ = convert_bat("dir /b *.nope\n")
+    proc = bash_run(f'cd "{tmp_path}"\n' + out)
+    assert proc.returncode == 0
+    assert proc.stdout == ""
+
+
+def test_del_glob_no_match_runtime_safe(convert_bat, tmp_path, bash_run):
+    out, _ = convert_bat("del /q *.tmp\n")
+    assert "rm -f *.tmp" in out
+    proc = bash_run(f'cd "{tmp_path}"\n' + out)
+    assert proc.returncode == 0
+
+
+def test_del_dir_plus_glob_quotes_dir_only(convert_bat, bash_check):
+    out, _ = convert_bat("del /q C:\\sub\\*.log\n")
+    assert 'rm -f "C:/sub"/*.log' in out
+    bash_check(out)
+
+
+def test_non_glob_paths_stay_quoted(convert_bat):
+    out, _ = convert_bat("dir /b sub\ncopy a.txt b.txt\ndel /q file.txt\n")
+    assert 'ls -1 "sub"' in out
+    assert '"a.txt"' in out and '"b.txt"' in out
+    assert 'rm -f "file.txt"' in out

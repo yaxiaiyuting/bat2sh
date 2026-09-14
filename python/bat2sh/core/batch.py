@@ -1661,7 +1661,13 @@ class BatchConverter:
 
     def _convert_path_token(self, token: str, lineno: int) -> str:
         inner, _ = strip_outer_quotes(token)
-        return dq(convert_backslashes(self._expand_vars(inner, lineno)))
+        converted = convert_backslashes(self._expand_vars(inner, lineno))
+        if "*" in converted or "?" in converted:
+            head, sep, tail = converted.rpartition("/")
+            if sep and "*" not in head and "?" not in head:
+                return f'"{head}"/{tail}'
+            return converted
+        return dq(converted)
 
     # ------------------------------------------------------------------
     # for
@@ -2297,6 +2303,12 @@ class BatchConverter:
         known = {"/b", "/s"}
         for flag in sorted(flags - known):
             self._warn(lineno, f"dir 开关 {flag} 已忽略", original, category="command")
+        if "/b" in flags and "/s" not in flags and len(paths) == 1:
+            pattern = convert_backslashes(
+                self._expand_vars(strip_outer_quotes(paths[0])[0], lineno)
+            )
+            if "*" in pattern or "?" in pattern:
+                return f"compgen -G {dq(pattern)} || true"
         if "/b" in flags:
             base = "ls -1"
         elif "/s" in flags:
