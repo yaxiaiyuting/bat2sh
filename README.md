@@ -23,6 +23,7 @@
 - 转换报告：已转换行数、保持不变行数、错误、警告、无法自动转换（TODO）清单（错误红/警告黄高亮）
 - 差异预览：`difflib` 生成源文件与转换结果的对照表
 - 命令行模式：`bat2sh --cli input.bat -o output.sh`，适合脚本/CI 调用
+- API 修复 TODO（实验性）：CLI `--fix-todos` / GUI 工具栏，为无法自动转换的语句获取修复建议（逐条确认、diff 后应用，绝不自动写盘）
 - 规则集中定义在 `core/rules.py`，扩展翻译规则只需改表或加 `cmd_*` 方法
 
 ## 2. 项目结构
@@ -192,6 +193,7 @@ bat2sh --cli a.bat --report --fail-on-todo # CI: 有错误/TODO 时退出码 3
 bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出到 stdout（--print 时走 stderr）
 bat2sh --cli a.bat --run --yes             # 转换后执行（含错误/TODO 时拒绝，退出码 4）
 bat2sh --cli a.bat --run --force           # 强制执行（跳过 TODO 防护与确认）
+bat2sh --cli a.bat --fix-todos             # 交互式：调用 API 为 TODO 获取修复建议（见 4.5）
 ```
 
 | 参数 | 说明 |
@@ -218,10 +220,17 @@ bat2sh --cli a.bat --run --force           # 强制执行（跳过 TODO 防护�
 | `--yes` | 跳过执行确认（非交互环境必需；仍受 TODO 防护） |
 | `--run-timeout N` | 执行超时秒数（默认 30；超时退出码 5） |
 | `--run-cwd DIR` | 执行工作目录（默认脚本所在目录） |
+| `--fix-todos` | 调用 API 为 TODO 生成修复建议（需交互终端；与 `--run` 互斥；见 4.5） |
+| `--api-base` / `--api-model` | API 地址 / 模型（覆盖配置文件；通常配合 `--fix-todos`） |
+| `--api-provider` | API 类型（当前仅 `openai` 兼容） |
+| `--api-key` | API key（不推荐：会进入 shell 历史；建议用 `BAT2SH_API_KEY`） |
+| `--api-timeout N` | API 超时秒数（默认 30） |
+| `--api-context-lines N` | 发送的源文件上下文行数（默认 3，上限 10） |
 | `-q, --quiet` | 静默 |
 
 退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在错误或 TODO；
-`4` 使用 `--run` 且存在错误或 TODO（未加 `--force`）；`5` 执行超时或无法启动 bash。
+`4` 使用 `--run` 且存在错误或 TODO（未加 `--force`）；`5` 执行超时或无法启动 bash；
+`6` 使用 `--fix-todos` 但 API 配置缺失/非法。
 `--diff` 与 `--report-json` 在普通文件模式下输出到 stdout（便于管道解析）、`--print` 模式下走 stderr；`--report` 纯文本报告与状态行（`[已写出]`/`[dry-run]`）始终走 stderr。
 支持颜色的终端下，状态行与 `--report` 按 错误红 / 警告黄 / 成功绿 着色（TODO 灰）；
 `NO_COLOR=1` 关闭着色，`FORCE_COLOR=1` 可在管道中强制开启。
@@ -267,6 +276,35 @@ GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未�
 - 不要对来源不可信的 `.bat/.cmd/.ps1` 使用 `--force`：TODO 防护是最后一道闸门，
   跳过它意味着未转换的语句将以近似或缺失的形式执行。
 - 执行权限与当前用户相同，工作目录默认是脚本所在目录。
+
+### 4.5 API 修复 TODO（`--fix-todos` / GUI"API 修复 TODO"）
+
+为生成脚本中的 `# TODO`（无法自动转换的语句）调用 OpenAI 兼容 API 获取修复建议。
+**实验性功能，默认不触发；建议仍需人工复核，不保证语义正确。**
+
+```bash
+export BAT2SH_API_KEY=...                  # 推荐：key 走环境变量（不落盘）
+bat2sh --cli deploy.bat --fix-todos        # 在交互终端逐条确认
+```
+
+配置（优先级 **CLI > 环境变量 > 文件**）：
+
+- 文件：`${XDG_CONFIG_HOME:-~/.config}/bat2sh/api.json`（原子写 + `0600`；GUI 设置页可视化编辑同一文件）
+- 环境变量：`BAT2SH_API_BASE`、`BAT2SH_API_MODEL`、`BAT2SH_API_KEY`、`BAT2SH_API_PROVIDER`、`BAT2SH_API_TIMEOUT`
+- 不内置任何服务商默认：`base_url`/`model` 缺失即报错（退出码 `6`），并给出配置指引
+- 兼容 OpenAI / Ollama(`/v1`) / vLLM / LM Studio 等 OpenAI 兼容端点；仅标准库实现
+
+隐私与安全边界：
+
+- **每次发送前**在终端原样展示将离开本机的完整内容并逐条确认（默认 N）；不提供"全部同意"，
+  `--yes`/`--force` **不可**绕过；需要交互终端，非 TTY 直接拒绝
+- 发送边界：TODO 原文 + 报告元数据 + 源文件 ±3 行（可调，上限 10）+ 目标 bash 相邻 2 行；
+  不发送整文件，上下文中的其它 TODO 文本会被省略
+- 建议必须通过整脚本 `bash -n` 校验；展示 unified diff 确认后才应用；失败保留原 TODO 并警告
+- 全部结束后**一次性写盘**（`--print` 时只输出）；`q`/Ctrl+C 中断则丢弃本次修改，不写盘
+- 退出码：`3` 仍有未修复项（跳过 + 失败）；`6` 配置错误
+- 仅覆盖整行注释（M1）与行内 TODO（M3/M4）；管道整块标记（M2）与整体降级不参与，需人工处理
+- API key 不会出现在日志/异常/报告中；PowerShell 侧整体降级（`bash -n` 失败）的文件直接拒绝修复
 
 ## 5. 编码处理
 
