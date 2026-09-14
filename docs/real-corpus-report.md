@@ -1,0 +1,276 @@
+# v1.3 诊断第三轮：真实语料覆盖率体检（只读报告）
+
+> 诊断对象：HEAD = `63b049f`（for/f 两段管道直译）
+> 方法：37 个真实脚本逐个转换（raw 变体 = 关闭内置 bash -n 后置校验，自行验证输出；default 变体 = 当前默认行为）
+> 本报告为只读诊断产物：未改任何代码、未建库、未 commit。转换中间数据在 /tmp（不入 repo）。
+> 报告内所有构造均以归一化形式描述；无许可证语料（B）的原文未以任何形式进入本文件。
+
+---
+
+## 1. 语料清点表
+
+| 项 | 语料 A（PS 运维脚本） | 语料 B（bat 工具箱） |
+|---|---|---|
+| 来源目录 | `~/下载/common_powershell_scripts-main/` | `~/下载/windows-batch-script-master/` |
+| 脚本文件数 | **13**（12 × .ps1 + 1 × .cmd） | **24**（全部 .bat） |
+| 脚本总行数（解码后） | **8090** | **930** |
+| 目录文件总数（含辅助文件） | 34（另有 README/.gitignore/.exe/.png） | 27（另有 .htm/.txt/.gitignore） |
+| 编码分布 | utf-8-sig ×10、utf-8 ×3 | **gbk ×20**、utf-8 ×4 |
+| BOM | 10（ps1 为主） | 0 |
+| 解码失败/替换字符 | 0 | 0 |
+| 中文文件名 | 4 | 22（含中文目录名） |
+| LICENSE 状况 | **见下方"许可证事实核查"——无 LICENSE 文件** | **无 LICENSE、无 README 授权声明** |
+| 许可结论 | README 声称 MIT（指向的 LICENSE 链接为死链） | 默认保留所有权利 |
+
+### 许可证事实核查（语料 A，重要）
+
+任务描述中标注语料 A 为 "MIT (iamtornado/common_powershell_scripts)"。实测核查结果：
+
+1. 本地快照（GitHub main 分支 zip）中**不存在** LICENSE / COPYING 文件；README 第 160 行写有 `## 许可证 [MIT](LICENSE)`，即**指向一个不存在的 LICENSE 文件**（死链）。
+2. GitHub API 核查：`GET /repos/iamtornado/common_powershell_scripts/license` → **404 Not Found**；仓库 git tree 全量搜索无任何 license 路径；仓库元数据 `license = null`。
+
+结论（诚实记录）：**该仓库当前没有实际授权文件**。README 表达了 MIT 意图，但授权文本缺失。因此：
+- 本地诊断分析：无问题（本报告即此范围）。
+- 纳入 tests/fixtures/：**在许可明确化之前不建议执行**（§7 详述）。
+
+### 语料 B 安全备注
+
+已浏览文件名清单与构造统计：语料 B 为 ffmpeg / imagemagick / adb / pdf 等个人工具箱脚本，未见恶意或激活工具代码。本报告只含统计数字与归一化构造描述。
+
+---
+
+## 2. 逐文件转换结果表（摘要）
+
+> bash -n 列 = raw 输出（关闭后置校验）的语法检查；默认降级列 = 默认设置下是否整体降级为注释。
+> 编码列为自动检测结果；所有文件解码零失败。
+
+| # | 文件 | 类型 | 行数 | 转换行 | TODO | 警告 | 错误 | bash -n | 默认降级 | 编码 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | [A] Add-DomailnUserToLocalAdmin/Add-DomainUserToLocalAdmin_fixed.ps1 | ps1 | 1133 | 205 | 224 | 152 | 1 | 失败 | 降级 | utf-8-sig |
+| 2 | [A] EnterpriseDomainJoin/Join-DomainRemoteBatch-Parallel-Enhanced.ps1 | ps1 | 1795 | 495 | 294 | 527 | 1 | 失败 | 降级 | utf-8 |
+| 3 | [A] Export-ADGroupMembers/Export-ADGroupMembers.ps1 | ps1 | 257 | 109 | 48 | 57 | 1 | 失败 | 降级 | utf-8-sig |
+| 4 | [A] Get-ADAccountLockoutSource/Get-ADAccountLockoutSource.ps1 | ps1 | 350 | 165 | 48 | 122 | 1 | 失败 | 降级 | utf-8-sig |
+| 5 | [A] Get-DisplayGraphicsCard/Get-DisplayGraphicsCard.ps1 | ps1 | 1237 | 345 | 394 | 188 | 1 | 失败 | 降级 | utf-8-sig |
+| 6 | [A] Get-RemoteHostInfo/Get-RemoteHostInfo.ps1 | ps1 | 1167 | 407 | 203 | 383 | 1 | 失败 | 降级 | utf-8 |
+| 7 | [A] Install-Fonts/Install-Fonts.ps1 | ps1 | 156 | 55 | 19 | 43 | 1 | 失败 | 降级 | utf-8-sig |
+| 8 | [A] Prevent-ScreenSaver-Sleep-Tool/Prevent-ScreenSaver-Sleep-Tool.ps1 | ps1 | 369 | 60 | 130 | 57 | 1 | 失败 | 降级 | utf-8-sig |
+| 9 | [A] Set-HighPerformancePowerPlan/Set-HighPerformancePowerPlan.cmd | cmd | 71 | 24 | 5 | 5 | 0 | 通过 | — | utf-8 |
+| 10 | [A] 将源AD域中的用户账户批量同步至目标域中/将源AD域中的用户账户批量同步至目标域中.ps1 | ps1 | 212 | 53 | 42 | 49 | 1 | 失败 | 降级 | utf-8-sig |
+| 11 | [A] 查询本地或远程Windows计算机当前登录用户信息/get-currentlogonuser.ps1 | ps1 | 41 | 18 | 7 | 7 | 1 | 失败 | 降级 | utf-8-sig |
+| 12 | [A] 系统信息查询工具/Get-SystemInfo.ps1 | ps1 | 1193 | 301 | 308 | 148 | 1 | 失败 | 降级 | utf-8-sig |
+| 13 | [A] 通过ADSI查询远程Windows计算机管理员组成员/Get-RemoteAdminMembers_ADSI.ps1 | ps1 | 109 | 15 | 12 | 23 | 1 | 失败 | 降级 | utf-8-sig |
+| 14 | [B] bat脚本传入参数测试.bat | bat | 20 | 11 | 5 | 9 | 0 | 通过 | — | gbk |
+| 15 | [B] choose file.bat | bat | 24 | 15 | 0 | 12 | 1 | 失败 | 降级 | utf-8 |
+| 16 | [B] if.bat | bat | 10 | 7 | 0 | 0 | 0 | 通过 | — | utf-8 |
+| 17 | [B] png转ico和icns.bat | bat | 6 | 4 | 0 | 1 | 0 | 通过 | — | utf-8 |
+| 18 | [B] 删除嵌套.bat | bat | 153 | 153 | 0 | 153 | 0 | 通过 | — | utf-8 |
+| 19 | [B] 压缩jpg 像素500w 质量50.bat | bat | 52 | 28 | 3 | 13 | 0 | 通过 | — | gbk |
+| 20 | [B] 压缩当前文件夹内的png.bat | bat | 10 | 2 | 1 | 0 | 0 | 通过 | — | gbk |
+| 21 | [B] 拖入文件处理/FFmpeg批处理.bat | bat | 65 | 40 | 0 | 24 | 0 | 通过 | — | gbk |
+| 22 | [B] 拖入文件处理/FFmpeg烧录字幕.bat | bat | 43 | 20 | 0 | 1 | 0 | 通过 | — | gbk |
+| 23 | [B] 拖入文件处理/FFmpeg转为mp3格式.bat | bat | 52 | 31 | 0 | 22 | 0 | 通过 | — | gbk |
+| 24 | [B] 拖入文件处理/adb发送到手机.bat | bat | 46 | 25 | 2 | 14 | 0 | 通过 | — | gbk |
+| 25 | [B] 拖入文件处理/pdf解密.bat | bat | 36 | 7 | 0 | 3 | 0 | 通过 | — | gbk |
+| 26 | [B] 拖入文件处理/png转jpg.bat | bat | 36 | 7 | 0 | 2 | 0 | 通过 | — | gbk |
+| 27 | [B] 拖入文件处理/压缩图片 像素500w 质量70.bat | bat | 96 | 38 | 9 | 19 | 0 | 通过 | — | gbk |
+| 28 | [B] 拖入文件处理/无损压缩png图片.bat | bat | 16 | 7 | 1 | 3 | 0 | 通过 | — | gbk |
+| 29 | [B] 拖入文件处理/有损压缩png图片.bat | bat | 17 | 8 | 1 | 3 | 0 | 通过 | — | gbk |
+| 30 | [B] 无线adb连接手机.bat | bat | 43 | 17 | 2 | 5 | 0 | 通过 | — | gbk |
+| 31 | [B] 本文件夹内 mp4 文件旋转90度.bat | bat | 14 | 3 | 1 | 0 | 0 | 通过 | — | gbk |
+| 32 | [B] 本文件夹内 wav 转 aac.bat | bat | 17 | 3 | 1 | 0 | 0 | 通过 | — | gbk |
+| 33 | [B] 本文件夹内处理/FFmpeg将本文件夹内mp4转为mp3格式.bat | bat | 52 | 11 | 1 | 4 | 0 | 通过 | — | gbk |
+| 34 | [B] 本文件夹内处理/将本文件夹内的ncm转为mp3格式.bat | bat | 47 | 3 | 1 | 1 | 0 | 通过 | — | gbk |
+| 35 | [B] 本文件夹内处理/把本文件夹内的 gif 变成横向 480 分辨率.bat | bat | 7 | 1 | 1 | 0 | 0 | 通过 | — | gbk |
+| 36 | [B] 生成速查手册.bat | bat | 46 | 33 | 2 | 10 | 0 | 通过 | — | gbk |
+| 37 | [B] 生成随机字符串.bat | bat | 22 | 9 | 2 | 2 | 0 | 通过 | — | gbk |
+
+**生成异常：0。** 37/37 文件转换管线无抛异常（`gen_ok` 全真）。
+
+### 2.1 关键发现：生成脚本 bash -n 失败缺陷分类（13 个文件）
+
+12 个 ps1 **全部**失败 + 1 个 bat 失败；默认设置下这 13 个文件被**整体降级为注释**（never emit broken bash 政策生效——这本身是保护性行为，但意味着 PS 侧真实脚本当前可用产出为 0）。
+
+| 缺陷类 | 文件数 | 机制 |
+|---|---|---|
+| PS attribute 原样输出（`[CmdletBinding(...)]` 单行） | 7 | 未建模的 attribute 被"未知命令"兜底路径原样透传，bash 解析 `[...]` 失败 |
+| PS attribute 多行原样输出（`[CmdletBinding(\n ... )]`） | 2 | 同上，跨行展开后在 `newline` 处报错 |
+| TODO 注释吞掉 `then` 关键字 | 1 | 无法转换的条件被写为 `if <fallback>  # TODO: …; then`——`; then` 落在注释内，if 结构断裂 |
+| 管道段 TODO 后悬空 `\|` | 1 | `$( ... \| )` / `$(( ... \| ))` 中管道段被 TODO 但 `\|` 未回收 |
+| cmdlet 原样嵌入 `[[ ]]` 条件 | 1 | `if [[ ! (Cmdlet -Param ...) ]]`——命令未包 `$( )`，且被当作二元运算符表达式 |
+| 多语言头/注释块（`<#`）残留 | 1（bat） | bat 文件头的混合注释块残留为无效 bash 记号 |
+
+**潜在缺陷（修复首个错误后仍会触发的）**——全量 raw 输出扫描：
+
+| 潜在缺陷 | 涉及文件数 | 单文件实例数范围 |
+|---|---|---|
+| `; then` 被 TODO 注释吞掉 | **11 / 12** | 1～38 |
+| `[CmdletBinding` 残留 | 9 | 1 |
+| 悬空管道 `\|`（`$(( ... \| ))`） | 3 | 1～2 |
+| cmdlet 嵌入 `[[ ]]` | 4 | 1～2 |
+
+即：PS 侧的语法失败**不是单点 bug**，而是多条系统性生成路径缺陷叠加；每个真实文件平均含多种缺陷。
+
+---
+
+## 3. 四档缺口统计
+
+> 统计口径（方法透明化）：
+> - **构造 = 一个（文件, 行）的 TODO 行**；同一行的伴生诊断（如同一表达式同时产出 objects 与 misc 两条）合并计 1。
+> - 档位判定：按该行最"硬"的需求取档（D > C > B）。
+> - `A 档`另按"已转换的行占比"单列（TODO 统计天然不含 A）。
+> - 语法失败文件（13）归入 **B 档（工程缺陷）**，单独列表在 §2.1，不摊入百分比（避免把缺陷当语义缺口）。
+
+### 3.1 语义缺口四档表（按构造计）
+
+| 档 | 含义 | 语料 A（PS+cmd） | 语料 B（bat） |
+|---|---|---|---|
+| A | 已自动转换 | 转换行 2252/8090 = **27.8%**（raw） | 转换行 483/930 = **51.9%**（raw） |
+| B | 有对应物/可规则化 | **124**（12%） | **28**（85%） |
+| C | 语义接近，可 API 辅助 | **329**（32%） | 0 |
+| D | 原理性缺失 | **570**（56%） | **5**（15%） |
+| 合计（B+C+D 构造） | | 1023 | 33 |
+
+> 注：语料 A 的 default 行为下 12 个 ps1 全部降级——**A 档实际可用率 = 0/12**（唯一未降级的是 .cmd，含 5 个 TODO）。
+> 语料 B 的 default 行为下 23/24 未降级。
+
+### 3.2 原始诊断计数（转换器自身口径，供对照）
+
+- 语料 A：objects 928 · misc 697 · control_flow 40 · pipeline 31 · command 30 · params 5 · errorlevel 3（共 1734 条 TODO 诊断，含 cmd 文件 5 条）
+- 语料 B：control_flow 25 · params 5 · pipeline 2 · errorlevel 1（共 33 条 TODO 诊断）
+- 警告：语料 A 1761 条、语料 B 301 条（详见 §3.3）
+
+### 3.3 D 档占比结论（项目定位关键数字）
+
+- **PS 侧 D 档 = 56%**（> 40%）→ 按既定判据：**"完美转换"不可达成立**。对象模型（`$obj.Prop`）、.NET 静态调用、AD/远程会话/作业设施是原理性缺失，应保持诚实标注。
+- **bat 侧 D 档 = 15%**（< 20%）→ bat 侧仍有大幅提升空间，且缺口以 **B 档（可规则化）85%** 为主。
+
+### 3.4 警告层概览（"已转换但有语义警告"，与 TODO 分开看）
+
+| 语料 A（1761 条） | 计数 | 语料 B（301 条） | 计数 |
+|---|---|---|---|
+| 未知命令（兜底透传） | 516 | robocopy → rsync 转换警告 | 153（集中 1 文件） |
+| 无法确定右值类型，按字符串处理 | 262 | 未知命令 | 46 |
+| 函数命名参数改写为位置参数 | 221 | 变量名归一化重命名 | 35 |
+| 多余的 `}` | 166 | **归一化后同名冲突** | **17** |
+| `-ForegroundColor` 颜色参数忽略 | 87 | `%*` 集合加引号 | 12 |
+| `return` 改为 echo | 83 | if /i 字符串比较忽略 | 4 |
+| try/catch 简化处理 | 66 | `%~d/%~p/%~n/%~x` 修饰符近似 | 8 |
+| `$script:` 作用域省略 | 64 | 其余 | 少量 |
+
+值得单独标注：**"未知命令"兜底透传**是 PS 侧质量流失的主要机制——透传对象包含 `catch`/`else`/`finally` 等关键字片段、hashtable 键名（如 `Status`、`IPAddress`）、`[CmdletBinding()]`、`$script:X.Add(...)` 表达式片段与 `#` 等，直接污染输出并制造 §2.1 的语法缺陷。语料 B 的**变量名归一化同名冲突 17 例**正面命中已有 backlog 项（真实语料确认其存在）。
+
+---
+
+## 4. 高频缺口清单（前 20，按出现文件数排序；归一化描述）
+
+| # | 构造类型（归一化） | 语料 | 构造数 / 文件数 | 当前处理 | 档 | B/C 难度评估 |
+|---|---|---|---|---|---|---|
+| 1 | `try { ... }`（含嵌套） | A | 27 / 5 | TODO（嵌套块注释） | B | 中：结构映射；嵌套需设计 |
+| 2 | `Write-Warning` / `Write-Error` | A | 22 / 4 | TODO | B | 低：echo（>&2） |
+| 3 | 自定义日志函数调用（*-ColorMessage / *JobLog 等，实参含 `$Colors.*`） | A | 约 255 / 3 | TODO | C | 中：函数定义级转换或 LLM；色板 → ANSI |
+| 4 | `Write-Host ... -ForegroundColor <色>` | A | ~30 / 3 | TODO | B | 低：已有颜色忽略警告，可升级为 ANSI |
+| 5 | `switch ($var) { ... }` | A | 11 / ≥2 | TODO | B | 中：`case` 映射（脚本块条件难） |
+| 6 | `Where-Object { $_.Prop ... }` | A | ~63 / ≥2 | TODO | C | 中高：对象语义 → grep/awk 近似或 LLM |
+| 7 | `[System.*]::… / [math]::… / [Console]::…` 静态调用 | A | 大量 / 多 | TODO | D | —（原理性） |
+| 8 | `$obj.Prop` 属性访问 / 对象字面量成员行 | A | 大量 / 多 | TODO（伴生"延续行"诊断） | D | — |
+| 9 | PS 远程/作业/模块设施（PSSession/CimSession/Job/Import-Module/Add-Type） | A | ~26 / 多 | TODO | D | — |
+| 10 | 数据导出管道（Export-Csv / ConvertTo-Json / Out-File / Format-Table） | A | ~10 / ≥2 | TODO | C | 中：jq/csvkit 等近似 |
+| 11 | `if /i` 扩展修饰符比较（`%%~x` 等） | B | 14 / 4 | TODO | B | 低中：`${i##*.}` 等规则 |
+| 12 | `for /R` 递归 | B | 6 / 4 | TODO | B | 低：→ find |
+| 13 | `goto end` / `goto:eof` | B | 4 / 3 | TODO | B | 低中：常见惯用法重构 |
+| 14 | 管道 + 末尾重定向（`… \| findstr … >nul`） | B | 2 / 2 | TODO | B | 低（已有设计文档 #9） |
+| 15 | `%errorlevel% equ/neq`（warn 策略） | A(cmd)/B | 4 / 2 | TODO | B | 低（`--last-exit-code map`） |
+| 16 | `for /f` 选项组合解析失败（tokens/delims 组合） | B | 1 / 1 | TODO | B | 中：解析器扩展 |
+| 17 | `%~s / %~a / %~t / %~z / %~$PATH` 修饰符 | B | 5 / 1 | TODO | D | —（Windows 特有元数据） |
+| 18 | `net session`（转换器已附 systemctl/ss 建议） | A(cmd) | 1 / 1 | TODO | B | 低 |
+| 19 | 孤立管道段（Select-Object 等无法单独转换） | A | ≥1 / 1 | TODO | C | 中 |
+| 20 | hashtable/对象成员行（`Key = …` 形态伴生诊断） | A | ≥20 / 多 | TODO | D | — |
+
+---
+
+## 5. 覆盖率结论
+
+### 5.1 bat 侧（语料 B，24 文件）
+
+- 达标口径（可生成 + bash -n 通过 + TODO < 5）：**21 / 24 = 88%**。
+- 未达标 3 个：1 个因 bash -n 失败（多语言头缺陷）；2 个 TODO ≥ 5（5 与 9）。
+- 中位 TODO = **1**；警告中位 = 3；转换行率 51.9%。
+- default 行为下 23/24 未降级，产出为"可用脚本 + 少量 TODO/警告"。
+- 结论：**bat 路径在真实语料上已具备实际可用性**；主要残余是 B 档规则缺口（for /R、if 修饰符比较、goto、管道+重定向组合）。
+
+### 5.2 ps1 侧（语料 A，12 文件 + 1 cmd）
+
+- 达标口径：**0 / 12 = 0%**（raw bash -n 全部失败；default 全部降级）。
+- 中位 TODO = **89**；警告中位 ≈ 90；转换行率 27.8%（raw，且 raw 产物语法无效）。
+- 唯一好消息：.cmd 文件通过了 bash -n（5 TODO），但任务口径为 ps1；同为批处理家族的 .cmd 也差 1 个 TODO 达到 <5 门槛。
+- 结论：**PS 路径在真实语料上目前不可用**（两层原因叠加：① 多条系统性生成缺陷触发全文件降级；② D 档对象模型缺口 56%）。修复缺陷后预期从"0 可用"转为"部分可用 + 诚实 TODO"，但离"可用转换"仍有距离。
+
+### 5.3 与前两轮对比
+
+- 第一轮（torture 语料 + 手头脚本，1817 行）："语料偏小"；管道形态 21 条几乎全来自 torture 构造。
+- 第二轮（AI 语料探针）："AI 语料是广度探针，不是频次证据"。
+- 本轮（真实语料 37 文件 / 9020 行）：
+  - **bat 侧表现显著优于 torture 基线**：真实脚本中位 TODO = 1，而 torture 的 stress_test 在近期修复后仍有 59 个 TODO —— 说明 torture 基线高估了 bat 路径的问题量（真实代码更"常规"）。
+  - **PS 侧结论反转**：小样例夹具全部通过（现有测试基线），真实脚本 100% 降级 —— 此前 PS 路径的成熟度被夹具规模掩盖。
+  - 真实语料的管道密度远低于 torture 语料：B 侧 6 行/930 行；A 侧 185 行但为 PS 对象管道。**"findstr 家族主导"的结论是 torture 语料特征，不是真实分布。**
+
+---
+
+## 6. 对 v1.3 剩余阶段的影响评估
+
+### 阶段 3（管道模式库）— "语料是否够"的判断更新
+
+- 真实语料**不支持**继续按"findstr 管道链"方向扩库：语料 B 管道仅 6 行（findstr 5 次）；语料 A 的 185 行管道是 PS 对象管道（Where-Object/Export-Csv 类），与 bat 管道模式库不同源。
+- 真实语料指出的高价值缺口是另一组：`for /R → find`（6 次）、`if /%~x 比较`（14 次）、`goto`（4 次）、管道+重定向组合（2 次）。
+- 结论：**语料仍偏小**（24 个 bat / 930 行），不足以支撑完整模式库设计；但优先级证据已出现——建议阶段 3 的范围评估从"扩 findstr 链"转向"真实缺口组（for /R、if 修饰符）"。**本报告不执行，仅建议。**
+
+### 阶段 5（pipefail opt-in）— 频率证据：低频
+
+- 语料 B 中与 pipefail 相关的构造合计：管道 6 行、`>nul/2>nul` 4 次、`&&/||` 4 次、`%errorlevel%` 1 次。**真实语料中 pipefail 相关构造极少**。
+- 语料 A 的 `-ErrorAction` 95 次属 PS 错误策略（与 bash pipefail 不同轴）。
+- 结论：阶段 5 维持"默认行为不变、opt-in"的保守方案，**优先级可下调**；未发现需要改变默认行为的证据。
+
+### 阶段 6（用户 API 修复 TODO）— 目标群体明确
+
+- C 档 = 329 个构造（PS 缺口的 32%），集中于三族：
+  1. **自定义日志函数调用**（约 255 构造；9 个脚本共含 73 个函数定义行）——最适合"函数级转换 + LLM 重写"组合拳；
+  2. Where-Object 脚本块过滤（约 63）——LLM 近似重写为 grep/awk 的现实候选；
+  3. 数据导出管道（约 10）——LLM + jq/csvkit 提示。
+- 另有 **13 个文件的语法缺陷**属于纯工程修复（非 API 场景），且是 PS 侧当前最高杠杆：不修则所有 PS 产出被整体降级，修完才有"部分可用 + 诚实 TODO"的转换空间。
+- 结论：阶段 6 的 C 档目标可以完全由本轮真实语料锚定（函数调用族 + Where-Object 族），无需再猜。
+
+---
+
+## 7. MIT 语料 fixtures 化候选建议（不实际执行）
+
+> **前置阻断：语料 A 当前没有 LICENSE 文件（README 的 MIT 链接为死链、GitHub API 404）。**
+> 在许可明确化之前，**不建议**将任何语料 A 文件纳入 tests/fixtures/。
+> 满足以下任一条件后方可执行：① 上游补齐/LICENSE 文件（保留原始版权声明 + LICENSE 副本）；② 作者书面许可；③ 维护者基于 README 的显式 MIT 声明明确接受风险并在 fixtures 中附注声明来源。
+> 语料 B：**永久排除**（无许可，保留所有权利）。
+
+候选文件（按价值排序；均为"缺陷回归 + 档位覆盖"双重用途）：
+
+1. **`get-currentlogonuser.ps1`**（41 行）——最小 PS 夹具。覆盖：悬空管道缺陷回归、WMI/对象属性 D 档样例、for/while 结构。体量小，适合进 CI。
+2. **`Install-Fonts.ps1`**（156 行）——最"自包含"的系统任务脚本（无 AD/WMI/远程会话；param + try/catch + 文件操作）。B 档为主的真实样本，缺陷修复后最接近可用产出。
+3. **`Prevent-ScreenSaver-Sleep-Tool.ps1`**（369 行）——多行 `[CmdletBinding(...)]` 缺陷的回归夹具。
+4. **`Set-HighPerformancePowerPlan.cmd`**（71 行，bash -n 通过）——.cmd 家族样本；覆盖 errorlevel/goto/net session 三个 bat 家族 B 档缺口。
+5. **`Export-ADGroupMembers.ps1`**（257 行）——AD 运维代表性样本：函数定义、try/catch、Where-Object、Export-Csv 全谱系，B/C/D 混合适中。
+
+不推荐：两个 1000+ 行的巨型脚本（Get-SystemInfo / EnterpriseDomainJoin / Add-DomainUser——体量大、D 档占比高，作为夹具维护成本大于收益）。
+
+**fixtures 化注意事项**（执行时）：
+- 每个 fixture 附 `LICENSE` 副本 + 来源声明（仓库 URL + 文件路径 + 版权行）；
+- 夹具断言应锁定"当前行为基线"（缺陷回归用），而非"正确转换"；
+- 语料 A 的 .ps1 多为 utf-8-sig、语料 B 为 gbk——若未来纳入 B 侧样本（需先解决许可），编码用例已由现有编码测试覆盖，不必依赖夹具。
+
+---
+
+## 8. 方法与只读声明
+
+- 转换使用 `PYTHONPATH=python python3`（源码树 = HEAD 63b049f），已用探针验证新特性在位（for/f 两段管道直译产出 `done < <(cmd | filter)`、findstr 多词 OR 拆分生效），确认非系统安装版 1.2.3。
+- 每个文件跑两个变体：raw（`bash_check=False`，用于独立 bash -n 与真实产出观察）与 default（`bash_check=True`，当前用户行为，含降级）。
+- 转换产物、JSON 中间数据、分类脚本均在 `/tmp/opencode/bat2sh-diag/`，**未进入 repo**；本报告本身未 commit。
+- 全程未修改任何代码、未"顺手"修复任何发现、未执行任何语料脚本（仅解析与转换）。
+- 全部 37 个文件生成无异常；无文件需要"记录异常而不修"的路径。
+
+（报告完）
