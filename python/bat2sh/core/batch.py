@@ -937,6 +937,10 @@ class BatchConverter:
                 return '$(readlink -f "$0")'
             if "n" in mods and "x" in mods:
                 return '$(basename "$0")'
+            if "n" in mods:
+                return '$(basename "${0%.*}")'
+            if "x" in mods:
+                return '$(echo ".${0##*.}")'
             return '"$0"'
         arg = target
         if not mods:
@@ -1696,15 +1700,52 @@ class BatchConverter:
             return None
         return dq(inner.lower())
 
+    @staticmethod
+    def _dq_preserving_substitutions(text: str) -> str:
+        out: list[str] = []
+        i = 0
+        n = len(text)
+        while i < n:
+            if text.startswith("$(", i):
+                depth = 0
+                j = i
+                while j < n:
+                    if text.startswith("$(", j):
+                        depth += 1
+                        j += 2
+                        continue
+                    if text[j] == ")":
+                        depth -= 1
+                        j += 1
+                        if depth == 0:
+                            break
+                        continue
+                    if text[j] == "\\" and j + 1 < n:
+                        j += 2
+                        continue
+                    j += 1
+                out.append(text[i:j])
+                i = j
+                continue
+            char = text[i]
+            if char in '\\"`':
+                out.append("\\" + char)
+            else:
+                out.append(char)
+            i += 1
+        return '"' + "".join(out) + '"'
+
     def _convert_path_token(self, token: str, lineno: int) -> str:
         inner, _ = strip_outer_quotes(token)
         converted = convert_backslashes(self._expand_vars(inner, lineno))
-        if "*" in converted or "?" in converted:
+        probe = re.sub(r"\$\{[^}]*\}|\$\([^)]*\)", "", converted)
+        if "*" in probe or "?" in probe:
             head, sep, tail = converted.rpartition("/")
-            if sep and "*" not in head and "?" not in head:
+            head_probe = re.sub(r"\$\{[^}]*\}|\$\([^)]*\)", "", head)
+            if sep and "*" not in head_probe and "?" not in head_probe:
                 return f'"{head}"/{tail}'
             return converted
-        return dq(converted)
+        return self._dq_preserving_substitutions(converted)
 
     # ------------------------------------------------------------------
     # for
@@ -2272,7 +2313,7 @@ class BatchConverter:
             else:
                 converted = convert_backslashes(self._expand_vars(inner, lineno))
             if quote or re.search(r"\s", converted):
-                converted = dq(converted)
+                converted = self._dq_preserving_substitutions(converted)
             parts.append(f"{op}{converted}")
         return " ".join(parts)
 
@@ -2787,7 +2828,7 @@ class BatchConverter:
         name = self._variable_name(raw_var, lineno, original)
         value = convert_backslashes(self._expand_vars(value.rstrip(), lineno))
         if self.settings.quote_variables or value == "" or re.search(r"[\s$&|()<>]", value):
-            return f"{name}={dq(value)}"
+            return f"{name}={self._dq_preserving_substitutions(value)}"
         return f"{name}={value}"
 
     def _variable_name(self, raw_var: str, lineno: int, original: str) -> str:

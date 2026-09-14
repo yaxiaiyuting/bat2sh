@@ -1002,3 +1002,35 @@ def test_delayed_wildcard_replacement_todo(convert_bat, bash_check):
 def test_percent_replacement(convert_bat):
     out, _ = convert_bat("set s=aXb\necho %s:X=-%\n")
     assert "${s//X/-}" in out
+
+
+# ----------------------------------------------------------------------
+# basename 转义（%~nI / %~n0 无多余 \"）
+# ----------------------------------------------------------------------
+def test_basename_modifier_no_extra_escaping(convert_bat, bash_check):
+    out, _ = convert_bat('for %%i in (*.txt) do set "base=%%~ni"\n')
+    assert 'base="$(basename "${i%.*}")"' in out
+    assert '\\"' not in out
+    bash_check(out)
+
+
+def test_del_basename_quoted(convert_bat, bash_check):
+    out, _ = convert_bat('for %%i in (*.txt) do del "%%~ni"\n')
+    assert 'rm -f "$(basename "${i%.*}")"' in out
+    bash_check(out)
+
+
+def test_script_name_modifiers(convert_bat, bash_check):
+    out, _ = convert_bat("echo %~n0\necho %~x0\necho %~nx0\n")
+    assert '$(basename "${0%.*}")' in out
+    assert '$(echo ".${0##*.}")' in out
+    assert '$(basename "$0")' in out
+    bash_check(out)
+
+
+def test_basename_runtime_with_spaces(convert_bat, tmp_path, bash_run):
+    (tmp_path / "my file.txt").write_text("x")
+    out, _ = convert_bat('for %%i in (*.txt) do echo "[%%~ni]"\n')
+    proc = bash_run(f'cd "{tmp_path}"\n' + out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "[my file]"

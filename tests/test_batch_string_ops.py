@@ -106,5 +106,5 @@ def test_multiple_ops_same_line(convert_bat):
 
 def test_tilde_n0_not_misparsed_as_string_op(convert_bat):
     out, _ = convert_bat("@echo off\necho %~n0\n")
-    assert '"$0"' in out
+    assert '$(basename "${0%.*}")' in out
     assert "${n0" not in out
