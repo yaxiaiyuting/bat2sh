@@ -733,3 +733,57 @@ def test_bash_n_on_sample(convert_ps, bash_check):
     )
     out, _ = convert_ps(text)
     bash_check(out)
+
+
+# ----------------------------------------------------------------------
+# 复杂条件占位（$_ / 对象属性访问）：不再吞掉 ; then
+# ----------------------------------------------------------------------
+def test_complex_condition_keeps_then_visible(convert_ps, bash_check):
+    out, report = convert_ps('if ($x.Length -gt 0) {\n    Write-Host "a"\n}\n')
+    assert "if false; then" in out
+    assert "0 -eq 1  # TODO" not in out
+    assert "复杂条件" in report.todos[0].message
+    assert report.todo_count == 1
+    assert not any(
+        "; then" in line or "; do" in line
+        for line in out.splitlines()
+        if line.lstrip().startswith("#")
+    )
+    bash_check(out)
+
+
+def test_complex_condition_while_placeholder(convert_ps, bash_check):
+    out, report = convert_ps('while ($line.Length -gt 0) {\n    $line = "x"\n}\n')
+    assert "while false; do" in out
+    assert report.todo_count == 1
+    bash_check(out)
+
+
+def test_complex_condition_until_placeholder_never_loops(convert_ps, bash_check, bash_run):
+    out, report = convert_ps("until ($idx.Prop) {\n    $idx = 0\n}\n")
+    assert "while ! true; do" in out
+    assert report.todo_count == 1
+    bash_check(out)
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_complex_condition_dollar_underscore(convert_ps, bash_check):
+    out, report = convert_ps('if ($_.Count -gt 0) {\n    Write-Host "a"\n}\n')
+    assert "if false; then" in out
+    assert report.todo_count == 1
+    bash_check(out)
+
+
+def test_complex_condition_elif_structure_kept(convert_ps, bash_check):
+    out, report = convert_ps(
+        "if ($a -gt 1) {\n"
+        '    Write-Host "a"\n'
+        "} elseif ($b.Prop) {\n"
+        '    Write-Host "b"\n'
+        "}\n"
+    )
+    assert "elif false; then" in out
+    assert "elif 0 -eq 1" not in out
+    assert report.todo_count == 1
+    bash_check(out)

@@ -76,6 +76,7 @@ class PowerShellConverter:
         self._param_buffer: list[str] | None = None
         self._array_vars: set[str] = set()
         self._todo_reason = ""
+        self._condition_fallback = ""
         self._current_cmdlet = ""
         self._pipe_comments: list[str] = []
         self._try_buffer: list[str] | None = None
@@ -1095,6 +1096,12 @@ class PowerShellConverter:
             reason, self._todo_reason = self._todo_reason, ""
             return [self._c(self._todo(lineno, text, reason, category="misc"))]
         test = self._convert_condition(cond, lineno)
+        prelude: list[str] = []
+        if self._condition_fallback:
+            reason, self._condition_fallback = self._condition_fallback, ""
+            prelude = [self._c(self._todo(lineno, text, reason, category="control_flow"))]
+            # 占位条件：if/elif/while 恒假（分支不执行）；until 经下方取反后同样恒假
+            test = "true" if keyword == "until" else "false"
         bash_kw = {"if": "if", "elseif": "elif", "while": "while", "until": "while"}.get(keyword, "if")
         if keyword == "until":
             test = f"! {test}" if not test.startswith("[[") else "[[ ! " + test[3:]
@@ -1112,12 +1119,12 @@ class PowerShellConverter:
             kind = "if"
         if block_open:
             self._stack.append(_Block(kind, close_word))
-            lines = [header]
+            lines = prelude + [header]
             if inline:
                 lines.extend(self._convert_line(lineno, inline))
             return lines
         self._stack.append(_Block("tmp", close_word))
-        lines = [header]
+        lines = prelude + [header]
         if inline:
             lines.extend(self._convert_line(lineno, inline))
         self._stack.pop()
@@ -1127,7 +1134,8 @@ class PowerShellConverter:
     def _convert_condition(self, expr: str, lineno: int) -> str:
         expr = expr.strip()
         if "$_" in expr or re.search(r"\$\w+\.\w+", expr):
-            return "0 -eq 1  # TODO: 复杂条件"
+            self._condition_fallback = "复杂条件（含 $_ 或对象属性访问）无法自动转换，已用占位条件"
+            return "false"
         # $null 比较
         expr = re.sub(r"(?i)\$null\s*-eq\s*(\$\w+)", r'-z "$\1"', expr)
         expr = re.sub(r"(?i)(\$\w+)\s*-ne\s*\$null", r'-n "$\1"', expr)
