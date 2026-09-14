@@ -37,7 +37,8 @@ _ANSI_RESET = "\x1b[0m"
 
 def color_enabled(stream) -> bool:
     """终端支持色时启用：NO_COLOR（非空）优先关闭，FORCE_COLOR 强制开启（重定向/测试用），
-    其余情况要求 TTY 且 TERM != dumb。"""
+    TERM 为 dumb 或未设置时关闭（.desktop 启动的进程不继承 shell 环境），其余情况要求 TTY。
+    任何检测失败一律保守返回 False，绝不抛出。"""
     env = os.environ
     if env.get("NO_COLOR"):
         return False
@@ -48,9 +49,11 @@ def color_enabled(stream) -> bool:
         return False
     if force:
         return True
+    if not env.get("TERM", ""):
+        return False
     try:
         return bool(stream.isatty())
-    except (AttributeError, ValueError):
+    except Exception:  # 检测失败 = 保守关色（stream 无 isatty / 已关闭 / 其它异常）
         return False
 
 

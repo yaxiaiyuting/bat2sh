@@ -76,6 +76,52 @@ def test_color_enabled_respects_no_color_and_force_color(monkeypatch):
     assert cli.color_enabled(_FakeTty()) is True
 
 
+def test_color_enabled_term_unset_is_conservatively_off(monkeypatch):
+    """.desktop 启动时不继承 TERM：未设置/空值一律关色，且不得抛出。"""
+    from bat2sh import cli
+
+    class _FakeTty:
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.delenv("TERM", raising=False)
+    assert cli.color_enabled(_FakeTty()) is False
+
+    monkeypatch.setenv("TERM", "")
+    assert cli.color_enabled(_FakeTty()) is False
+
+
+def test_color_enabled_force_color_overrides_missing_term(monkeypatch):
+    """FORCE_COLOR 优先级保持不变：TERM 缺失时仍强制开启。"""
+    from bat2sh import cli
+
+    class _FakeTty:
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("TERM", raising=False)
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    assert cli.color_enabled(_FakeTty()) is True
+
+
+def test_color_enabled_never_raises_on_broken_stream(monkeypatch):
+    """任何检测异常（isatty 抛错 / stream 为 None）都保守关色，不向上抛。"""
+    from bat2sh import cli
+
+    class _BrokenStream:
+        def isatty(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    assert cli.color_enabled(_BrokenStream()) is False
+    assert cli.color_enabled(None) is False
+
+
 def test_render_report_text_plain_matches_to_text():
     from bat2sh.cli import render_report_text
     from bat2sh.core.types import ConvertReport, Diagnostic, SourceKind
