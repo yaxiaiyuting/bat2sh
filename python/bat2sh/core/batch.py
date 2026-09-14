@@ -2405,9 +2405,8 @@ class BatchConverter:
     def cmd_findstr(self, lineno: int, args: str, original: str) -> str:
         tokens = tokenize_args(args)
         opts = ""
-        pattern = None
-        files: list[str] = []
-        fixed = False
+        literal_terms: list[str] = []
+        positionals: list[str] = []
         regex = False
         for token in tokens:
             low = token.lower()
@@ -2423,60 +2422,155 @@ class BatchConverter:
             elif low == "/r":
                 regex = True
             elif low.startswith("/c:"):
-                fixed = True
-                pattern = token[3:]
+                literal_terms.append(strip_outer_quotes(token[3:])[0])
             elif low in ("/b", "/e", "/m", "/o", "/p", "/f:"):
                 self._warn(lineno, f"findstr 开关 {token} 未处理", original, category="command")
-            elif pattern is None:
-                pattern = token
             else:
-                files.append(token)
-        opt_text = f"-{opts} " if opts else ""
-        if regex:
-            mode_text = "-E "
-        elif fixed:
-            mode_text = "-F "
-        else:
-            mode_text = ""
-        files_text = " ".join(self._convert_path_token(t, lineno) for t in files)
-        self._warn(lineno, "findstr 已转换为 grep，正则语法可能存在差异", original, category="command")
-        pattern = pattern or '""'
-        pattern = self._translate_findstr_pattern(lineno, pattern, original)
-        return (f"grep {mode_text}{opt_text}".rstrip() + f" {pattern} {files_text}").strip()
+                positionals.append(token)
 
-    def _translate_findstr_pattern(self, lineno: int, pattern: str, original: str) -> str:
-        """中文模式处理：已知模式整段映射为英文等价物并附差异说明；其余含中文模式仅告警。"""
-        inner = strip_outer_quotes(pattern)[0].strip()
-        mapped = _FINDSTR_CJK_MAP.get(inner)
+        bare_token: str | None = None
+        if literal_terms:
+            # /c: 与裸模式混合时按 findstr 文档语义：二者是各自独立的搜索串（OR）。
+            # 裸串与文件名的切分取保守启发式：仅当首个位置参数"不像文件"且后面还有
+            # 位置参数（文件名）时，才把它当作裸搜索串。
+            if len(positionals) >= 2 and not self._findstr_looks_like_file(positionals[0]):
+                bare_token, file_tokens = positionals[0], positionals[1:]
+            else:
+                bare_token, file_tokens = None, positionals
+        else:
+            bare_token = positionals[0] if positionals else None
+            file_tokens = positionals[1:]
+
+        terms: list[tuple[str, bool, bool]] = []
+        if bare_token is not None:
+            terms.extend(
+                (text, mapped, False)
+                for text, mapped in self._expand_findstr_terms(lineno, bare_token, original)
+            )
+        for text in literal_terms:
+            terms.extend(
+                (text, mapped, True)
+                for text, mapped in self._expand_findstr_literal(lineno, text, original)
+            )
+        if not terms:
+            terms = [('""', False, False)]
+
+        if regex:
+            mode_text, escape_literals = "-E ", False
+        elif literal_terms and bare_token is not None:
+            mode_text, escape_literals = "-E ", True
+        elif literal_terms:
+            mode_text, escape_literals = "-F ", False
+        else:
+            mode_text, escape_literals = "", False
+
+        opt_text = f"-{opts} " if opts else ""
+        files_text = " ".join(self._convert_path_token(t, lineno) for t in file_tokens)
+        self._warn(lineno, "findstr 已转换为 grep，正则语法可能存在差异", original, category="command")
+
+        if len(terms) == 1 and not terms[0][1] and bare_token is not None and not literal_terms:
+            pattern_text = bare_token
+        elif len(terms) == 1:
+            pattern_text = dq(terms[0][0])
+        else:
+            rendered = []
+            for text, mapped, is_literal in terms:
+                if is_literal and escape_literals and not mapped:
+                    rendered.append(f"-e {dq(re.escape(text))}")
+                else:
+                    rendered.append(f"-e {dq(text)}")
+            pattern_text = " ".join(rendered)
+        return (f"grep {mode_text}{opt_text}".rstrip() + f" {pattern_text} {files_text}").strip()
+
+    @staticmethod
+    def _findstr_looks_like_file(token: str) -> bool:
+        inner = strip_outer_quotes(token)[0]
+        return bool(re.search(r"[\\/]|\.[A-Za-z0-9_]{1,6}$", inner))
+
+    @staticmethod
+    def _split_around_cjk_keys(text: str) -> list[str]:
+        """以已知中文短语为界拆分：短语本身与其余连续片段各自成为独立搜索项。"""
+        terms: list[str] = []
+        rest = text
+        while rest:
+            hit_pos, hit_key = -1, ""
+            for key in _FINDSTR_CJK_MAP:
+                pos = rest.find(key)
+                if pos != -1 and (
+                    hit_pos == -1 or pos < hit_pos or (pos == hit_pos and len(key) > len(hit_key))
+                ):
+                    hit_pos, hit_key = pos, key
+            if hit_pos == -1:
+                terms.append(rest.strip())
+                break
+            before = rest[:hit_pos].strip()
+            if before:
+                terms.append(before)
+            terms.append(hit_key)
+            rest = rest[hit_pos + len(hit_key):].strip()
+        return [term for term in terms if term]
+
+    def _expand_findstr_terms(
+        self, lineno: int, token: str, original: str
+    ) -> list[tuple[str, bool]]:
+        """展开裸模式串：引号内空格按 findstr OR 语义拆分，逐项做中文映射。"""
+        inner = strip_outer_quotes(token)[0].strip()
+        if not inner:
+            return [('""', False)]
+        if any(key in inner for key in _FINDSTR_CJK_MAP):
+            raw_terms = self._split_around_cjk_keys(inner)
+        else:
+            raw_terms = inner.split()
+        deduped: list[str] = []
+        for term in raw_terms:
+            if term and term not in deduped:
+                deduped.append(term)
+        if len(deduped) > 1:
+            if any(_CJK_RE.search(term) for term in deduped):
+                self._warn(
+                    lineno,
+                    "引号内多词已按 findstr OR 语义拆分；中文词映射后仅匹配英文输出"
+                    "（中英输出不共存，属环境差异），请人工核对",
+                    original,
+                    category="command",
+                )
+            else:
+                self._warn(
+                    lineno,
+                    "引号内多词已按 findstr OR 语义拆分为 grep -e 多模式",
+                    original,
+                    category="command",
+                )
+        return [self._map_findstr_term(lineno, term, original) for term in deduped]
+
+    def _expand_findstr_literal(
+        self, lineno: int, text: str, original: str
+    ) -> list[tuple[str, bool]]:
+        """展开 /c: 字面模式：整段作为一个搜索串（空格不拆分），仅做整段中文映射。"""
+        text = text.strip()
+        if not text:
+            return [('""', False)]
+        return [self._map_findstr_term(lineno, text, original)]
+
+    def _map_findstr_term(self, lineno: int, term: str, original: str) -> tuple[str, bool]:
+        mapped = _FINDSTR_CJK_MAP.get(term)
         if mapped is not None:
             replacement, note = mapped
             self._warn(
                 lineno,
-                f"中文模式“{inner}”已映射为 {replacement!r}（{note}；若实际输出为中文请人工核对）",
+                f"中文模式“{term}”已映射为 {replacement!r}（{note}；若实际输出为中文请人工核对）",
                 original,
                 category="command",
             )
-            return dq(replacement)
-        if not _CJK_RE.search(inner):
-            return pattern
-        known = [key for key in _FINDSTR_CJK_MAP if key in inner]
-        if known:
-            hints = "、".join(f"“{key}”→“{_FINDSTR_CJK_MAP[key][0]!r}”" for key in known)
-            self._warn(
-                lineno,
-                f"模式含已知中文短语（{hints}），但整体模式未收录，未自动替换；"
-                "中文模式在英文输出中可能永不匹配，请人工核对",
-                original,
-                category="command",
-            )
-        else:
+            return replacement, True
+        if _CJK_RE.search(term):
             self._warn(
                 lineno,
                 "模式含中文（未收录已知映射）：中文模式在英文输出中可能永不匹配，请人工核对",
                 original,
                 category="command",
             )
-        return pattern
+        return term, False
 
     def cmd_sort(self, lineno: int, args: str, original: str) -> str | None:
         tokens = tokenize_args(args)

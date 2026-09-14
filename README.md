@@ -295,7 +295,9 @@ GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未�
 | `del` / `erase` / `rmdir /s` / `md` | `rm -f`（`/s`→`rm -rf`）/ `rm -rf` / `mkdir -p` |
 | `type file` | `cat file` |
 | `find "s" f` / `findstr /i "s" f` | `grep -F` / `grep`（/i、/v、/n、/c 等已映射） |
-| `findstr /i "IPv4 地址" f`（中文模式） | 已知中文模式整段映射（如 `"IPv4 地址"`→`"inet "`、`"物理地址"`→`"ether "`），**带差异说明告警**；未收录/混合中文模式不替换、仅告警（英文输出中可能永不匹配） |
+| `findstr /i "IPv4 地址" f`（中文模式） | 已知中文模式整段映射（如 `"IPv4 地址"`→`"inet "`、`"物理地址"`→`"ether "`），**带差异说明告警**；未收录中文仅告警（英文输出中可能永不匹配） |
+| `findstr /i "a b c" f`（引号内多词） | `grep -i -e "a" -e "b" -e "c"`（findstr 以空格分隔多个搜索串，OR 语义；逐词做中文映射） |
+| `findstr /c:"p1" /c:"p2" f`（多 `/c:`） | `grep -F -e "p1" -e "p2"`（全部保留）；`/r` 时为 `grep -E -e …`；`/c:` 与裸词混合按文档语义共存（字面项转义） |
 | `start "" "file"` | `xdg-open "file" &`；可执行目标 → `nohup ... &` |
 | `if exist X (...) else (...)` | `if [ -e "X" ]; then ... else ... fi` |
 | `if "%A%"=="B" (...)`（equ/neq/lss/gtr…） | `if [ "$A" = "B" ]; then ...; fi` |
