@@ -971,6 +971,27 @@ class PowerShellConverter:
             return [self._c(self._todo(lineno, stripped, f"类型注解 [{names[-1]}] 不在支持列表，未转换", category="objects"))]
         return None
 
+    @staticmethod
+    def _net_open_braces(text: str) -> int:
+        """统计引号外的净开启花括号数（``{`` / ``@`` + ``{``）。
+
+        返回正数表示该逻辑行存在未闭合的块开启符。引号内的花括号不计入。
+        """
+        depth = 0
+        quote = ""
+        for c in text:
+            if quote:
+                if c == quote:
+                    quote = ""
+                continue
+            if c in "\"'":
+                quote = c
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+        return depth
+
     def _convert_statement(self, lineno: int, text: str) -> list[str]:
         attr_lines = self._attribute_statement(lineno, text)
         if attr_lines is not None:
@@ -1115,6 +1136,21 @@ class PowerShellConverter:
             inner = text[1:].strip()
             self._warn(lineno, "&（调用运算符）已移除", text, category="command")
             return self._convert_statement(lineno, inner)
+
+        # 统一块栈加固：未被任何登记构造认领的净开启花括号（含 @{）
+        # → 压入安全 comment 容器，正文被注释且大括号平衡，杜绝原样泄漏与失同步
+        open_braces = self._net_open_braces(text)
+        if open_braces > 0:
+            self._todo(
+                lineno,
+                text,
+                "无法识别的块结构，块内代码已注释，请人工检查",
+                category="control_flow",
+            )
+            block = _Block("comment", "")
+            block.brace_depth = open_braces
+            self._stack.append(block)
+            return [self._c("# TODO: 手动检查: " + text)]
 
         # 普通 cmdlet / 命令
         line = self._convert_cmdlet_line(lineno, text)
@@ -1646,6 +1682,21 @@ class PowerShellConverter:
         if var[1:].lower() in ("debugpreference", "verbosepreference", "progresspreference",
                                "warningpreference", "informationpreference"):
             return [self._c("# " + original)]
+
+        # 统一块栈加固：右值含未闭合花括号（如 @{ / 块表达式）→ 安全 comment 容器
+        # 置于属性访问检查之前，避免 $obj.Prop 分支提前返回而不压块
+        open_braces = self._net_open_braces(rhs)
+        if open_braces > 0:
+            self._todo(
+                lineno,
+                original,
+                "无法识别的块结构（右值含未闭合花括号），块内代码已注释，请人工检查",
+                category="control_flow",
+            )
+            block = _Block("comment", "")
+            block.brace_depth = open_braces
+            self._stack.append(block)
+            return [self._c("# TODO: 手动检查: " + original)]
 
         # Read-Host
         m = re.match(r"(?i)^Read-Host\b(.*)$", rhs)
