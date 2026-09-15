@@ -3,6 +3,19 @@
 对 114 个真实 Windows 脚本做"转换 → 静态分析 → bwrap 沙箱运行 → 结果关联"的
 体检数据与可复现脚本。**本目录不含任何无许可语料的原文片段。**
 
+## v1.8.0 新增：PS 静默错误复检
+
+`ps_silent_check.py`：对 `tests/fixtures/real-corpus/fleschutz/`（CC0，60 个 .ps1）
+重跑静默错误测量（只读）。定义为「产物 `bash -n` 通过、沙箱运行 rc==0，
+但可见行为（rc/归一化 stdout）与原始 pwsh 不一致」。
+
+```bash
+python3 tools/corpus-analysis/ps_silent_check.py \
+    --pwsh /path/to/portable-pwsh --out /tmp/bat2sh-ps-silent
+```
+
+缺省不带 `--pwsh` 时只做 bash 侧统计。依赖 bwrap、bash、python3。
+
 ## 数据来源
 
 | 语料 | 许可状态 | 处理方式 |

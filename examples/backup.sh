@@ -35,8 +35,8 @@ files=("${Source}"/*.txt)
 count=0
 for file in "${files[@]}"; do
     target=$(__bat2sh_join_path "${Destination}" "${file}")
-    echo "备份 ${file} -> ${target}"
-    cp -f "${file}" "${target}"
+    echo "备份 ${file} -> ${target:-}"
+    cp -f "${file}" "${target:-}"
     count=$(( ${count:-0} + 1 ))
 done
 
