@@ -24,6 +24,7 @@ FROZEN_WARNINGS = [
     (114, 'glob', '检测到通配符集合，已在脚本头添加 shopt -s nullglob：无匹配时循环体不执行'),
     (138, 'command', 'ver 已转换为 uname -a'),
     (144, 'variables', '%SystemRoot% 的转换可能不完全等价'),
+    (149, 'registry', '系统版本已映射到 /etc/os-release（PRETTY_NAME/VERSION_ID），字段语义与 Windows 版本号不同，请核对'),
     (154, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
     (165, 'command', 'ipconfig 已转换为 ip addr，输出格式不同'),
     (165, 'command', '引号内多词已按 findstr OR 语义拆分；中文词映射后仅匹配英文输出（中英输出不共存，属环境差异），请人工核对'),

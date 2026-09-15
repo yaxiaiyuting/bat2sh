@@ -20,6 +20,14 @@ REBOOT_WARNING = (
     "语义与 Windows Update 注册表标记不同，请核对"
 )
 
+OS_RELEASE_WARNING = (
+    "系统版本已映射到 /etc/os-release（PRETTY_NAME/VERSION_ID），"
+    "字段语义与 Windows 版本号不同，请核对"
+)
+
+_OS_RELEASE_PRETTY = '. /etc/os-release 2>/dev/null; printf \'%s\\n\' "${PRETTY_NAME:-$(uname -s)}"'
+_OS_RELEASE_VERSION = '. /etc/os-release 2>/dev/null; printf \'%s\\n\' "${VERSION_ID:-$(uname -r)}"'
+
 
 @dataclass(frozen=True)
 class RegistryRead:
@@ -60,6 +68,11 @@ def _lookup_test(key: str, value: str) -> RegistryRead | None:
 
 
 def _lookup_read(key: str, normalized: str, value: str) -> RegistryRead | None:
+    if normalized.endswith("\\WINDOWS NT\\CURRENTVERSION"):
+        if value == "PRODUCTNAME":
+            return RegistryRead(_OS_RELEASE_PRETTY, OS_RELEASE_WARNING)
+        if value in ("CURRENTVERSION", "CURRENTBUILDNUMBER"):
+            return RegistryRead(_OS_RELEASE_VERSION, OS_RELEASE_WARNING)
     return None
 
 
