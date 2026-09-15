@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from . import rules
+from . import registry_map, rules
 from .settings import ConvertSettings
 from .suggestions import suggest_pipeline
 from .syntax import bash_syntax_error, degraded_script, record_syntax_error
@@ -2416,6 +2416,11 @@ class BatchConverter:
     def cmd_todo_hint(self, lineno: int, args: str, original: str) -> str | None:
         if self._current_command in _REG_COMMANDS:
             op, key, value = self._parse_reg_invocation(args)
+            if op == "read":
+                mapping = registry_map.lookup(key, value, "read")
+                if mapping is not None:
+                    self._warn(lineno, mapping.warning, original, category="registry")
+                    return mapping.bash
             return self._reg_todo_comment(lineno, original, op, key, value)
         hint = rules.BATCH_TODO_COMMANDS.get(self._current_command, "")
         self._todo(lineno, original, hint, category="command")

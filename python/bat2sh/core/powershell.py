@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from . import rules
+from . import registry_map, rules
 from .settings import ConvertSettings
 from .syntax import bash_syntax_error, degraded_script, record_syntax_error
 from .types import ConvertReport, Diagnostic, SourceKind
@@ -1485,6 +1485,10 @@ class PowerShellConverter:
         expr = expr.strip()
         reg = self._registry_path(expr)
         if reg is not None:
+            mapping = registry_map.lookup(reg, "", "test")
+            if mapping is not None and mapping.is_test:
+                self._warn(lineno, mapping.warning, expr, category="registry")
+                return mapping.bash
             self._condition_fallback = f"注册表路径（{reg}）在 bash 中无对应物，请手工处理"
             return "false"
         if "$_" in expr or re.search(r"\$\w+\.\w+", expr):
@@ -2004,6 +2008,12 @@ class PowerShellConverter:
                 "remove-item": "delete",
                 "remove-itemproperty": "delete",
             }.get(rhs.split(None, 1)[0].lower(), "read")
+            mapping = registry_map.lookup(reg, "", "test" if op == "test" else "read")
+            if mapping is not None:
+                self._warn(lineno, mapping.warning, original, category="registry")
+                if mapping.is_test:
+                    return [self._c(f"{name}=$({mapping.bash} && echo true || echo false)")]
+                return [self._c(f"{name}=$({mapping.bash})")]
             return [self._c(self._reg_todo(lineno, original, op, reg))]
 
         if re.match(r"(?i)^(Get-Date|Join-Path|Split-Path|Resolve-Path|Test-Path|Test-Connection|Get-Content|Get-Item|Get-Process|Get-ChildItem)\b", rhs):
@@ -2677,6 +2687,10 @@ class PowerShellConverter:
     def cmd_test_path(self, lineno: int, args: list[str], original: str) -> str:
         reg = self._registry_path(" ".join(args))
         if reg is not None:
+            mapping = registry_map.lookup(reg, "", "test")
+            if mapping is not None and mapping.is_test:
+                self._warn(lineno, mapping.warning, original, category="registry")
+                return f"{mapping.bash} && echo true || echo false"
             return self._reg_todo(lineno, original, "test", reg)
         paths = [a for a in args if not a.startswith("-")]
         path = paths[0] if paths else '""'
