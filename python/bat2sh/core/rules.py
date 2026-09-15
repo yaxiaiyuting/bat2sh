@@ -375,6 +375,8 @@ PS_HANDLER_MAP: dict[str, str] = {
     "get-member": "cmd_todo_cmdlet",
     "get-itemproperty": "cmd_todo_cmdlet",
     "set-itemproperty": "cmd_todo_cmdlet",
+    "new-itemproperty": "cmd_todo_cmdlet",
+    "remove-itemproperty": "cmd_todo_cmdlet",
     "new-object": "cmd_todo_cmdlet",
     "add-type": "cmd_todo_cmdlet",
     "add-member": "cmd_todo_cmdlet",

@@ -49,6 +49,17 @@ _PS_TYPE_NAMES = frozenset({
     "version", "pscustomobject", "ordered",
 })
 _ATTR_BUFFER_LIMIT = 40
+_PS_REG_PROPERTY_OPS = {
+    "get-itemproperty": "read",
+    "set-itemproperty": "write",
+    "new-itemproperty": "write",
+    "remove-itemproperty": "delete",
+}
+_COM_REG_HINT = (
+    "Windows Script Host（WScript.Shell）注册表 API 在 Linux 无对应物，"
+    "请改为编辑对应配置文件"
+)
+_DOTNET_REG_HINT = ".NET 注册表 API 在 Linux 无对应物，请改为编辑对应配置文件"
 
 
 @dataclass
@@ -1138,6 +1149,18 @@ class PowerShellConverter:
         return depth
 
     def _convert_statement(self, lineno: int, text: str) -> list[str]:
+        if re.search(r"(?i)Microsoft\.Win32\.Registry", text):
+            return [
+                self._c(
+                    self._reg_todo(
+                        lineno,
+                        text,
+                        self._dotnet_registry_op(text),
+                        self._first_string_arg(text),
+                        hint=_DOTNET_REG_HINT,
+                    )
+                )
+            ]
         attr_lines = self._attribute_statement(lineno, text)
         if attr_lines is not None:
             return attr_lines
@@ -1299,6 +1322,20 @@ class PowerShellConverter:
             inner = text[1:].strip()
             self._warn(lineno, "&（调用运算符）已移除", text, category="command")
             return self._convert_statement(lineno, inner)
+
+        com = re.search(r"(?i)\.Reg(Read|Write|Delete)\s*\(", text)
+        if com:
+            return [
+                self._c(
+                    self._reg_todo(
+                        lineno,
+                        text,
+                        com.group(1).lower(),
+                        self._first_string_arg(text),
+                        hint=_COM_REG_HINT,
+                    )
+                )
+            ]
 
         # 统一块栈加固：未被任何登记构造认领的净开启花括号（含 @{）
         # → 压入安全 comment 容器，正文被注释且大括号平衡，杜绝原样泄漏与失同步
@@ -1936,9 +1973,34 @@ class PowerShellConverter:
         if m:
             return self._read_host(lineno, original, name, m.group(1))
 
+        com = re.search(r"(?i)\.Reg(Read|Write|Delete)\s*\(", rhs)
+        if com:
+            return [
+                self._c(
+                    self._reg_todo(
+                        lineno,
+                        original,
+                        com.group(1).lower(),
+                        self._first_string_arg(rhs),
+                        hint=_COM_REG_HINT,
+                    )
+                )
+            ]
         if re.search(r"\$\{?\w+\}?\.[A-Z]\w*", rhs):
             return [self._c(self._todo(lineno, original, "对象属性访问（如 $obj.Prop）无法自动转换", category="objects"))]
         if re.search(r"\]\s*::", rhs):
+            if re.search(r"(?i)Microsoft\.Win32\.Registry", rhs):
+                return [
+                    self._c(
+                        self._reg_todo(
+                            lineno,
+                            original,
+                            self._dotnet_registry_op(rhs),
+                            self._first_string_arg(rhs),
+                            hint=_DOTNET_REG_HINT,
+                        )
+                    )
+                ]
             return [self._c(self._todo(lineno, original, ".NET 类型静态调用在 bash 中无对应物", category="objects"))]
 
         cast = re.match(r"^\[([A-Za-z_][\w.]*)\]\s*(.+)$", rhs, re.S)
@@ -3040,21 +3102,41 @@ class PowerShellConverter:
         return ""
 
     def cmd_todo_cmdlet(self, lineno: int, args: list[str], original: str) -> str | None:
-        if self._current_cmdlet == "get-itemproperty":
-            text = " ".join(args)
-            reg = self._registry_path(text)
+        op = _PS_REG_PROPERTY_OPS.get(self._current_cmdlet)
+        if op is not None:
+            reg = self._registry_path(" ".join(args))
             if reg is not None:
                 value = self._registry_value_name(args)
-                mapping = registry_map.lookup(reg, value, "read")
-                if mapping is not None:
-                    self._warn(lineno, mapping.warning, original, category="registry")
-                    return mapping.bash
+                if op == "read":
+                    mapping = registry_map.lookup(reg, value, "read")
+                    if mapping is not None:
+                        self._warn(lineno, mapping.warning, original, category="registry")
+                        return mapping.bash
                 return self._reg_todo(
-                    lineno, original, "read", reg, value, hint=registry_map.hint_for(reg)
+                    lineno,
+                    original,
+                    op,
+                    reg,
+                    value,
+                    hint=registry_map.hint_for(reg) or None,
                 )
         hint = rules.PS_TODO_CMDLETS.get(self._current_cmdlet, "")
         self._todo(lineno, original, hint, category="command")
         return None
+
+    @staticmethod
+    def _first_string_arg(text: str) -> str:
+        match = re.search(r'"([^"]*)"', text) or re.search(r"'([^']*)'", text)
+        return match.group(1) if match else ""
+
+    @staticmethod
+    def _dotnet_registry_op(text: str) -> str:
+        low = text.lower()
+        if re.search(r"\.(deletesubkey|deletesubkeytree|deletevalue)\b", low):
+            return "delete"
+        if re.search(r"\.(opensubkey|getvalue|getsubkeynames|getvaluenames)\b", low):
+            return "read"
+        return "write"
 
     def cmd_service(self, lineno: int, args: list[str], original: str) -> str | None:
         name = next((a for a in args if not a.startswith("-")), None)
