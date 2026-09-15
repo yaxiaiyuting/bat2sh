@@ -922,6 +922,10 @@ class BatchConverter:
         if target.isalpha():
             var = target.lower()
             if var in self._loop_vars:
+                if "n" in mods and ("d" in mods or "p" in mods):
+                    if "x" in mods:
+                        return f"${{{var}}}"
+                    return f"${{{var}%.*}}"
                 if "n" in mods and "x" in mods:
                     return f'$(basename "${{{var}}}")'
                 if "f" in mods:
