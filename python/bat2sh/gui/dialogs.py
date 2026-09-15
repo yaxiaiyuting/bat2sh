@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import threading
 import time
 
 from PySide6.QtCore import Qt, QThread, QUrl, Signal
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
@@ -35,7 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import APP_DESCRIPTION, APP_DISPLAY_NAME, APP_HOMEPAGE, __version__
-from ..core.api import fixer
+from ..core.api import fixer, parallel
 from ..core.api.config import ApiConfig, missing_requirements
 from ..core.api.provider import (
     ProviderError,
@@ -190,6 +192,13 @@ class SettingsDialog(QDialog):
         self.api_context_spin.setToolTip("发送给 API 的源文件上下文行数（上限 10；不发送整文件）")
         form.addRow("API 上下文", self.api_context_spin)
 
+        self.max_concurrency_spin = QSpinBox()
+        self.max_concurrency_spin.setRange(1, 16)
+        self.max_concurrency_spin.setToolTip(
+            "并行修复的并发数（默认 3，范围 1-16）；遇 429 限流会自动降并发"
+        )
+        form.addRow("修复并发数", self.max_concurrency_spin)
+
         test_row = QWidget()
         test_layout = QHBoxLayout(test_row)
         test_layout.setContentsMargins(0, 0, 0, 0)
@@ -268,6 +277,7 @@ class SettingsDialog(QDialog):
         self.api_timeout_spin.setValue(int(api_config.timeout))
         self.enable_thinking_check.setChecked(api_config.enable_thinking)
         self.api_context_spin.setValue(api_config.context_lines)
+        self.max_concurrency_spin.setValue(api_config.max_concurrency)
 
     # -- API 连接测试 ------------------------------------------------
 
@@ -394,6 +404,7 @@ class SettingsDialog(QDialog):
             max_retries=self._api_config.max_retries,
             context_lines=self.api_context_spin.value(),
             enable_thinking=self.enable_thinking_check.isChecked(),
+            max_concurrency=self.max_concurrency_spin.value(),
         ).normalized()
 
 
@@ -618,11 +629,50 @@ class ConnectionTestWorker(QThread):
 _LIVE_TEST_WORKERS: set[ConnectionTestWorker] = set()
 
 
-class TodoFixDialog(QDialog):
-    """逐条 API 修复：标记列表 + 发送前 payload 展示 + diff 预览 + 应用/跳过。
+class ParallelFixWorker(QThread):
+    """后台运行并行修复编排（``parallel.run_parallel``），事件经队列连接投递到 GUI 线程。"""
 
-    变更只在内存中累积，关闭后由主窗口写回编辑器（不自动落盘，决策 7）。
+    event = Signal(int, str, str, str)  # index, status, detail, chunk
+    completed = Signal()
+
+    def __init__(self, tasks, provider, api_config, text, cancel_event, parent=None):
+        super().__init__(parent)
+        self._tasks = list(tasks)
+        self._provider = provider
+        self._api_config = api_config
+        self._text = text
+        self._cancel_event = cancel_event
+        self.error = ""
+
+    def run(self) -> None:
+        try:
+            parallel.run_parallel(
+                self._tasks,
+                self._provider,
+                text=self._text,
+                timeout=self._api_config.timeout,
+                on_event=self._on_event,
+                max_concurrency=self._api_config.max_concurrency,
+                cancel_event=self._cancel_event,
+            )
+        except KeyboardInterrupt:
+            pass
+        except Exception as exc:  # 编排异常不应让 GUI 崩溃
+            self.error = str(exc)
+        finally:
+            self.completed.emit()
+
+    def _on_event(self, event) -> None:
+        self.event.emit(event.index, event.status, event.detail, event.chunk)
+
+
+class TodoFixDialog(QDialog):
+    """多选并行 API 修复：勾选条目 → 并发获取建议 → 聚合 diff → 一次应用。
+
+    变更只在内存中累积，``accept`` 后由主窗口写回编辑器（不自动落盘，决策 7）。
     """
+
+    MAX_RETRY_ROUNDS = 3
 
     def __init__(
         self,
@@ -635,25 +685,35 @@ class TodoFixDialog(QDialog):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("API 修复 TODO（建议需人工复核）")
-        self.resize(1200, 780)
+        self.setWindowTitle("API 修复 TODO（多选并行；建议需人工复核）")
+        self.resize(1240, 820)
         self._source_text = source_text
         self._api_config = api_config
         self._provider_factory = provider_factory
         self._dark = dark
         self._markers = fixer.scan_todo_markers(output_text, report)
         self._text = output_text
-        self._offset = 0
-        self._index = 0
-        self._pending_marker: fixer.TodoMarker | None = None
-        self._pending_prompt = ""
-        self._pending_replacement = ""
-        self._candidate = ""
+        self._tasks = parallel.plan_tasks(
+            self._markers,
+            source_text,
+            "源脚本",
+            output_text,
+            api_config.context_lines,
+        )
+        self._selected: list = []
+        self._attempted: list = []
+        self._merged = ""
         self._applied = 0
-        self._worker: TodoFixWorker | None = None
+        self._rounds = 0
+        self._running = False
+        self._collected = False
         self._closed = False
+        self._worker: ParallelFixWorker | None = None
+        self._workers: list = []  # 保活：已结束的线程对象不被提前 GC
+        self._stream_started: set = set()
+        self._cancel_event = threading.Event()
         self._build()
-        self._select_current()
+        self._sync_selection()
 
     @property
     def applied_count(self) -> int:
@@ -665,47 +725,60 @@ class TodoFixDialog(QDialog):
     def _build(self) -> None:
         layout = QVBoxLayout(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
+
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.addWidget(QLabel("待处理标记"))
+        left_layout.addWidget(QLabel("待处理标记（勾选要并行修复的条目）"))
         self.marker_list = QListWidget()
         for index, marker in enumerate(self._markers):
-            self.marker_list.addItem(self._marker_label(index, marker))
+            item = QListWidgetItem(self._marker_label(index, marker))
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
+            self.marker_list.addItem(item)
+        self.marker_list.itemChanged.connect(self._on_selection_changed)
         left_layout.addWidget(self.marker_list, 1)
-        note = QLabel("逐条处理：发送前核对将离开本机的内容；应用前查看差异。")
-        note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
-        left_layout.addWidget(note)
+        select_row = QHBoxLayout()
+        self.select_all_button = QPushButton("全选")
+        self.select_all_button.clicked.connect(lambda: self._set_all_checked(True))
+        self.select_none_button = QPushButton("全不选")
+        self.select_none_button.clicked.connect(lambda: self._set_all_checked(False))
+        select_row.addWidget(self.select_all_button)
+        select_row.addWidget(self.select_none_button)
+        left_layout.addLayout(select_row)
         splitter.addWidget(left)
 
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.addWidget(QLabel("将发送的内容（原文，可复核）"))
+        right_layout.addWidget(QLabel("将发送的条目（原文，可复核）"))
         self.payload_view = QPlainTextEdit()
         self.payload_view.setReadOnly(True)
-        right_layout.addWidget(self.payload_view, 1)
-        right_layout.addWidget(QLabel("模型输出（流式）"))
+        self.payload_view.setMaximumHeight(150)
+        right_layout.addWidget(self.payload_view)
+        right_layout.addWidget(QLabel("聚合状态（每条一行，实时刷新）"))
+        self.status_list = QListWidget()
+        right_layout.addWidget(self.status_list)
+        right_layout.addWidget(QLabel("模型输出（流式，按 #序号 归属）"))
         self.stream_view = QPlainTextEdit()
         self.stream_view.setReadOnly(True)
         self.stream_view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self.stream_view.setPlaceholderText("发送后，模型正文将实时显示在这里（思维链仅显示段数）")
-        self.stream_view.setMinimumHeight(80)
-        self.stream_view.setMaximumHeight(200)
+        self.stream_view.setPlaceholderText("开始后，模型正文将实时显示在这里（思维链仅显示段数）")
         stream_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         if stream_font.pointSize() < 10:
             stream_font.setPointSize(10)
         self.stream_view.setFont(stream_font)
+        self.stream_view.setMinimumHeight(80)
+        self.stream_view.setMaximumHeight(180)
         right_layout.addWidget(self.stream_view)
-        right_layout.addWidget(QLabel("修复建议差异（当前 → 建议）"))
+        right_layout.addWidget(QLabel("修复建议差异（当前 → 聚合建议）"))
         self.diff_view = QTextBrowser()
         self.diff_view.setOpenExternalLinks(False)
         right_layout.addWidget(self.diff_view, 1)
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([320, 880])
+        splitter.setSizes([340, 900])
         layout.addWidget(splitter, 1)
 
         self.status_label = QLabel("")
@@ -713,226 +786,260 @@ class TodoFixDialog(QDialog):
         layout.addWidget(self.status_label)
 
         buttons = QHBoxLayout()
-        self.privacy_label = QLabel()
-        self.privacy_label.setWordWrap(True)
-        self.privacy_label.setStyleSheet("color: palette(mid);")
-        buttons.addWidget(self.privacy_label, 1)
-        self.send_button = QPushButton("发送本条并获取建议")
-        self.send_button.clicked.connect(self._start_request)
-        self.stop_button = QPushButton("停止接收")
+        hint = QLabel("API 建议仍需人工复核，不保证语义正确；保存文件仍由主界面完成。")
+        hint.setStyleSheet("color: palette(mid);")
+        buttons.addWidget(hint, 1)
+        self.send_button = QPushButton("开始并行修复")
+        self.send_button.clicked.connect(self._start_run)
+        self.stop_button = QPushButton("停止")
         self.stop_button.setEnabled(False)
-        self.stop_button.clicked.connect(self._stop_request)
-        self.apply_button = QPushButton("应用这条修改")
+        self.stop_button.clicked.connect(self._request_stop)
+        self.retry_button = QPushButton("重试失败项")
+        self.retry_button.setEnabled(False)
+        self.retry_button.clicked.connect(self._retry_failed)
+        self.apply_button = QPushButton("应用全部修改")
         self.apply_button.setEnabled(False)
-        self.apply_button.clicked.connect(self._apply_current)
-        self.skip_button = QPushButton("跳过本条")
-        self.skip_button.clicked.connect(self._skip_current)
-        buttons.addWidget(self.send_button)
-        buttons.addWidget(self.stop_button)
-        buttons.addWidget(self.apply_button)
-        buttons.addWidget(self.skip_button)
+        self.apply_button.clicked.connect(self._apply_all)
+        for button in (
+            self.send_button,
+            self.stop_button,
+            self.retry_button,
+            self.apply_button,
+        ):
+            buttons.addWidget(button)
         layout.addLayout(buttons)
 
         footer = QHBoxLayout()
-        hint = QLabel("API 建议仍需人工复核，不保证语义正确；保存文件仍由主界面完成。")
-        hint.setStyleSheet("color: palette(mid);")
-        footer.addWidget(hint, 1)
+        footer.addStretch(1)
         discard_button = QPushButton("放弃本次修复")
         discard_button.clicked.connect(self.reject)
-        done_button = QPushButton("完成")
-        done_button.setDefault(True)
-        done_button.clicked.connect(self.accept)
         footer.addWidget(discard_button)
-        footer.addWidget(done_button)
         layout.addLayout(footer)
 
     def closeEvent(self, event) -> None:
         self._closed = True
+        self._cancel_event.set()
         if self._worker is not None:
-            self._worker.request_cancel()
+            self._worker.wait(2000)
         event.accept()
         self.accept()
 
-    def _current_marker(self) -> fixer.TodoMarker | None:
-        if 0 <= self._index < len(self._markers):
-            return self._markers[self._index]
-        return None
-
+    # ------------------------------------------------------------------
+    # 选择与展示
+    # ------------------------------------------------------------------
     def _marker_label(self, index: int, marker: fixer.TodoMarker) -> str:
         text = marker.marker_text if len(marker.marker_text) <= 72 else marker.marker_text[:72] + "…"
         return f"{index + 1}. 第 {marker.out_line} 行: {text}"
 
-    def _select_current(self) -> None:
-        marker = self._current_marker()
-        if marker is None:
-            self.marker_list.clearSelection()
-            self.payload_view.setPlainText("")
-            self.diff_view.clear()
-            self.send_button.setEnabled(False)
-            self.apply_button.setEnabled(False)
-            self.skip_button.setEnabled(False)
-            self.stop_button.setEnabled(False)
-            self.privacy_label.setText("")
-            self.status_label.setText(
-                f"全部处理完成：已应用 {self._applied} 处（关闭后写回编辑器，保存仍由主界面完成）。"
-            )
+    def _set_all_checked(self, checked: bool) -> None:
+        if self._running or self._collected:
             return
-        self.marker_list.setCurrentRow(self._index)
-        effective = marker.out_line + self._offset
-        self._pending_marker = marker
-        self._pending_prompt = fixer.build_prompt(
-            marker,
-            self._source_text,
-            "源脚本",
-            self._text,
-            self._api_config.context_lines,
-            out_line=effective,
-        )
-        self.payload_view.setPlainText(self._pending_prompt)
-        self.diff_view.clear()
-        self.privacy_label.setText(
-            f"点击“发送本条并获取建议”即确认将上方内容发送到 {self._api_config.base_url}"
-            "（内容将离开本机，可能被服务提供方记录）。"
-        )
-        self.status_label.setText(
-            f"待处理 {self._index + 1}/{len(self._markers)}：核对将发送的内容。"
-        )
-        self.send_button.setEnabled(True)
-        self.apply_button.setEnabled(False)
-        self.skip_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
+        state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+        for row in range(self.marker_list.count()):
+            self.marker_list.item(row).setCheckState(state)
 
-    def _start_request(self) -> None:
-        marker = self._pending_marker
-        if marker is None or self._worker is not None:
+    def _checked_tasks(self) -> list:
+        return [
+            task
+            for row, task in enumerate(self._tasks)
+            if self.marker_list.item(row) is not None
+            and self.marker_list.item(row).checkState() == Qt.CheckState.Checked
+        ]
+
+    def _task_by_index(self, index: int):
+        for task in self._tasks:
+            if task.index == index:
+                return task
+        return None
+
+    def _on_selection_changed(self, _item) -> None:
+        self._sync_selection()
+
+    def _sync_selection(self) -> None:
+        self._selected = self._checked_tasks()
+        self._refresh_payload()
+        self._refresh_status_rows()
+        if not self._running and not self._collected:
+            self.send_button.setEnabled(bool(self._selected))
+
+    def _refresh_payload(self) -> None:
+        lines = [f"将发送 {len(self._selected)} 条到 {self._api_config.base_url}"]
+        for task in self._selected:
+            lines.append(f"#{task.index} 第 {task.out_line} 行: {task.marker.marker_text}")
+        if self._selected:
+            lines.append("（内容将离开本机，可能被服务提供方记录；prompt 不含 API key）")
+        self.payload_view.setPlainText("\n".join(lines))
+
+    def _refresh_status_rows(self) -> None:
+        selected = {task.index for task in self._selected}
+        self.status_list.clear()
+        for task in self._tasks:
+            if task.index in selected:
+                self.status_list.addItem(self._row_text(task))
+            else:
+                self.status_list.addItem(
+                    f"#{task.index} 第{task.out_line}行 {parallel.STATUS_SKIPPED}：未选择"
+                )
+
+    def _update_row(self, index: int, text: str) -> None:
+        row = index - 1
+        if 0 <= row < self.status_list.count():
+            self.status_list.item(row).setText(text)
+
+    def _append_stream(self, text: str) -> None:
+        cursor = self.stream_view.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.stream_view.setTextCursor(cursor)
+        self.stream_view.insertPlainText(redact(text, self._api_config.api_key))
+        self.stream_view.ensureCursorVisible()
+
+    def _row_text(self, task) -> str:
+        return redact(
+            parallel.format_status_line(task), self._api_config.api_key
+        )
+
+    def _row_text_from_event(self, index: int, status: str, detail: str) -> str:
+        """用事件自身的 detail 渲染行（思维链/限流等瞬时信息不写回 task.detail）。"""
+        task = self._task_by_index(index)
+        out_line = task.out_line if task is not None else 0
+        line = f"#{index} 第{out_line}行 {status}"
+        return redact(
+            f"{line}：{detail}" if detail else line, self._api_config.api_key
+        )
+
+    # ------------------------------------------------------------------
+    # 执行
+    # ------------------------------------------------------------------
+    def _start_run(self) -> None:
+        if self._running:
             return
+        selected = self._checked_tasks()
+        if not selected:
+            self.status_label.setText("未选择任何条目。")
+            return
+        self._launch(selected)
+
+    def _launch(self, tasks: list) -> None:
         try:
             provider = self._provider_factory(self._api_config)
         except ProviderError as exc:
             self.status_label.setText(f"API 配置错误：{exc}")
             return
-        self.stream_view.clear()
+        for task in tasks:
+            if not any(task is item for item in self._attempted):
+                self._attempted.append(task)
+        self._running = True
+        self._cancel_event = threading.Event()
         self.send_button.setEnabled(False)
-        self.skip_button.setEnabled(False)
-        self.stop_button.setEnabled(True)
+        self.retry_button.setEnabled(False)
         self.apply_button.setEnabled(False)
-        self.status_label.setText(f"请求中（{self._api_config.base_url}）…")
-        worker = TodoFixWorker(provider, self._pending_prompt, self._api_config.timeout)
-        worker.succeeded.connect(self._on_response)
-        worker.failed.connect(self._on_failure)
-        worker.chunk.connect(self._on_chunk)
-        worker.reasoning.connect(self._on_reasoning)
-        worker.warning.connect(self._on_warning)
-        worker.cancelled.connect(self._on_cancelled)
-        worker.finished.connect(self._on_worker_finished)
+        self.stop_button.setEnabled(True)
+        self.select_all_button.setEnabled(False)
+        self.select_none_button.setEnabled(False)
+        self.marker_list.setEnabled(False)
+        self.status_label.setText(
+            f"并行请求中（并发 {self._api_config.max_concurrency}；"
+            f"端点 {self._api_config.base_url}）…"
+        )
+        worker = ParallelFixWorker(
+            tasks, provider, self._api_config, self._text, self._cancel_event
+        )
+        worker.event.connect(self._on_worker_event, Qt.ConnectionType.QueuedConnection)
+        worker.completed.connect(
+            self._on_worker_completed, Qt.ConnectionType.QueuedConnection
+        )
         self._worker = worker
+        self._workers.append(worker)
         worker.start()
 
-    def _on_worker_finished(self) -> None:
+    def _on_worker_event(self, index: int, status: str, detail: str, chunk: str) -> None:
+        if self._closed:
+            return
+        if chunk:
+            if index not in self._stream_started:
+                self._stream_started.add(index)
+                self._append_stream(f"#{index}: ")
+            self._append_stream(chunk)
+            return
+        if status == parallel.STATUS_RUNNING and detail.startswith("警告："):
+            self._append_stream(f"#{index} [警告] {detail[len('警告：'):]}\n")
+            return
+        if status == parallel.STATUS_RUNNING and detail.startswith("限流"):
+            self._append_stream(f"#{index} [{detail}]\n")
+            return
+        self._update_row(index, self._row_text_from_event(index, status, detail))
+        if status != parallel.STATUS_RUNNING and index in self._stream_started:
+            self._append_stream("\n")
+            self._stream_started.discard(index)
+
+    def _on_worker_completed(self) -> None:
+        worker = self._worker
         self._worker = None
-
-    def _on_chunk(self, chunk: str) -> None:
-        if self._closed:
-            return
-        cursor = self.stream_view.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self.stream_view.setTextCursor(cursor)
-        self.stream_view.insertPlainText(chunk)
-        self.stream_view.ensureCursorVisible()
-
-    def _on_reasoning(self, count: int) -> None:
-        if self._closed:
-            return
-        self.status_label.setText(f"模型思考中…（思维链 {count} 段）")
-
-    def _on_warning(self, message: str) -> None:
-        if self._closed:
-            return
-        cursor = self.stream_view.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self.stream_view.setTextCursor(cursor)
-        self.stream_view.insertPlainText(f"[警告] {message}\n")
-        self.stream_view.ensureCursorVisible()
-
-    def _stop_request(self) -> None:
-        if self._worker is None:
-            return
-        self._worker.request_cancel()
-        self.status_label.setText("正在停止接收…（本条保留 TODO）")
+        self._running = False
         self.stop_button.setEnabled(False)
-
-    def _on_cancelled(self) -> None:
         if self._closed:
             return
-        self.status_label.setText("已停止接收（本条保留 TODO）")
-        self.send_button.setEnabled(True)
-        self.skip_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
-        self.apply_button.setEnabled(False)
-
-    def _on_failure(self, message: str) -> None:
-        if self._closed:
-            return
-        self.status_label.setText(
-            "API 调用失败（本条保留 TODO）："
-            + redact(message, self._api_config.api_key)
+        if worker is not None and worker.error:
+            self.status_label.setText(
+                "编排异常（已中止本条会话）："
+                + redact(worker.error, self._api_config.api_key)
+            )
+        merged, _dropped = parallel.merge_replacements(self._text, self._attempted)
+        self._merged = merged
+        self._collected = True
+        for task in self._attempted:
+            self._update_row(task.index, self._row_text(task))
+        if merged != self._text:
+            self.diff_view.setHtml(
+                build_diff_html(self._text, merged, "当前脚本", "修复建议", self._dark)
+            )
+            self.apply_button.setEnabled(True)
+        done = [t for t in self._attempted if t.status == parallel.STATUS_DONE]
+        skipped = [t for t in self._attempted if t.status == parallel.STATUS_SKIPPED]
+        failed = [t for t in self._attempted if t.status == parallel.STATUS_FAILED]
+        self.retry_button.setEnabled(
+            bool(failed) and self._rounds < self.MAX_RETRY_ROUNDS
         )
-        self.send_button.setEnabled(True)
-        self.skip_button.setEnabled(True)
+        parts = [
+            f"收集完成：可修复 {len(done)} / 跳过 {len(skipped)} / 失败 {len(failed)}"
+        ]
+        if failed and self.retry_button.isEnabled():
+            parts.append("可点击“重试失败项”")
+        if self.apply_button.isEnabled():
+            parts.append("核对聚合差异后点击“应用全部修改”")
+        elif not failed:
+            parts.append("没有可用修改（保留 TODO，需人工处理）")
+        self.status_label.setText("；".join(parts))
+
+    def _retry_failed(self) -> None:
+        if self._running:
+            return
+        failed = [t for t in self._attempted if t.status == parallel.STATUS_FAILED]
+        if not failed or self._rounds >= self.MAX_RETRY_ROUNDS:
+            return
+        self._rounds += 1
+        for task in failed:
+            task.status = parallel.STATUS_PENDING
+            task.replacement = ""
+            task.detail = ""
+            task.retries = 0
+            self._update_row(task.index, self._row_text(task))
+        self.status_label.setText(f"重试 {len(failed)} 条（第 {self._rounds} 轮）…")
+        self._launch(failed)
+
+    def _request_stop(self) -> None:
+        self._cancel_event.set()
+        self.status_label.setText("正在停止…（需等待当前请求返回，最长一个空闲超时）")
         self.stop_button.setEnabled(False)
 
-    def _on_response(self, raw: str) -> None:
-        if self._closed:
+    def _apply_all(self) -> None:
+        if not self._merged or self._merged == self._text:
             return
-        self.stop_button.setEnabled(False)
-        marker = self._pending_marker
-        if marker is None:
-            return
-        replacement = fixer.clean_completion(raw)
-        if (
-            not replacement
-            or "# TODO" in replacement
-            or replacement.strip() == marker.line_text.strip()
-        ):
-            self.status_label.setText("模型未给出可用修改，本条保留 TODO（可跳过）。")
-            self.send_button.setEnabled(True)
-            self.skip_button.setEnabled(True)
-            return
-        effective = marker.out_line + self._offset
-        candidate = fixer.apply_replacement(self._text, effective, replacement)
-        problem = bash_syntax_error(candidate)
-        if problem:
-            self.status_label.setText(f"建议未通过 bash -n，已拒绝：{problem}")
-            self.send_button.setEnabled(True)
-            self.skip_button.setEnabled(True)
-            return
-        self._pending_replacement = replacement
-        self._candidate = candidate
-        self.diff_view.setHtml(
-            build_diff_html(self._text, candidate, "当前脚本", "修复建议", self._dark)
+        self._text = self._merged
+        self._applied = sum(
+            1 for task in self._attempted if task.status == parallel.STATUS_DONE
         )
-        self.status_label.setText("已收到建议：核对差异后选择“应用这条修改”或“跳过本条”。")
-        self.apply_button.setEnabled(True)
-        self.skip_button.setEnabled(True)
-
-    def _apply_current(self) -> None:
-        if not self._candidate:
-            return
-        self._offset += fixer.replacement_line_count(self._pending_replacement) - 1
-        self._text = self._candidate
-        self._applied += 1
-        self._pending_replacement = ""
-        self._candidate = ""
-        self._advance()
-
-    def _skip_current(self) -> None:
-        self._pending_replacement = ""
-        self._candidate = ""
-        self._advance()
-
-    def _advance(self) -> None:
-        self._index += 1
-        self._select_current()
+        self.accept()
 
 
 class AboutDialog(QDialog):

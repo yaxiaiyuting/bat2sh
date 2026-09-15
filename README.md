@@ -23,7 +23,9 @@
 - 转换报告：已转换行数、保持不变行数、错误、警告、无法自动转换（TODO）清单（错误红/警告黄高亮）
 - 差异预览：`difflib` 生成源文件与转换结果的对照表
 - 命令行模式：`bat2sh --cli input.bat -o output.sh`，适合脚本/CI 调用
-- API 修复 TODO（实验性）：CLI `--fix-todos` / GUI 工具栏，为无法自动转换的语句获取修复建议（逐条确认、diff 后应用，绝不自动写盘）
+- API 修复 TODO（实验性）：CLI `--fix-todos` / GUI 工具栏，可**多选并并行**获取多条修复建议
+  （并发默认 3，`--max-concurrency` 可调；聚合面板逐条显示状态、全部收完后合并为一次 diff、确认后才写盘，
+  绝不自动写盘）
 - 规则集中定义在 `core/rules.py`，扩展翻译规则只需改表或加 `cmd_*` 方法
 
 ## 2. 项目结构
@@ -193,7 +195,8 @@ bat2sh --cli a.bat --report --fail-on-todo # CI: 有错误/TODO 时退出码 3
 bat2sh --cli a.bat --report-json           # 转换报告以 JSON 输出到 stdout（--print 时走 stderr）
 bat2sh --cli a.bat --run --yes             # 转换后执行（含错误/TODO 时拒绝，退出码 4）
 bat2sh --cli a.bat --run --force           # 强制执行（跳过 TODO 防护与确认）
-bat2sh --cli a.bat --fix-todos             # 交互式：调用 API 为 TODO 获取修复建议（见 4.5）
+bat2sh --cli a.bat --fix-todos             # 交互式：多选 TODO 并行获取修复建议（见 4.5）
+bat2sh --cli a.bat --fix-todos --max-concurrency 5   # 并发数（默认 3，范围 1-16）
 ```
 
 | 参数 | 说明 |
@@ -220,7 +223,8 @@ bat2sh --cli a.bat --fix-todos             # 交互式：调用 API 为 TODO 获
 | `--yes` | 跳过执行确认（非交互环境必需；仍受 TODO 防护） |
 | `--run-timeout N` | 执行超时秒数（默认 30；超时退出码 5） |
 | `--run-cwd DIR` | 执行工作目录（默认脚本所在目录） |
-| `--fix-todos` | 调用 API 为 TODO 生成修复建议（需交互终端；与 `--run` 互斥；见 4.5） |
+| `--fix-todos` | 多选并行调用 API 为 TODO 生成修复建议（需交互终端；与 `--run` 互斥；见 4.5） |
+| `--max-concurrency N` / `--parallel N` | `--fix-todos` 的并发数（默认 3，范围 1-16；`BAT2SH_MAX_CONCURRENCY` / `api.json`） |
 | `--api-base` / `--api-model` | API 地址 / 模型（覆盖配置文件；通常配合 `--fix-todos`） |
 | `--api-provider` | API 类型（当前仅 `openai` 兼容） |
 | `--api-key` | API key（不推荐：会进入 shell 历史；建议用 `BAT2SH_API_KEY`） |
@@ -285,35 +289,55 @@ GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未�
 
 ```bash
 export BAT2SH_API_KEY=...                  # 推荐：key 走环境变量（不落盘）
-bat2sh --cli deploy.bat --fix-todos        # 在交互终端逐条确认
+bat2sh --cli deploy.bat --fix-todos        # 交互式：多选 TODO，并行获取建议
 ```
 
-模型输出实时流式显示在 stderr（仅正文；思维链只以"思维链 N 段"状态行提示，不显示内容），
-stdout 始终保留给脚本本身（`--print`）。GUI 对话框同样在只读面板中流式显示正文，并提供
-"停止接收"按钮（取消则保留 TODO，不应用部分输出）。流式下超时语义为**两次数据之间的空闲超时**
-（默认 30s），模型生成总时长不受限（长思考数十秒~数分钟不再触发读超时）。
+**多选并行流程**（v1.7.0）：
+
+1. 列出全部可修复 TODO，可**多选**要处理的条目（回车=全部；单条时跳过选择）；
+2. **一次**隐私确认：`发送 N 条到 {endpoint}？[y/N]`（合并为一次，不逐条询问）；
+3. 以并发数（默认 **3**）并行调用模型，聚合面板**每条一行**实时刷新状态
+   （`pending / running / done / failed / skipped`）；
+4. 失败条目可**重试**（合并前、最多 3 轮；一条失败不阻塞其余）；
+5. 全部收完后**从后往前**合并（行号从大到小，避免偏移），展示**聚合 diff**，
+   确认一次后**一次性写盘**（`--print` 只输出；绝不自动写盘）。
+
+并发数配置（优先级 **CLI > 环境变量 > 文件**）：
+`--max-concurrency N` / `--parallel N` > `BAT2SH_MAX_CONCURRENCY` > `api.json` 的
+`max_concurrency`；范围 `1-16`，默认 `3`。**429（限流）**时自动**指数退避 + 主动降并发**
+（下限 1，上限为初始并发数），并提示当前并发。
+
+模型输出实时流式显示（仅正文；思维链只以"思维链 N 段"状态行提示，不显示内容），
+stdout 始终保留给脚本本身（`--print`）。GUI 对话框同样流式显示并提供"停止"按钮
+（取消则不应用、不写盘）。**注意**：并发下每条请求的正文按 `#序号` 标注归属；点"停止"后
+阻塞中的请求要等当前空闲超时（默认 30s）才会完全结束。流式下超时语义为
+**两次数据之间的空闲超时**（默认 30s），模型生成总时长不受限。
 
 配置（优先级 **CLI > 环境变量 > 文件**）：
 
 - 文件：`${XDG_CONFIG_HOME:-~/.config}/bat2sh/api.json`（原子写 + `0600`；GUI 设置页可视化编辑同一文件）
-- 环境变量：`BAT2SH_API_BASE`、`BAT2SH_API_MODEL`、`BAT2SH_API_KEY`、`BAT2SH_API_PROVIDER`、`BAT2SH_API_TIMEOUT`、`BAT2SH_ENABLE_THINKING`（`1/0`、`true/false`）
+- 环境变量：`BAT2SH_API_BASE`、`BAT2SH_API_MODEL`、`BAT2SH_API_KEY`、`BAT2SH_API_PROVIDER`、`BAT2SH_API_TIMEOUT`、`BAT2SH_ENABLE_THINKING`（`1/0`、`true/false`）、`BAT2SH_MAX_CONCURRENCY`
 - 不内置任何服务商默认：`base_url`/`model` 缺失即报错（退出码 `6`），并给出配置指引
 - 兼容 OpenAI / Ollama(`/v1`) / vLLM / LM Studio 等 OpenAI 兼容端点；仅标准库实现
 - **思维链开关**（`enable_thinking`，默认关）：关闭时请求显式携带 `enable_thinking: false`（Qwen3 等混合思考模型可快 10 倍以上）；开启则由端点默认行为决定。端点拒绝该参数（400/422）时自动降级（去掉参数重试）并提示一次警告，之后本会话不再携带
-- **硬 TODO 建议 `--enable-thinking`**：对结构性硬 TODO（多行结构、here-string、哈希表等），关闭思维链可能"未给出可用修改"；此时用 `--enable-thinking`（GUI 勾选"启用思维链"）。实测同一条 here-string TODO：关 6s 未给出可用修改 → 开 102–214s 给出正确修复 `} <<EOF`；GUI 设置页提供同名开关，降级警告显示在流式面板
+- **硬 TODO 建议 `--enable-thinking`**：对结构性硬 TODO（多行结构、here-string、哈希表等），关闭思维链可能"未给出可用修改"；此时用 `--enable-thinking`（GUI 勾选"启用思维链"）。实测同一条 here-string TODO：关 6s 未给出可用修改 → 开 102–214s 给出正确修复 `} <<EOF`；**这正是 v1.7.0 引入并行修复的动机**（单条约 214s，多条串行不可接受）；GUI 设置页提供同名开关，降级警告显示在流式面板
 - GUI 设置页提供"测试连接"按钮：用当前填写的地址/模型/key 发送一次最小请求（固定 10 秒超时，
   不发送文件内容），成功显示延迟毫秒，失败显示分类（超时/认证/网络/格式/…）
 
 隐私与安全边界：
 
-- **每次发送前**在终端原样展示将离开本机的完整内容并逐条确认（默认 N）；不提供"全部同意"，
-  `--yes`/`--force` **不可**绕过；需要交互终端，非 TTY 直接拒绝
+- **发送前一次确认**（合并为一条）：展示将发送的条目清单（每条一行）与目标 endpoint，默认 N；
+  不提供"全部同意"，`--yes`/`--force` **不可**绕过；需要交互终端，非 TTY 直接拒绝
 - 发送边界：TODO 原文 + 报告元数据 + 源文件 ±3 行（可调，上限 10）+ 目标 bash 相邻 2 行；
   不发送整文件，上下文中的其它 TODO 文本会被省略
-- 建议必须通过整脚本 `bash -n` 校验；展示 unified diff 确认后才应用；失败保留原 TODO 并警告
+- 建议必须通过整脚本 `bash -n` 校验；合并阶段**逐条**再过一次语法闸门（叠加后仍必须合法）；
+  展示聚合 unified diff 并确认一次后才应用；失败保留原 TODO 并警告
 - 全部结束后**一次性写盘**（`--print` 时只输出）；`q`/Ctrl+C 中断则丢弃本次修改，不写盘
-- 退出码：`3` 仍有未修复项（跳过 + 失败）；`6` 配置错误
+- 退出码：`3` 仍有未修复项（跳过 + 失败，或用户拒绝应用）；`6` 配置错误
 - 仅覆盖整行注释（M1）与行内 TODO（M3/M4）；管道整块标记（M2）与整体降级不参与，需人工处理
+- **`# TODO[REG]` 标记语义**：注册表写类（`reg add/delete/import`、`Set/New/Remove-ItemProperty`、
+  COM `WScript.Shell`、`.NET` 注册表 API）产生的是**结构化 TODO，不自动修复**；
+  `--fix-todos` 仅把它作为 API 处理输入发送（`[REG]` 不是可自动套用的映射，见 §8.5）
 - API key 不会出现在日志/异常/报告中；PowerShell 侧整体降级（`bash -n` 失败）的文件直接拒绝修复
 
 ## 5. 编码处理
@@ -747,6 +771,15 @@ COM `WScript.Shell`、`.NET` 注册表 API）一律输出结构化 TODO（机读
 ```
 # TODO[REG] op=write key="HKCU\Software\MyApp" value="Setting": 手动检查: <原命令>
 ```
+
+**`[REG]` 标记语义（v1.7.0 明确）**：
+
+- `# TODO[REG]` 是**结构化 TODO**（机读字段 `op=` / `key=` / `value=`），
+  **不参与自动映射、不会被自动修复**；bat2sh 只把它作为 `--fix-todos` / API 的处理输入发送。
+- 之所以不自动修复：注册表写类操作在 Linux 无通用等价物，键↔配置文件/服务单元的对应关系
+  缺少真实语料证据（纪律 7「不发明映射」）。
+- API 返回的建议同样只是**建议**，必须通过 `bash -n` 并在 diff 确认后由用户决定是否应用；
+  注册表写类通常无法在 Linux 上等价落地，人工复核时请优先判断"该操作在目标系统是否仍需要"。
 
 `.reg` 生成/导入、PSProvider、`HKU`/`HKCC` 任意键、动态键路径维持拒绝。完整依据与计数见
 `docs/research/b2-registry-mapping.md`。

@@ -27,6 +27,10 @@ MAX_CONTEXT_LINES = 10
 MIN_TIMEOUT = 1.0
 MAX_TIMEOUT = 600.0
 MAX_RETRIES = 5
+# v1.7.0（C 阶段）：TODO 并行修复并发数（见 docs/v1.7.0-design.md §6）
+DEFAULT_MAX_CONCURRENCY = 3
+MIN_MAX_CONCURRENCY = 1
+MAX_MAX_CONCURRENCY = 16
 
 API_ENV_KEYS: dict[str, str] = {
     "provider": "BAT2SH_API_PROVIDER",
@@ -36,9 +40,10 @@ API_ENV_KEYS: dict[str, str] = {
     "timeout": "BAT2SH_API_TIMEOUT",
     "context_lines": "BAT2SH_API_CONTEXT_LINES",
     "enable_thinking": "BAT2SH_ENABLE_THINKING",
+    "max_concurrency": "BAT2SH_MAX_CONCURRENCY",
 }
 
-_NUMERIC_FIELDS = ("timeout", "max_retries", "context_lines")
+_NUMERIC_FIELDS = ("timeout", "max_retries", "context_lines", "max_concurrency")
 _BOOL_FIELDS = ("enable_thinking",)
 
 
@@ -59,6 +64,7 @@ class ApiConfig:
     max_retries: int = DEFAULT_MAX_RETRIES
     context_lines: int = DEFAULT_CONTEXT_LINES
     enable_thinking: bool = DEFAULT_ENABLE_THINKING
+    max_concurrency: int = DEFAULT_MAX_CONCURRENCY
 
     def normalized(self) -> "ApiConfig":
         data = asdict(self)
@@ -80,6 +86,14 @@ class ApiConfig:
             _clamp_number(data["context_lines"], DEFAULT_CONTEXT_LINES, 0, MAX_CONTEXT_LINES)
         )
         data["enable_thinking"] = _coerce_bool(data["enable_thinking"], DEFAULT_ENABLE_THINKING)
+        data["max_concurrency"] = int(
+            _clamp_number(
+                data["max_concurrency"],
+                DEFAULT_MAX_CONCURRENCY,
+                MIN_MAX_CONCURRENCY,
+                MAX_MAX_CONCURRENCY,
+            )
+        )
         return ApiConfig(**data)
 
 

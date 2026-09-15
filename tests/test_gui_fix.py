@@ -11,6 +11,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import bat2sh.gui.main_window as main_window_module  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLineEdit, QMessageBox  # noqa: E402
 
 from bat2sh.core.api.config import ApiConfig, load_api_config, save_api_config  # noqa: E402
@@ -174,6 +175,25 @@ def test_settings_dialog_enable_thinking_roundtrip(tmp_path, monkeypatch):
         QApplication.processEvents()
 
 
+def test_settings_dialog_max_concurrency_roundtrip(tmp_path, monkeypatch):
+    """设置页读写并发数，且保存不会把已有值重置为默认（v1.7.0 回归）。"""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    _ensure_app()
+    api = _make_api_config(max_concurrency=7)
+    dialog = SettingsDialog(ConvertSettings(), api)
+    try:
+        assert dialog.max_concurrency_spin.value() == 7
+        assert dialog.result_api_config().max_concurrency == 7
+        dialog.max_concurrency_spin.setValue(2)
+        dialog.api_base_edit.setText("https://changed.test/v1")
+        assert dialog.result_api_config().max_concurrency == 2
+        save_api_config(dialog.result_api_config(), tmp_path / "api.json")
+        assert load_api_config(tmp_path / "api.json").max_concurrency == 2
+    finally:
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
 def test_settings_dialog_enable_thinking_default_off():
     _ensure_app()
     dialog = SettingsDialog(ConvertSettings(), _make_api_config())
@@ -211,38 +231,142 @@ def test_open_settings_persists_api_config(tmp_path, window, monkeypatch):
     assert window.api_config.base_url == "https://saved.test/v1"
 
 
+TODO2_BAT = (
+    '@echo off\n'
+    'for /f "usebackq" %%i in (`dir /b`) do echo %%i\n'
+    'for /f "tokens=*" %%j in (`dir /s /b`) do echo %%j\n'
+)
+REG_BAT = (
+    "@echo off\n"
+    'for /f "usebackq" %%i in (`dir /b`) do echo %%i\n'
+    "reg add HKCU\\Software\\X /v Y /d Z\n"
+)
+
+
+def _marker_line(prompt: str) -> str:
+    """取 prompt 中「【待处理标记】」下一行（= 本条完整 TODO 标记原文）。"""
+    lines = prompt.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() == "【待处理标记】":
+            return lines[index + 1] if index + 1 < len(lines) else ""
+    return ""
+
+
+class _ParallelFakeProvider:
+    """线程安全脚本化 Provider（并行编排用）：按 prompt 的标记行决定回复或异常。
+
+    ``reply_for`` 可返回 ``str``（单块）、``list[str]``（多块）或 ``Exception``（抛出）。
+    """
+
+    def __init__(self, reply_for, *, reasoning=0, warning=None, gate=None):
+        self._reply_for = reply_for
+        self._reasoning = reasoning
+        self._warning = warning
+        self._gate = gate
+        self._lock = threading.Lock()
+        self.prompts: list[str] = []
+        self.reasoning_text = ""
+
+    def complete(self, prompt: str, *, timeout: float) -> str:
+        return "".join(self.complete_stream(prompt, timeout=timeout))
+
+    def complete_stream(
+        self,
+        prompt: str,
+        *,
+        timeout: float,
+        on_reasoning=None,
+        on_warning=None,
+        on_rate_limit=None,
+    ):
+        with self._lock:
+            self.prompts.append(prompt)
+        for count in range(1, self._reasoning + 1):
+            if on_reasoning is not None:
+                on_reasoning(count)
+        if self._warning is not None and on_warning is not None:
+            on_warning(self._warning)
+        if self._gate is not None:
+            self._gate.wait(timeout=5.0)
+        result = self._reply_for(prompt)
+        if isinstance(result, BaseException):
+            raise result
+        chunks = [result] if isinstance(result, str) else list(result)
+        yield from chunks
+
+
 def test_todo_fix_dialog_lists_markers_and_payload():
     _ensure_app()
     text, report = _converted(TODO_BAT)
     dialog = TodoFixDialog(text, report, TODO_BAT, _make_api_config())
     try:
         assert dialog.marker_list.count() == 1
-        assert ">>> " in dialog.payload_view.toPlainText()
-        assert "https://api.test/v1" in dialog.privacy_label.text()
+        assert dialog.marker_list.item(0).checkState() == Qt.CheckState.Checked
+        payload = dialog.payload_view.toPlainText()
+        assert "将发送 1 条到 https://api.test/v1" in payload
+        assert "#1 第" in payload
+        assert dialog.status_list.count() == 1
+        assert "pending" in dialog.status_list.item(0).text()
         assert not dialog.apply_button.isEnabled()
+        assert dialog.send_button.isEnabled()
     finally:
         dialog.deleteLater()
         QApplication.processEvents()
 
 
-def test_todo_fix_dialog_send_apply_updates_text():
+def test_todo_fix_dialog_multi_select_excludes_unchecked():
     _ensure_app()
-    text, report = _converted(TODO_BAT)
+    text, report = _converted(TODO2_BAT)
+    provider = _ParallelFakeProvider(lambda _p: 'echo "ok"')
     dialog = TodoFixDialog(
         text,
         report,
-        TODO_BAT,
+        TODO2_BAT,
         _make_api_config(),
-        provider_factory=lambda _config: _FakeProvider('echo "fixed-for"'),
+        provider_factory=lambda _config: provider,
+    )
+    try:
+        assert dialog.marker_list.count() == 2
+        dialog.marker_list.item(1).setCheckState(Qt.CheckState.Unchecked)
+        assert "将发送 1 条到" in dialog.payload_view.toPlainText()
+        dialog.send_button.click()
+        assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        assert len(provider.prompts) == 1
+        assert "usebackq" in _marker_line(provider.prompts[0])
+        assert "tokens=*" not in _marker_line(provider.prompts[0])
+    finally:
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
+def test_todo_fix_dialog_parallel_apply_updates_text():
+    _ensure_app()
+    text, report = _converted(TODO2_BAT)
+
+    def reply(prompt: str) -> str:
+        marker = _marker_line(prompt)
+        return 'echo "fixed-forf"' if "usebackq" in marker else 'echo "fixed-tokens"'
+
+    provider = _ParallelFakeProvider(reply)
+    dialog = TodoFixDialog(
+        text,
+        report,
+        TODO2_BAT,
+        _make_api_config(),
+        provider_factory=lambda _config: provider,
     )
     try:
         dialog.send_button.click()
         assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        assert len(provider.prompts) == 2
         assert dialog.diff_view.toHtml()
+        assert all("done" in dialog.status_list.item(i).text() for i in range(2))
         dialog.apply_button.click()
-        assert dialog.applied_count == 1
-        assert 'echo "fixed-for"' in dialog.result_text()
-        assert "全部处理完成" in dialog.status_label.text()
+        assert dialog.applied_count == 2
+        result = dialog.result_text()
+        assert 'echo "fixed-forf"' in result
+        assert 'echo "fixed-tokens"' in result
+        assert "手动检查: for /f" not in result
     finally:
         dialog.deleteLater()
         QApplication.processEvents()
@@ -256,11 +380,13 @@ def test_todo_fix_dialog_rejects_bad_bash():
         report,
         TODO_BAT,
         _make_api_config(),
-        provider_factory=lambda _config: _FakeProvider('echo "unterminated'),
+        provider_factory=lambda _config: _ParallelFakeProvider(
+            lambda _p: 'echo "unterminated'
+        ),
     )
     try:
         dialog.send_button.click()
-        assert _wait_until(lambda: "未通过 bash -n" in dialog.status_label.text())
+        assert _wait_until(lambda: "失败 1" in dialog.status_label.text())
         assert not dialog.apply_button.isEnabled()
         assert "# TODO" in dialog.result_text()
     finally:
@@ -268,30 +394,39 @@ def test_todo_fix_dialog_rejects_bad_bash():
         QApplication.processEvents()
 
 
-def test_todo_fix_dialog_failure_keeps_todo():
+def test_todo_fix_dialog_error_isolation_keeps_others():
     _ensure_app()
-    text, report = _converted(TODO_BAT)
+    text, report = _converted(TODO2_BAT)
+
+    def reply(prompt: str):
+        if "usebackq" in _marker_line(prompt):
+            return ProviderNetworkError("boom sekret-123")
+        return 'echo "ok-two"'
+
     dialog = TodoFixDialog(
         text,
         report,
-        TODO_BAT,
-        _make_api_config(api_key="sekret"),
-        provider_factory=lambda _config: _FakeProvider(
-            error=ProviderNetworkError("boom sekret")
-        ),
+        TODO2_BAT,
+        _make_api_config(api_key="sekret-123"),
+        provider_factory=lambda _config: _ParallelFakeProvider(reply),
     )
     try:
         dialog.send_button.click()
-        assert _wait_until(lambda: "API 调用失败" in dialog.status_label.text())
-        assert "sekret" not in dialog.status_label.text()
-        assert dialog.send_button.isEnabled()
-        assert dialog.applied_count == 0
+        assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        assert "失败 1" in dialog.status_label.text()
+        rows = "\n".join(dialog.status_list.item(i).text() for i in range(2))
+        assert "failed" in rows
+        assert "sekret-123" not in rows
+        dialog.apply_button.click()
+        assert dialog.applied_count == 1
+        assert 'echo "ok-two"' in dialog.result_text()
+        assert "手动检查: for /f" in dialog.result_text()
     finally:
         dialog.deleteLater()
         QApplication.processEvents()
 
 
-def test_todo_fix_dialog_streams_panel_then_applies():
+def test_todo_fix_dialog_streams_tagged_chunks():
     _ensure_app()
     text, report = _converted(TODO_BAT)
     dialog = TodoFixDialog(
@@ -299,15 +434,15 @@ def test_todo_fix_dialog_streams_panel_then_applies():
         report,
         TODO_BAT,
         _make_api_config(),
-        provider_factory=lambda _config: _FakeProvider(
-            chunks=['echo ', '"streamed-ok"']
+        provider_factory=lambda _config: _ParallelFakeProvider(
+            lambda _p: ["echo ", '"streamed-ok"']
         ),
     )
     try:
         dialog.send_button.click()
         assert _wait_until(lambda: 'echo "streamed-ok"' in dialog.stream_view.toPlainText())
+        assert "#1: " in dialog.stream_view.toPlainText()
         assert _wait_until(lambda: dialog.apply_button.isEnabled())
-        assert dialog.diff_view.toHtml()
         dialog.apply_button.click()
         assert dialog.applied_count == 1
         assert 'echo "streamed-ok"' in dialog.result_text()
@@ -316,11 +451,16 @@ def test_todo_fix_dialog_streams_panel_then_applies():
         QApplication.processEvents()
 
 
-def test_todo_fix_dialog_reasoning_shows_count_only():
+def test_todo_fix_dialog_reasoning_and_warning_do_not_leak_text():
     _ensure_app()
     text, report = _converted(TODO_BAT)
     gate = threading.Event()
-    fake = _FakeProvider(chunks=['echo "reason-ok"'], reasoning=2, gate=gate)
+    fake = _ParallelFakeProvider(
+        lambda _p: ['echo "reason-ok"'],
+        reasoning=2,
+        warning="端点不支持 enable_thinking，已自动降级",
+        gate=gate,
+    )
     fake.reasoning_text = "思维链内部机密不应显示"
     dialog = TodoFixDialog(
         text,
@@ -331,77 +471,104 @@ def test_todo_fix_dialog_reasoning_shows_count_only():
     )
     try:
         dialog.send_button.click()
-        assert _wait_until(lambda: "思考中" in dialog.status_label.text())
-        assert "思维链 2 段" in dialog.status_label.text()
+        assert _wait_until(lambda: "思维链 2 段" in dialog.status_list.item(0).text())
+        assert "[警告]" in dialog.stream_view.toPlainText()
         assert fake.reasoning_text not in dialog.stream_view.toPlainText()
         gate.set()
         assert _wait_until(lambda: dialog.apply_button.isEnabled())
         panel = dialog.stream_view.toPlainText()
         assert 'echo "reason-ok"' in panel
-        assert "思维链" not in panel
+        assert "思维链 2 段" not in panel
     finally:
         gate.set()
         dialog.deleteLater()
         QApplication.processEvents()
 
 
-def test_todo_fix_dialog_warning_appended_to_stream_panel():
+def test_todo_fix_dialog_stop_keeps_todo():
     _ensure_app()
     text, report = _converted(TODO_BAT)
+    gate = threading.Event()
     dialog = TodoFixDialog(
         text,
         report,
         TODO_BAT,
         _make_api_config(),
-        provider_factory=lambda _config: _FakeProvider(
-            chunks=['echo "warn-ok"'], warning="端点拒绝了 enable_thinking，已自动降级"
+        provider_factory=lambda _config: _ParallelFakeProvider(
+            lambda _p: 'echo "late"', gate=gate
         ),
     )
     try:
         dialog.send_button.click()
-        assert _wait_until(lambda: dialog.apply_button.isEnabled())
-        panel = dialog.stream_view.toPlainText()
-        assert "[警告]" in panel
-        assert "端点拒绝了 enable_thinking，已自动降级" in panel
-        assert 'echo "warn-ok"' in panel
+        assert _wait_until(lambda: dialog.stop_button.isEnabled())
+        dialog.stop_button.click()
+        assert "正在停止" in dialog.status_label.text()
+        gate.set()
+        assert _wait_until(lambda: "收集完成" in dialog.status_label.text())
+        assert dialog.applied_count == 0
+        assert not dialog.apply_button.isEnabled()
+        assert "# TODO" in dialog.result_text()
     finally:
+        gate.set()
         dialog.deleteLater()
         QApplication.processEvents()
 
 
-def test_todo_fix_dialog_stop_cancel_keeps_todo():
+def test_todo_fix_dialog_retry_failed_then_apply():
     _ensure_app()
     text, report = _converted(TODO_BAT)
-    gate = threading.Event()
-    fake = _FakeProvider(chunks=['echo "partial"', 'echo "rest"'], body_gate=gate)
+    calls: list[int] = []
+    lock = threading.Lock()
+
+    class _FlakyProvider(_ParallelFakeProvider):
+        def complete_stream(self, prompt, *, timeout, **kwargs):
+            with lock:
+                calls.append(1)
+                attempt = len(calls)
+            if attempt == 1:
+                raise ProviderNetworkError("第一次失败")
+            yield 'echo "after-retry"'
+
     dialog = TodoFixDialog(
         text,
         report,
         TODO_BAT,
         _make_api_config(),
-        provider_factory=lambda _config: fake,
+        provider_factory=lambda _config: _FlakyProvider(lambda _p: 'echo "unused"'),
     )
     try:
         dialog.send_button.click()
-        assert _wait_until(lambda: 'echo "partial"' in dialog.stream_view.toPlainText())
-        assert dialog.stop_button.isEnabled()
-        dialog.stop_button.click()
-        assert "正在停止接收" in dialog.status_label.text()
-        assert not dialog.stop_button.isEnabled()
-        gate.set()
-        assert _wait_until(lambda: "已停止接收" in dialog.status_label.text())
-        assert dialog.send_button.isEnabled()
-        assert dialog.skip_button.isEnabled()
-        assert not dialog.stop_button.isEnabled()
-        assert not dialog.apply_button.isEnabled()
-        assert dialog.diff_view.toPlainText() == ""
-        panel = dialog.stream_view.toPlainText()
-        assert 'echo "partial"' in panel
-        assert 'echo "rest"' not in panel
-        assert "# TODO" in dialog.result_text()
-        assert dialog.applied_count == 0
+        assert _wait_until(lambda: "失败 1" in dialog.status_label.text())
+        assert dialog.retry_button.isEnabled()
+        dialog.retry_button.click()
+        assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        dialog.apply_button.click()
+        assert dialog.applied_count == 1
+        assert 'echo "after-retry"' in dialog.result_text()
     finally:
-        gate.set()
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
+def test_todo_fix_dialog_reg_marker_is_actionable():
+    """[REG] 结构化标记同样进入并行修复流程（仅作为 API 输入，不自动应用）。"""
+    _ensure_app()
+    text, report = _converted(REG_BAT)
+    provider = _ParallelFakeProvider(lambda _p: 'echo "reg-handled"')
+    dialog = TodoFixDialog(
+        text,
+        report,
+        REG_BAT,
+        _make_api_config(),
+        provider_factory=lambda _config: provider,
+    )
+    try:
+        assert dialog.marker_list.count() == 2
+        assert provider.prompts == []
+        dialog.send_button.click()
+        assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        assert any("[REG]" in _marker_line(p) for p in provider.prompts)
+    finally:
         dialog.deleteLater()
         QApplication.processEvents()
 

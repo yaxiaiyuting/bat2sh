@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import difflib
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from . import APP_DESCRIPTION, __version__
-from .core.api import fixer
+from .core.api import fixer, parallel
 from .core.api.config import (
     load_api_config,
     missing_requirements,
@@ -19,7 +20,6 @@ from .core.api.config import (
 )
 from .core.api.provider import (
     ProviderConfigError,
-    ProviderError,
     create_provider,
     redact,
 )
@@ -33,13 +33,13 @@ from .core.engine import (
     write_output,
 )
 from .core.settings import ConvertSettings
-from .core.syntax import bash_syntax_error
 from .core.types import ConvertReport, SourceKind, report_blocks
 
 RUN_EXIT_TODO = 4
 RUN_EXIT_FAILED = 5
 FIX_EXIT_CONFIG = 6
 DEFAULT_RUN_TIMEOUT = 30.0
+FIX_MAX_RETRY_ROUNDS = 3
 
 _ANSI_COLORS = {
     "error": "\x1b[31m",
@@ -154,8 +154,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fix-todos",
         action="store_true",
-        help="调用 API 为无法自动转换的 TODO 生成修复建议（需交互终端；每次发送前逐条确认，"
-        "模型输出实时流式显示；diff 确认后才写入；API 建议仍需人工复核；与 --run 互斥）",
+        help="调用 API 为无法自动转换的 TODO 生成修复建议（需交互终端；多选后合并为一次隐私确认，"
+        "并行执行并显示聚合面板；diff 确认后才写入；API 建议仍需人工复核；与 --run 互斥；"
+        "# TODO[REG]（注册表写类）是结构化 TODO，不自动修复，仅作为 API 处理输入）",
     )
     parser.add_argument(
         "--api-provider", default=None, help="API 类型（当前仅 openai；默认读配置文件/环境变量）"
@@ -182,6 +183,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="发送的源文件上下文行数（默认 3，上限 10）",
+    )
+    parser.add_argument(
+        "--max-concurrency",
+        "--parallel",
+        dest="max_concurrency",
+        type=int,
+        default=None,
+        metavar="N",
+        help="TODO 并行修复的并发数（默认 3，范围 1-16；"
+        "也可用 BAT2SH_MAX_CONCURRENCY 或 ~/.config/bat2sh/api.json 的 max_concurrency 配置）",
     )
     parser.add_argument(
         "--enable-thinking",
@@ -449,89 +460,149 @@ def _api_cli_values(args: argparse.Namespace) -> dict[str, object]:
         "timeout": args.api_timeout,
         "context_lines": args.api_context_lines,
         "enable_thinking": args.enable_thinking,
+        "max_concurrency": args.max_concurrency,
     }
 
 
-def _ask_fix_send(prompt: str, base_url: str) -> str:
-    """隐私提示（每次、不记忆，决策 8）：原样展示将发送的 prompt，返回 y/n/q。
+_SELECTION_RE = re.compile(r"^(\d+)(?:\s*-\s*(\d+))?$")
 
-    非 y/yes 视为拒绝（默认 N）；EOF/读取失败视为退出（q，最保守）。
+
+def _one_line(text: str, limit: int = 72) -> str:
+    """折叠空白为单行并按长度截断（面板/隐私提示共用）。"""
+    flat = " ".join(text.split())
+    if len(flat) <= limit:
+        return flat
+    return flat[: limit - 3] + "..."
+
+
+def _parse_selection(text: str, count: int) -> list[int]:
+    """解析 ``1,3-5`` 为去重后的 1-based 序号；越界忽略，无法识别时抛 ``ValueError(token)``。"""
+    chosen: list[int] = []
+    seen: set[int] = set()
+    for raw in text.split(","):
+        token = raw.strip()
+        if not token:
+            continue
+        match = _SELECTION_RE.match(token)
+        if match is None:
+            raise ValueError(token)
+        start = int(match.group(1))
+        end = int(match.group(2)) if match.group(2) else start
+        if end < start:
+            start, end = end, start
+        for number in range(start, end + 1):
+            if 1 <= number <= count and number not in seen:
+                seen.add(number)
+                chosen.append(number)
+    return chosen
+
+
+class _FixPanel:
+    """并行修复聚合面板：每条 TODO 一行，按状态着色。
+
+    ``parallel.run_parallel`` 在内部锁内串行回调事件，本类无需自带锁。
+    TTY 用 ANSI 原地刷新整块；非 TTY 追加式逐行输出（测试依赖此路径）。
     """
-    sys.stderr.write(f"bat2sh: 即将把以下内容发送到外部服务：{base_url}\n")
-    sys.stderr.write(
-        "bat2sh: 内容将离开本机，可能被服务提供方记录（prompt 不含 API key）。\n"
+
+    _TAIL_LIMIT = 60
+    _STATUS_LEVELS = {
+        parallel.STATUS_DONE: "ok",
+        parallel.STATUS_FAILED: "error",
+        parallel.STATUS_SKIPPED: "warning",
+        parallel.STATUS_RUNNING: "todo",
+        parallel.STATUS_PENDING: "todo",
+    }
+
+    def __init__(self, tasks, stream, *, color: bool, tty: bool, secret: str = "") -> None:
+        self._tasks = list(tasks)
+        self._by_index = {task.index: task for task in tasks}
+        self._stream = stream
+        self._color = color
+        self._tty = tty
+        self._secret = secret
+        self._tails: dict[int, str] = {}
+        self._lines_drawn = 0
+        self._last_append = ""
+
+    def handle(self, event: parallel.FixEvent) -> None:
+        task = self._by_index.get(event.index)
+        if task is not None and not event.chunk:
+            task.status = event.status
+            task.detail = event.detail
+        if event.chunk:
+            tail = self._tails.get(event.index, "") + event.chunk
+            self._tails[event.index] = tail[-self._TAIL_LIMIT :]
+        if self._tty:
+            self._redraw()
+        else:
+            self._append(event)
+
+    def _line(self, task) -> str:
+        line = parallel.format_status_line(task)
+        tail = self._tails.get(task.index, "")
+        if task.status == parallel.STATUS_RUNNING and tail:
+            line += " | " + tail.replace("\n", " ")
+        line = redact(line, self._secret)
+        if self._color:
+            level = self._STATUS_LEVELS.get(task.status)
+            if level is not None:
+                line = _paint(line, level)
+        return line
+
+    def _append(self, event: parallel.FixEvent) -> None:
+        if event.chunk:
+            line = f"[#{event.index}] {event.chunk}"
+        else:
+            line = self._line(self._by_index[event.index])
+        if not line or line == self._last_append:
+            return
+        self._stream.write(line + "\n")
+        self._stream.flush()
+        self._last_append = line
+
+    def _redraw(self) -> None:
+        lines = [self._line(task) for task in self._tasks]
+        if self._lines_drawn:
+            self._stream.write(f"\x1b[{self._lines_drawn}A")
+        for line in lines:
+            self._stream.write("\r\x1b[K" + line + "\n")
+        self._stream.flush()
+        self._lines_drawn = len(lines)
+
+
+def _fix_counts(selected) -> tuple[int, int, list]:
+    """返回 (已修复数, 跳过数, 失败任务列表)；合并丢弃的条目已就地标记为 failed。"""
+    fixed = sum(1 for t in selected if t.status == parallel.STATUS_DONE)
+    skipped = sum(1 for t in selected if t.status == parallel.STATUS_SKIPPED)
+    failed = [t for t in selected if t.status == parallel.STATUS_FAILED]
+    return fixed, skipped, failed
+
+
+def _emit_fix_summary(selected, secret: str) -> None:
+    fixed, skipped, failed = _fix_counts(selected)
+    print(
+        f"bat2sh: TODO 处理完成：修复 {fixed} / 跳过 {skipped} / 失败 {len(failed)}"
+        f"（共 {len(selected)} 条选中）",
+        file=sys.stderr,
     )
-    sys.stderr.write("── 将发送的内容（原文，可复核）────────────\n")
-    sys.stderr.write(prompt.rstrip("\n") + "\n")
-    sys.stderr.write("────────────────────────────────────────────\n")
-    sys.stderr.write("bat2sh: 发送本条？[y/N/q] ")
-    sys.stderr.flush()
-    try:
-        reply = sys.stdin.readline()
-    except OSError:
-        return "q"
-    if not reply:  # EOF：按退出处理，绝不默认发送
-        return "q"
-    reply = reply.strip().lower()
-    if reply in ("y", "yes"):
-        return "y"
-    if reply in ("q", "quit"):
-        return "q"
-    return "n"
-
-
-_REASONING_STATUS_SHOWN = False
-_REASONING_CLEAR = "\r" + " " * 48 + "\r"
-
-
-def _reasoning_status(count: int) -> None:
-    """思维链活动指示：仅显示段数，不显示内容；第 1 段及每 25 段刷新一次。"""
-    global _REASONING_STATUS_SHOWN
-    if count == 1 or count % 25 == 0:
-        sys.stderr.write(f"\rbat2sh: 模型思考中…（思维链 {count} 段）")
-        sys.stderr.flush()
-        _REASONING_STATUS_SHOWN = True
-
-
-def _clear_reasoning_status() -> None:
-    """清除思维链状态行（仅在显示过时用空白覆盖），并复位状态标记。"""
-    global _REASONING_STATUS_SHOWN
-    if _REASONING_STATUS_SHOWN:
-        sys.stderr.write(_REASONING_CLEAR)
-        sys.stderr.flush()
-    _REASONING_STATUS_SHOWN = False
-
-
-def _api_warning(message: str) -> None:
-    """Provider 兼容性降级等警告（如端点不支持 enable_thinking）。"""
-    print(f"bat2sh: 警告：{message}", file=sys.stderr)
-
-
-def _stream_reply(stream) -> str:
-    """实时把流式正文写到 stderr（逐块 flush），返回拼接全文。"""
-    chunks: list[str] = []
-    wrote = False
-    try:
-        for chunk in stream:
-            if not wrote:
-                _clear_reasoning_status()
-            sys.stderr.write(chunk)
-            sys.stderr.flush()
-            chunks.append(chunk)
-            wrote = True
-    finally:
-        _clear_reasoning_status()
-        if wrote:
-            sys.stderr.write("\n")
-            sys.stderr.flush()
-    return "".join(chunks)
+    print(
+        "bat2sh: 注意：API 建议仍需人工复核，不保证语义正确。",
+        file=sys.stderr,
+    )
+    if failed:
+        print("bat2sh: 以下条目未修复：", file=sys.stderr)
+        for task in failed:
+            print(
+                "  " + redact(parallel.format_status_line(task), secret),
+                file=sys.stderr,
+            )
 
 
 def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namespace) -> int:
-    """``--fix-todos`` 主流程：逐条发送/确认/diff，全部结束后一次性写盘。
+    """``--fix-todos`` 主流程：多选 → 一次隐私确认 → 并行修复 → 聚合 diff → 一次写盘。
 
-    退出码（§9.1-Q4）：0 全部处理（含无可修复）；1 非交互拒绝 / 用户 q / Ctrl+C；
-    2 转换或写盘错误；3 仍有未修复项（跳过 + 失败）；6 API 配置错误。
+    退出码（§10）：0 全部处理（含无可修复）；1 非交互拒绝 / 用户 q / Ctrl+C；
+    2 转换或写盘错误；3 仍有未修复项（跳过 + 失败）或取消应用；6 API 配置错误。
     """
     kind = detect_kind(path)
     if kind is SourceKind.UNKNOWN:
@@ -582,95 +653,122 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
         print(f"bat2sh: API 配置错误: {exc}", file=sys.stderr)
         return FIX_EXIT_CONFIG
 
-    current_text = text
-    offset = 0
-    fixed = skipped = failed = 0
-    quit_requested = False
-    try:
-        for marker in markers:
-            effective = marker.out_line + offset
-            prompt = fixer.build_prompt(
-                marker,
-                decoded.text,
-                path.name,
-                current_text,
-                api_config.context_lines,
-                out_line=effective,
+    all_tasks = parallel.plan_tasks(
+        markers, decoded.text, path.name, text, api_config.context_lines
+    )
+    selected = all_tasks
+    if len(all_tasks) > 1:
+        for task in all_tasks:
+            print(
+                f"{task.index}. 第 {task.out_line} 行: {_one_line(task.marker.marker_text)}",
+                file=sys.stderr,
             )
-            reply = _ask_fix_send(prompt, api_config.base_url)
-            if reply == "q":
-                quit_requested = True
-                break
-            if reply != "y":
-                skipped += 1
-                continue
+        sys.stderr.write(
+            "bat2sh: 选择要修复的条目（如 1,3-5；回车=全部；q=取消）[all] "
+        )
+        sys.stderr.flush()
+        try:
+            choice = sys.stdin.readline()
+        except OSError:
+            choice = ""
+        lowered = choice.strip().lower()
+        if lowered in ("q", "quit"):
+            print("bat2sh: 已取消", file=sys.stderr)
+            return 1
+        if lowered not in ("", "all"):
             try:
-                sys.stderr.write("bat2sh: 正在接收模型输出（流式；Ctrl+C 可取消）\n")
-                sys.stderr.flush()
-                stream = provider.complete_stream(
-                    prompt,
-                    timeout=api_config.timeout,
-                    on_reasoning=_reasoning_status,
-                    on_warning=_api_warning,
-                )
-                raw = _stream_reply(stream)
-            except ProviderError as exc:
-                message = redact(str(exc), api_config.api_key)
+                indices = _parse_selection(choice.strip(), len(all_tasks))
+            except ValueError as exc:
+                print(f"bat2sh: 未识别的选择: {exc}", file=sys.stderr)
+                return 3
+            if not indices:
+                return 3
+            selected = [all_tasks[index - 1] for index in indices]
+
+    sys.stderr.write(
+        f"bat2sh: 即将把 {len(selected)} 条 TODO 发送到外部服务：{api_config.base_url}\n"
+    )
+    sys.stderr.write(
+        "bat2sh: 内容将离开本机，可能被服务提供方记录（prompt 不含 API key）。\n"
+    )
+    sys.stderr.write("── 将发送的条目 ────────────\n")
+    for task in selected:
+        sys.stderr.write(
+            f"#{task.index} 第 {task.out_line} 行: {_one_line(task.marker.marker_text)}\n"
+        )
+    sys.stderr.write("───────────────────────────\n")
+    if not _confirm(f"bat2sh: 发送 {len(selected)} 条到 {api_config.base_url}？[y/N]"):
+        print("bat2sh: 已取消发送，未写盘", file=sys.stderr)
+        return 3
+
+    color = color_enabled(sys.stderr)
+    panel = _FixPanel(
+        selected,
+        sys.stderr,
+        color=color,
+        tty=color and sys.stderr.isatty(),
+        secret=api_config.api_key,
+    )
+    if not args.quiet:
+        print(
+            f"bat2sh: 并发 {api_config.max_concurrency}（--max-concurrency 可调）",
+            file=sys.stderr,
+        )
+
+    pending = selected
+    try:
+        for _round in range(FIX_MAX_RETRY_ROUNDS):
+            parallel.run_parallel(
+                pending,
+                provider,
+                text=text,
+                timeout=api_config.timeout,
+                on_event=panel.handle,
+                max_concurrency=api_config.max_concurrency,
+            )
+            failures = [t for t in selected if t.status == parallel.STATUS_FAILED]
+            if not failures or not sys.stdin.isatty():
+                break
+            for task in failures:
                 print(
-                    f"bat2sh: API 调用失败（本条保留 TODO）: {message}",
+                    redact(parallel.format_status_line(task), api_config.api_key),
                     file=sys.stderr,
                 )
-                failed += 1
-                continue
-            replacement = fixer.clean_completion(raw)
-            if (
-                not replacement
-                or "# TODO" in replacement
-                or replacement.strip() == marker.line_text.strip()
-            ):
-                print("bat2sh: 模型未给出可用修改（本条保留 TODO）", file=sys.stderr)
-                skipped += 1
-                continue
-            candidate = fixer.apply_replacement(current_text, effective, replacement)
-            # 硬门槛：候选整脚本必须通过 bash -n（与 --no-bash-check 无关，§10-R1）
-            problem = bash_syntax_error(candidate)
-            if problem:
-                print(
-                    f"bat2sh: 建议未通过 bash -n（本条保留 TODO）: {problem}",
-                    file=sys.stderr,
-                )
-                failed += 1
-                continue
-            diff_text = fixer.render_diff(current_text, candidate, "当前", "建议")
-            if diff_text:
-                sys.stderr.write(diff_text + "\n")
-            if not _confirm("bat2sh: 应用这条修改？[y/N]"):
-                skipped += 1
-                continue
-            offset += fixer.replacement_line_count(replacement) - 1
-            current_text = candidate
-            fixed += 1
+            if not _confirm(f"bat2sh: 重试失败的 {len(failures)} 条？[y/N]"):
+                break
+            for task in failures:
+                task.status = parallel.STATUS_PENDING
+                task.replacement = ""
+                task.detail = ""
+                task.retries = 0
+            pending = failures
     except KeyboardInterrupt:
         print("\nbat2sh: 已中断，未写盘（本次会话修改已丢弃）", file=sys.stderr)
         return 1
 
-    print(
-        f"bat2sh: TODO 处理完成：修复 {fixed} / 跳过 {skipped} / 失败 {failed}"
-        f"（共 {len(markers)} 处可修复标记）",
-        file=sys.stderr,
-    )
-    print(
-        "bat2sh: 注意：API 建议仍需人工复核，不保证语义正确。",
-        file=sys.stderr,
-    )
-    if quit_requested:
-        print("bat2sh: 用户中断，未写盘（已接受的修改已丢弃）", file=sys.stderr)
-        return 1
+    merged, dropped = parallel.merge_replacements(text, selected)
+    for task in dropped:
+        print(
+            "bat2sh: 合并丢弃："
+            + redact(parallel.format_status_line(task), api_config.api_key),
+            file=sys.stderr,
+        )
+    fixed, skipped, failed = _fix_counts(selected)
 
-    if fixed:
+    apply_confirmed = True
+    if merged != text:
+        diff_text = fixer.render_diff(text, merged, "当前", "建议")
+        if diff_text:
+            sys.stderr.write(diff_text + "\n")
+        apply_confirmed = _confirm(f"bat2sh: 应用全部 {fixed} 处修改？[y/N]")
+        if not apply_confirmed:
+            print("bat2sh: 已取消应用，未写盘", file=sys.stderr)
+
+    write_code = 0
+    if merged != text and apply_confirmed:
         if args.print_only:
-            sys.stdout.write(current_text)
-            if not current_text.endswith("\n"):
+            sys.stdout.write(merged)
+            if not merged.endswith("\n"):
                 sys.stdout.write("\n")
         elif args.dry_run:
             if not args.quiet:
@@ -686,20 +784,23 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
                 ),
                 kind=kind,
                 encoding=decoded.encoding,
-                text=current_text,
+                text=merged,
                 report=convert_report,
             )
             write_output(result, settings)
             if result.error:
                 print(f"bat2sh: {result.error}", file=sys.stderr)
-                return 2
-            if not args.quiet:
+                write_code = 2
+            elif not args.quiet:
                 print(
                     f"[已写出] {result.output_path}（API 修复 {fixed} 处，请复核后再使用）",
                     file=sys.stderr,
                 )
 
-    if skipped or failed:
+    _emit_fix_summary(selected, api_config.api_key)
+    if write_code:
+        return write_code
+    if not apply_confirmed or skipped or failed:
         return 3
     return 0
 
