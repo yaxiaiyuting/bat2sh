@@ -632,13 +632,15 @@ echo "清理完成"
    `Format-Table/List`、`ConvertTo/From-Json` 等仍依赖对象模型 → 整行 `# TODO`
    （建议改用 `grep/awk/jq`）。
 2. **`try/catch/finally`**（部分自动转换）：try 体只有单条命令且 catch 无类型时转换为
-   `if ! cmd; then ...; fi`；多命令、带类型 catch 仍为"结构保留 + TODO"。
-   `finally` 生成独立的 `if true; then ... fi`，与 try/catch 块并列而非嵌套。
-   已知限制：
+   `if ! cmd; then ...; fi`；多命令 try 生成 `if true; then ... else ... fi` 骨架。
+   **多臂（≥2 个 catch）或带类型 catch 的整个 try/catch/finally 构造会整体注释降级**
+   （不伪造不可达的 `if/else`）；`catch`/`finally`/`else`/`elseif` 写在**独立行**时同样被
+   正确派发（此前会原样泄漏）。`finally` 生成独立的 `if true; then ... fi`，与 try/catch
+   块并列而非嵌套。已知限制：
    1. 近似语义是"命令失败才进 catch"，并非 PowerShell 的 terminating error/异常捕获；
       命令成功但报错、异常来自其他语句时行为不同（每次转换都会告警）。
-   2. 带类型的 catch（`catch [Type]`）类型被解析但不做过滤，一律结构保留 + TODO，
-      并单独告警"catch 类型已忽略"。
+   2. 带类型的 catch（`catch [Type]`）与多臂 catch 不再尝试近似结构，整个 try 构造
+      整体注释为 TODO（类型/多臂在 bash 中无等价）。
    3. `finally` 在脚本因 `set -e` 提前退出或执行 `exit` 时不会执行（bash 需 `trap`
       才能等价）。
    4. "单条命令"判定保守：try 体多出任何非空、非结构行（含注释）就退化为结构保留，
@@ -650,9 +652,12 @@ echo "清理完成"
    8. 空分支体（try / catch / finally / else）会自动补 `:`（bash no-op），
       保证生成脚本通过 `bash -n`。
    建议配合脚本头 `set -e` 并手工整理错误处理。
-3. **`switch`**：整块注释为 TODO。
+3. **`switch`**：整块注释为 TODO；赋值形式（`$x = switch (...) {`）同样整体注释。
 4. **.NET 与对象操作**：`[System.IO.File]::ReadAllText()`、`New-Object`、`Add-Type`、
    `Add-Member`、`$obj.Property`、`$_.X`、`Get-ItemProperty` 等 → TODO。
+   其中**注册表相关**调用（`[Microsoft.Win32.Registry]::…`、COM `WScript.Shell` 的
+   `RegRead/RegWrite/RegDelete`、`Get/Set/New/Remove-ItemProperty`）输出结构化
+   `# TODO[REG]`（见 §8.5）；`Set/New/Remove-ItemProperty` 分类为写类。
 5. **脚本块参数与高级函数**：`[Parameter()]`、`[CmdletBinding()]`、位置/命名参数的
    完整绑定语义无法对应。`param()` 中的 attribute（Mandatory/Position/Validate*/
    Alias 等）会被剥离，参数仅按位置传递并告警，类型转换与 `[switch]` 命名调用仍需人工核对。
@@ -660,13 +665,17 @@ echo "清理完成"
    跨文件/模块、`Invoke-Expression`、动态 `Set-Alias` 产生的函数无法静态绑定：
    未扫描到定义时生成 `# TODO`，命名风格不符合启发式（如全小写）的自定义函数
    会被当作外部命令原样保留。
-6. **模块、配置文件、执行策略、远程、作业、事件日志、注册表、WMI/CIM** → TODO。
+6. **模块、配置文件、执行策略、远程、作业、事件日志、WMI/CIM** → TODO；
+   **注册表只读**部分已做映射（见 §8.5），写类与无对应物的读仍为结构化 TODO。
+   **块结构泄漏已修复**：`begin/process/end` 生命周期块保留结构，未登记的大括号开启符
+   不再原样泄漏（统一注释降级）。
 7. **字符串/布尔差异**：`-f` 格式运算符、反引号转义、空字符串与 0 的真值判断与 bash
    不同。here-string 已转换为 heredoc：`@'...'@` 使用引号定界符，`@"..."@` 使用插值
    定界符并尽力转换变量，但反斜杠/反引号转义语义不同（告警）；赋值形式生成
    `x=$(cat <<EOF ... )`，结尾换行会被命令替换去掉（告警）。`-f` 仍标 TODO。
-8. **数组与哈希表**：`@{...}`、`.Keys/.Values`、对象数组属性访问无法等价；普通数组
-   会转成 bash 数组（`"${arr[@]}"`）。
+8. **数组与哈希表**：多行/单行 `@{...}` 字面量会被**收集**：全部为扁平标量时转换为
+   `declare -A name=( [k]=v … )`（实测运行语义正确），含嵌套或复杂值时整段注释降级；
+   `.Keys/.Values`、对象数组属性访问无法等价。普通数组会转成 bash 数组（`"${arr[@]}"`）。
 9. **`Read-Host -AsSecureString`**：转为 `read -s`，但返回的是纯文本而非安全字符串。
 10. **`$?`/`$LASTEXITCODE`**：bash 的 `$?` 只反映紧邻上一条命令的退出码（读一次即被
     后续命令覆盖），而 PowerShell 的 `$LASTEXITCODE` 可重复读取，直接映射存在语义
@@ -704,7 +713,7 @@ echo "清理完成"
 | `sc query` | 服务列表的**输出格式**是 `for /f` 的事实接口，`systemctl` 的格式完全不同 |
 | `net user` / `net start` | 同上：账户/服务列表的列布局被脚本依赖，替换即静默错位 |
 | `icacls` | Windows ACL 与 Linux UGO/ACL 是**不同抽象层**，`chmod` 无法一一对应 |
-| `reg query` | Linux 无注册表；用 grep 近似配置文件无法保证键值语义 |
+| `reg query`（无映射的键） | Linux 无注册表；仅**字面量只读键**有近似映射（见 §8.5），其余保持结构化 TODO |
 | `goto` 跨函数 | 需要跨标签控制流分析才能重构；转换器只做局部改写，跨函数跳转一律 TODO |
 | `cmdextversion` | Linux 无对应检查：保留为恒假条件 + TODO（不能当作成功分支执行） |
 | 复杂管道 | 多级（>2 段）、含重定向（如 `2>nul`、`2>&1`）或 `&` 连接的管道，逐段重写会改变执行顺序与错误传播 → 整行 TODO |
@@ -717,6 +726,30 @@ echo "清理完成"
 `assoc`/`ftype` 查询（`xdg-mime query default`）、`%SystemRoot%`（`${SystemRoot:-/}`）、
 `call set` 间接引用（`R="${!A}"`）、`if /i` 字符串比较（`${a,,}`，不用 `shopt`）、
 `%DATE%`/`%TIME%`（ISO 格式，`for /f` 内除外）。
+
+### 8.5 注册表读取映射（v1.6.0）
+
+只读操作按**字面量键路径 + 值名**查表映射；键为变量、动态拼接或未收录时输出结构化 TODO
+（不猜测）。映射均为**语义近似**，会产生 `registry` 类警告：
+
+| 用途 | Windows 键（字面量） | 生成 |
+| --- | --- | --- |
+| 重启检测 | `…\WindowsUpdate\Auto Update\RebootRequired`、`…\Component Based Servicing\RebootPending`、`…\Control\Session Manager` | 探测 `/var/run/reboot-required` + `needs-restarting -r` 回退 |
+| 系统版本 | `…\Windows NT\CurrentVersion` 的 `ProductName` / `CurrentVersion` | `/etc/os-release` 的 `PRETTY_NAME` / `VERSION_ID` |
+| 硬件信息 | `HKLM\HARDWARE\DESCRIPTION\System\BIOS` 的 `SystemManufacturer` 等 8 个值名 | `/sys/class/dmi/id/{sys_vendor,product_name,board_vendor,board_name,bios_version,…}` |
+| 安装检测 | `…\CurrentVersion\Uninstall\<app>`（含 `Wow6432Node`） | `dpkg-query`/`rpm`/`pacman` 探测查询；键为 `Uninstall` 时列出已安装包 |
+| 文件关联 | `HKCR\.ext`（兼容 `HKLM\SOFTWARE\Classes\.ext`） | `xdg-mime query default "$(xdg-mime query filetype <临时文件>)"` |
+| 服务配置 | `HKLM\SYSTEM\CurrentControlSet\Services\<name>` | **不映射**（无 Windows 服务名↔systemd unit 等价证据）；给出 `systemctl is-active/is-enabled/show` 引导 + 结构化 TODO |
+
+**写类**（`reg add/delete/import`、`Set/New/Remove-ItemProperty`、注册表路径上的 `New/Remove-Item`、
+COM `WScript.Shell`、`.NET` 注册表 API）一律输出结构化 TODO（机读，供 `--fix-todos` / API 处理）：
+
+```
+# TODO[REG] op=write key="HKCU\Software\MyApp" value="Setting": 手动检查: <原命令>
+```
+
+`.reg` 生成/导入、PSProvider、`HKU`/`HKCC` 任意键、动态键路径维持拒绝。完整依据与计数见
+`docs/research/b2-registry-mapping.md`。
 
 ## 9. 扩展转换规则
 
