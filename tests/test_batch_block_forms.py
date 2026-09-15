@@ -70,7 +70,10 @@ def test_real_corpus_block_forms(name, bash_check):
     from bat2sh.core.types import SourceKind
 
     corpus = Path.home() / "下载" / "非常批处理"
-    path = next(p for p in corpus.rglob(name) if p.is_file())
+    candidates = [p for p in corpus.rglob(name) if p.is_file()] if corpus.is_dir() else []
+    if not candidates:
+        pytest.skip("外部语料「非常批处理」未提供（CI 不携带），跳过")
+    path = candidates[0]
     text = decode_bytes(path.read_bytes(), None).text
     out, report = convert_text(
         text, SourceKind.BATCH, ConvertSettings(bash_check=False), name
