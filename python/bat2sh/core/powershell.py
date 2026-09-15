@@ -3003,12 +3003,19 @@ class PowerShellConverter:
         return match.group(0) if match else None
 
     def _reg_todo(
-        self, lineno: int, original: str, op: str, key: str = "", value: str = ""
+        self,
+        lineno: int,
+        original: str,
+        op: str,
+        key: str = "",
+        value: str = "",
+        hint: str | None = None,
     ) -> str:
-        if op in ("write", "delete", "import"):
-            hint = "Linux 无统一可写注册表，请改为编辑对应配置文件"
-        else:
-            hint = "注册表读取在 Linux 无直接对应物，请手工处理"
+        if hint is None:
+            if op in ("write", "delete", "import"):
+                hint = "Linux 无统一可写注册表，请改为编辑对应配置文件"
+            else:
+                hint = "注册表读取在 Linux 无直接对应物，请手工处理"
         self._todo(lineno, original, hint, category="registry")
         fields = [f"op={op}"]
         if key:
@@ -3017,7 +3024,29 @@ class PowerShellConverter:
             fields.append(f'value="{value}"')
         return "# TODO[REG] " + " ".join(fields) + ": 手动检查: " + original
 
+    @staticmethod
+    def _registry_value_name(args: list[str]) -> str:
+        for i, arg in enumerate(args):
+            low = arg.lower()
+            if low == "-name" and i + 1 < len(args):
+                return args[i + 1].strip("\"'")
+            if low.startswith("-name:"):
+                return arg.split(":", 1)[1].strip("\"'")
+        return ""
+
     def cmd_todo_cmdlet(self, lineno: int, args: list[str], original: str) -> str | None:
+        if self._current_cmdlet == "get-itemproperty":
+            text = " ".join(args)
+            reg = self._registry_path(text)
+            if reg is not None:
+                value = self._registry_value_name(args)
+                mapping = registry_map.lookup(reg, value, "read")
+                if mapping is not None:
+                    self._warn(lineno, mapping.warning, original, category="registry")
+                    return mapping.bash
+                return self._reg_todo(
+                    lineno, original, "read", reg, value, hint=registry_map.hint_for(reg)
+                )
         hint = rules.PS_TODO_CMDLETS.get(self._current_cmdlet, "")
         self._todo(lineno, original, hint, category="command")
         return None

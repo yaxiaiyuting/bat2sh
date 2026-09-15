@@ -2421,6 +2421,9 @@ class BatchConverter:
                 if mapping is not None:
                     self._warn(lineno, mapping.warning, original, category="registry")
                     return mapping.bash
+                return self._reg_todo_comment(
+                    lineno, original, op, key, value, hint=registry_map.hint_for(key)
+                )
             return self._reg_todo_comment(lineno, original, op, key, value)
         hint = rules.BATCH_TODO_COMMANDS.get(self._current_command, "")
         self._todo(lineno, original, hint, category="command")
@@ -2448,12 +2451,19 @@ class BatchConverter:
         return op, key, value
 
     def _reg_todo_comment(
-        self, lineno: int, original: str, op: str, key: str = "", value: str = ""
+        self,
+        lineno: int,
+        original: str,
+        op: str,
+        key: str = "",
+        value: str = "",
+        hint: str | None = None,
     ) -> str:
-        if op in ("write", "delete", "import"):
-            hint = "Linux 无统一可写注册表，请改为编辑对应配置文件"
-        else:
-            hint = "注册表读取在 Linux 无直接对应物，请手工处理"
+        if hint is None:
+            if op in ("write", "delete", "import"):
+                hint = "Linux 无统一可写注册表，请改为编辑对应配置文件"
+            else:
+                hint = "注册表读取在 Linux 无直接对应物，请手工处理"
         self._todo(lineno, original, hint, category="registry")
         fields = [f"op={op}"]
         if key:

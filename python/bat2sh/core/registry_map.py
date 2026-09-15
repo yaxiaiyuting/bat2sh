@@ -61,3 +61,14 @@ def _lookup_test(key: str, value: str) -> RegistryRead | None:
 
 def _lookup_read(key: str, normalized: str, value: str) -> RegistryRead | None:
     return None
+
+
+def hint_for(key: str, op: str = "read") -> str:
+    """针对已知用途给出更具体的 TODO 提示（无对应物等价映射时的引导）。"""
+    k = normalize_key(key)
+    if "\\SYSTEM\\CURRENTCONTROLSET\\SERVICES\\" in k:
+        return (
+            "服务配置读取：Windows 服务名在 Linux 无对应 systemd unit，"
+            "请改用 systemctl is-active/is-enabled/show 人工核对（无证据做名称映射）"
+        )
+    return ""
