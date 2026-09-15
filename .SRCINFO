@@ -13,6 +13,6 @@ pkgbase = bat2sh
 	depends = desktop-file-utils
 	options = !strip
 	source = bat2sh-1.5.0.tar.gz::https://github.com/yaxiaiyuting/bat2sh/archive/refs/tags/v1.5.0.tar.gz
-	sha256sums = 83ec69261e29c38f624387213b1c0ba1b80d3bab403c1333fc8cdfb44a5b84e0
+	sha256sums = eb346d407f57398355913339bc255879f2fc20956425b1bc19ce64902ab3d7b8
 
 pkgname = bat2sh

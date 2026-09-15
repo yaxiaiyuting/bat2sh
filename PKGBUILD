@@ -11,7 +11,7 @@ makedepends=()
 install=bat2sh.install
 options=('!strip')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('83ec69261e29c38f624387213b1c0ba1b80d3bab403c1333fc8cdfb44a5b84e0')
+sha256sums=('eb346d407f57398355913339bc255879f2fc20956425b1bc19ce64902ab3d7b8')
 
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"
