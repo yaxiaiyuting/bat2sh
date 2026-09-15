@@ -41,6 +41,7 @@ _LIKE_OP_RE = re.compile(r"(?<![\w-])(-like|-notlike|-clike|-ilike)(?![\w-])", r
 _MATCH_OP_RE = re.compile(r"(?<![\w-])(-match|-notmatch|-cmatch|-imatch)(?![\w-])", re.I)
 _LOGIC_OP_RE = re.compile(r"(?<![\w-])(-and|-or|-not|-xor)(?![\w-])", re.I)
 _LASTEXITCODE_RE = re.compile(r"(?i)\$\{LASTEXITCODE\}|\$LASTEXITCODE\b")
+_REG_PATH_RE = re.compile(r"(?i)\bHK(?:LM|CU|CR|U|CC):[\\/]")
 _PS_ATTRIBUTE_NAMES = frozenset({"cmdletbinding", "parameter", "alias", "outputtype"})
 _PS_TYPE_NAMES = frozenset({
     "string", "int", "int32", "int64", "bool", "double", "float", "decimal",
@@ -1482,6 +1483,10 @@ class PowerShellConverter:
 
     def _convert_condition(self, expr: str, lineno: int) -> str:
         expr = expr.strip()
+        reg = self._registry_path(expr)
+        if reg is not None:
+            self._condition_fallback = f"注册表路径（{reg}）在 bash 中无对应物，请手工处理"
+            return "false"
         if "$_" in expr or re.search(r"\$\w+\.\w+", expr):
             self._condition_fallback = "复杂条件（含 $_ 或对象属性访问）无法自动转换，已用占位条件"
             return "false"
@@ -1984,6 +1989,23 @@ class PowerShellConverter:
         if low == "$false":
             return [self._c(f"{name}=false")]
 
+        reg = self._registry_path(rhs)
+        if reg is not None and re.match(
+            r"(?i)^(Get-Item|Get-ChildItem|New-Item|Remove-Item|Test-Path|"
+            r"Get-ItemProperty|Set-ItemProperty|New-ItemProperty|Remove-ItemProperty)\b",
+            rhs,
+        ):
+            op = {
+                "test-path": "test",
+                "get-childitem": "enumerate",
+                "new-item": "write",
+                "set-itemproperty": "write",
+                "new-itemproperty": "write",
+                "remove-item": "delete",
+                "remove-itemproperty": "delete",
+            }.get(rhs.split(None, 1)[0].lower(), "read")
+            return [self._c(self._reg_todo(lineno, original, op, reg))]
+
         if re.match(r"(?i)^(Get-Date|Join-Path|Split-Path|Resolve-Path|Test-Path|Test-Connection|Get-Content|Get-Item|Get-Process|Get-ChildItem)\b", rhs):
             if re.match(r"(?i)^Test-Path\b", rhs):
                 test = self._replace_test_path(rhs)
@@ -2423,6 +2445,9 @@ class PowerShellConverter:
         return guard_read(f'read -rp {dq(prompt_text)} REPLY', self.settings.strict_mode)
 
     def cmd_get_childitem(self, lineno: int, args: list[str], original: str) -> str:
+        reg = self._registry_path(" ".join(args))
+        if reg is not None:
+            return self._reg_todo(lineno, original, "enumerate", reg)
         recursive = False
         path = None
         i = 0
@@ -2577,6 +2602,9 @@ class PowerShellConverter:
         return f"mv {path_text}".strip()
 
     def cmd_remove_item(self, lineno: int, args: list[str], original: str) -> str | None:
+        reg = self._registry_path(" ".join(args))
+        if reg is not None:
+            return self._reg_todo(lineno, original, "delete", reg)
         if any(a.lower() == "-whatif" for a in args):
             self._todo(lineno, original, "Remove-Item -WhatIf（预演）在 bash 中无对应物", category="command")
             return None
@@ -2606,6 +2634,9 @@ class PowerShellConverter:
         return None
 
     def cmd_new_item(self, lineno: int, args: list[str], original: str) -> str | None:
+        reg = self._registry_path(" ".join(args))
+        if reg is not None:
+            return self._reg_todo(lineno, original, "write", reg)
         item_type = "file"
         path = None
         target = None
@@ -2644,6 +2675,9 @@ class PowerShellConverter:
         return None
 
     def cmd_test_path(self, lineno: int, args: list[str], original: str) -> str:
+        reg = self._registry_path(" ".join(args))
+        if reg is not None:
+            return self._reg_todo(lineno, original, "test", reg)
         paths = [a for a in args if not a.startswith("-")]
         path = paths[0] if paths else '""'
         return f"[ -e {self._convert_arg(path, lineno)} ]"
@@ -2945,6 +2979,30 @@ class PowerShellConverter:
         self._todo(lineno, original, "ForEach-Object（脚本块）无法自动转换，请改用 while read 循环", category="pipeline")
         return None
 
+    @staticmethod
+    def _registry_path(text: str) -> str | None:
+        for token in tokenize_args(text):
+            inner, _ = strip_outer_quotes(token)
+            if _REG_PATH_RE.search(inner):
+                return inner
+        match = _REG_PATH_RE.search(text)
+        return match.group(0) if match else None
+
+    def _reg_todo(
+        self, lineno: int, original: str, op: str, key: str = "", value: str = ""
+    ) -> str:
+        if op in ("write", "delete", "import"):
+            hint = "Linux 无统一可写注册表，请改为编辑对应配置文件"
+        else:
+            hint = "注册表读取在 Linux 无直接对应物，请手工处理"
+        self._todo(lineno, original, hint, category="registry")
+        fields = [f"op={op}"]
+        if key:
+            fields.append(f'key="{key}"')
+        if value:
+            fields.append(f'value="{value}"')
+        return "# TODO[REG] " + " ".join(fields) + ": 手动检查: " + original
+
     def cmd_todo_cmdlet(self, lineno: int, args: list[str], original: str) -> str | None:
         hint = rules.PS_TODO_CMDLETS.get(self._current_cmdlet, "")
         self._todo(lineno, original, hint, category="command")
@@ -2967,6 +3025,9 @@ class PowerShellConverter:
         return f"systemctl {action} {name.strip(chr(34) + chr(39))}"
 
     def cmd_get_item(self, lineno: int, args: list[str], original: str) -> str:
+        reg = self._registry_path(" ".join(args))
+        if reg is not None:
+            return self._reg_todo(lineno, original, "read", reg)
         path = next((a for a in args if not a.startswith("-")), '""')
         return f"ls -la {self._convert_arg(path, lineno)}"
 
