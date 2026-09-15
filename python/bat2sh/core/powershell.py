@@ -731,7 +731,7 @@ class PowerShellConverter:
                 expr = expr[:m.start()] + f'$(dirname {dq(target)})' + expr[m.end():]
                 changed = True
                 continue
-            m = re.search(r"(?i)\bResolve-Path\s+(\S+)", expr)
+            m = re.search(r"(?i)\bResolve-Path\s+(\"[^\"]*\"|'[^']*'|\S+)", expr)
             if m:
                 target = self._strip_quotes_for_path(m.group(1))
                 expr = expr[:m.start()] + f'$(realpath {dq(target)})' + expr[m.end():]
@@ -1396,6 +1396,44 @@ class PowerShellConverter:
             return True
         return name[:1].isupper()
 
+    @staticmethod
+    def _is_whole_string_literal(text: str) -> bool:
+        """整条语句是否恰好是一个引号字符串（PowerShell 的裸字符串输出语句）。"""
+        s = text.strip()
+        if len(s) < 2 or s[0] not in "\"'":
+            return False
+        quote = s[0]
+        if s[-1] != quote:
+            return False
+        index = 1
+        while index < len(s):
+            char = s[index]
+            if char == "`":
+                index += 2
+                continue
+            if char == quote:
+                if index + 1 < len(s) and s[index + 1] == quote:
+                    index += 2
+                    continue
+                return index == len(s) - 1
+            index += 1
+        return False
+
+    @staticmethod
+    def _string_output_safe(converted: str) -> bool:
+        """转换结果是否可直接作为 echo 参数（无未转换的 PS 残留）。"""
+        if converted.count("(") != converted.count(")"):
+            return False
+        if "]::" in converted:
+            return False
+        if re.search(r"\$\{?\w+\}?\.[A-Za-z]", converted):
+            return False
+        if re.search(r"\)\.[A-Za-z]", converted):
+            return False
+        if re.search(r"\$\([^()]*[A-Z][a-z]+-[A-Z]", converted):
+            return False
+        return True
+
     # ------------------------------------------------------------------
     # 条件块
     # ------------------------------------------------------------------
@@ -1500,6 +1538,14 @@ class PowerShellConverter:
         first = tokens[0].strip("\"'")
         if first.lower() == "test-path":
             return False, "", ""
+        if first.lower() in self._function_map:
+            if _LOGIC_OP_RE.search(probe) or _COMPARE_OP_RE.search(probe):
+                return True, "", f"条件中的复合表达式（含 {first}）无法自动转换"
+            self._current_cmdlet = first.lower()
+            converted = self._convert_cmdlet_line(lineno, body)
+            if converted is None:
+                return True, "", f"条件中的函数 {first} 无法转换"
+            return True, (f"! {converted}" if negated else converted), ""
         cmdlet_shaped = re.match(r"^[A-Za-z][\w-]*-\w+$", first)
         if _LOGIC_OP_RE.search(probe) or _COMPARE_OP_RE.search(probe):
             if cmdlet_shaped:
@@ -1508,8 +1554,6 @@ class PowerShellConverter:
         if not cmdlet_shaped:
             return False, "", ""
         low = first.lower()
-        if low in self._function_map:
-            return True, "", f"本文件函数 {first} 在条件中的调用无法可靠转换"
         if low != "test-connection":
             return True, "", f"条件中的命令 {first} 无对应映射"
         self._current_cmdlet = low
@@ -1585,6 +1629,9 @@ class PowerShellConverter:
     def _like_operands(m: re.Match[str]) -> str:
         left, right = m.group(1), m.group(2)
         right = right.strip("\"'")
+        # bash `[[ == ]]` 中引号会关闭通配，故对空白转义而非加引号
+        if re.search(r"\s", right):
+            right = re.sub(r"\s", lambda c: "\\" + c.group(0), right)
         return f"{left} == {right}"
 
     def _replace_test_path(self, expr: str) -> str:
@@ -2120,6 +2167,10 @@ class PowerShellConverter:
             return [self._c(f"{name}={expression}")]
         if expression.startswith("${") and re.fullmatch(r"\$\{[\w]+\}", expression):
             return [self._c(f"{name}={expression}")]
+        bare_rhs = rhs.strip()
+        if re.fullmatch(r"[A-Za-z_]\w*", bare_rhs) and bare_rhs.lower() in self._function_map:
+            self._warn(lineno, f"{bare_rhs} 已按命令调用转换（结果经命令替换赋值），请核对", original, category="command")
+            return [self._c(f"{name}=$({bare_rhs})")]
         self._warn(lineno, "无法确定右值类型，已按字符串处理，请检查", original, category="misc")
         return [self._c(f"{name}={dq(expression)}")]
 
@@ -2405,6 +2456,13 @@ class PowerShellConverter:
             re.search(r"\$\{?\w+\}?\.[A-Z]\w*", text) or re.search(r"\]\s*::", text)
         ):
             self._todo(lineno, text, "对象属性 / .NET 静态调用无法自动转换", category="objects")
+            return None
+        # v1.8.0 D2：PowerShell 中裸字符串语句写入管道（打印），对应 bash 的 echo。
+        if self._is_whole_string_literal(text):
+            converted = self._convert_expression(text, lineno)
+            if self._string_output_safe(converted):
+                return "echo " + converted
+            self._todo(lineno, text, "字符串语句含无法自动转换的子表达式", category="command")
             return None
         if low in rules.PS_HANDLER_MAP:
             return getattr(self, rules.PS_HANDLER_MAP[low])(lineno, args, text)
@@ -3251,7 +3309,9 @@ class PowerShellConverter:
                 self._warn(lineno, "未找到与 elseif 对应的 if，已注释", text, category="control_flow")
                 return self._degrade_block_line(lineno, text)
             after = re.sub(r"(?i)^else\s*", "", rest).strip()
-            closing = self._stack.pop() if self._stack else None
+            # 只窥视、不弹栈：`elseif` 的弹栈由 _emit_condition_block 独占，
+            # 避免重复 pop 在 try 等外层块内把外层块误弹（见 v1.8.0 设计 D1）。
+            closing = self._stack[-1] if self._stack else None
             empty_before = closing is not None and self._branch_is_empty(closing)
             header = self._match_condition_header(after)
             if header is None:

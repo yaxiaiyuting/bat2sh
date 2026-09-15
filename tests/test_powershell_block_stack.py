@@ -7,6 +7,9 @@ try 体内嵌 comment 容器的边界自洽。
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+import pytest
 
 
 def _uncommented(out: str) -> list[str]:
@@ -102,3 +105,92 @@ def test_try_body_with_net_open_container_keeps_structure(convert_ps, bash_check
     assert 'ls -la "/tmp/a"' in out
     assert 'echo "err"' in out
     bash_check(out)
+
+
+# v1.8.0 D1：try 块内 if/elseif 开链不得丢失（块栈 pop 责任唯一化）
+
+CORPUS = Path(__file__).resolve().parent / "fixtures" / "real-corpus" / "fleschutz"
+
+
+def _raw(convert_ps, source: str, name: str = "t.ps1"):
+    return convert_ps(source, name, bash_check=False)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "try {\n    if ($x) { $a = 1 } elseif ($y) { $a = 2 }\n} catch { $b = 3 }\n",
+        "try {\n    if ($x) { $a = 1 } elseif ($y) { $a = 2 } else { $a = 3 }\n} catch { $b = 3 }\n",
+        "try {\n    if ($x) { $a = 1 } elseif ($y) { $a = 2 } else { $a = 3 }\n    $c = 9\n} catch { $b = 3 }\n",
+    ],
+)
+def test_try_elseif_chain_keeps_structure(convert_ps, bash_check, source):
+    out, report = _raw(convert_ps, source)
+    assert report.error_count == 0
+    bash_check(out)
+    body = [line.strip() for line in out.splitlines() if line.strip()]
+    assert any(line.startswith("if ") for line in body)
+    assert sum(1 for line in body if line == "fi") >= 2
+
+
+def test_top_level_if_elseif_unchanged(convert_ps, bash_check):
+    out, _ = _raw(
+        convert_ps,
+        "if ($x) {\n"
+        "    $a = 1\n"
+        "} elseif ($y) {\n"
+        "    $a = 2\n"
+        "} else {\n"
+        "    $a = 3\n"
+        "}\n",
+    )
+    bash_check(out)
+    assert "elif" in out
+
+
+def test_try_elseif_runtime_branch(convert_ps, bash_run):
+    out, _ = _raw(
+        convert_ps,
+        "$a = ''\n"
+        "$x = 0\n"
+        "try {\n"
+        "    if ($x -eq 1) {\n"
+        "        $a = 'one'\n"
+        "    } elseif ($x -eq 0) {\n"
+        "        $a = 'zero'\n"
+        "    } else {\n"
+        "        $a = 'other'\n"
+        "    }\n"
+        "} catch { $a = 'err' }\n"
+        'Write-Host "$a"\n',
+    )
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert "zero" in proc.stdout
+
+
+def _convert_corpus(name: str, **options):
+    from bat2sh.core.encoding import decode_bytes
+    from bat2sh.core.engine import convert_text
+    from bat2sh.core.settings import ConvertSettings
+    from bat2sh.core.types import SourceKind
+
+    path = CORPUS / name
+    decoded = decode_bytes(path.read_bytes(), None)
+    return convert_text(
+        decoded.text, SourceKind.POWERSHELL, ConvertSettings(**options), name
+    )
+
+
+@pytest.mark.parametrize("name", ["cd-jenkins.ps1", "check-admin.ps1", "cd-repo.ps1"])
+def test_real_corpus_elseif_chain_no_orphan(bash_check, name):
+    out, report = _convert_corpus(name, bash_check=False)
+    assert report.error_count == 0, name
+    bash_check(out)
+    body = [line.strip() for line in out.splitlines() if line.strip()]
+    assert "elif" in out or "else" in out
+    assert not any(
+        line == "else" and body[index - 1] == "fi"
+        for index, line in enumerate(body)
+        if index
+    )
