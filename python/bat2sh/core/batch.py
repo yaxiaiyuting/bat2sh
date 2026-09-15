@@ -1826,6 +1826,34 @@ class BatchConverter:
         lines.append(self._indent + "done")
         return lines
 
+    # for /f 命令整体被双引号包装（`in ('"cmd|filter"')`）时，cmd 会把外层引号当 cmd /c
+    # 包装直接剥掉，管道仍按管道执行；bash 里保留引号则整串变成单个命令名。仅在剥离后
+    # 能切出多段管道、且至少一段是已知命令时才剥离，避免误伤 `"路径" "参数"` 类引号。
+    def _unwrap_for_f_command(self, raw: str) -> str:
+        if len(raw) < 2 or not (raw.startswith('"') and raw.endswith('"')):
+            return raw
+        inner = raw[1:-1]
+        segments = [
+            _unescape_for_f_command(part.strip()) for part in _split_for_f_pipeline(inner)
+        ]
+        if len(segments) < 2 or not any(self._is_known_pipeline_segment(s) for s in segments):
+            return raw
+        return inner
+
+    def _is_known_pipeline_segment(self, segment: str) -> bool:
+        tokens = tokenize_args(segment)
+        if not tokens:
+            return False
+        first = tokens[0].strip("\"'").lstrip("@").lower()
+        return (
+            first in rules.BATCH_HANDLER_MAP
+            or first in rules.BATCH_TODO_COMMANDS
+            or first in rules.BATCH_SIMPLE_MAP
+            or first in rules.BATCH_EXE_MAP
+            or first in rules.BATCH_POSIX_KEEP
+            or first.endswith((".exe", ".com"))
+        )
+
     def _emit_for_f(
         self, lineno: int, text: str, opts: str, set_text: str, var: str, body: str
     ) -> list[str]:
@@ -1854,6 +1882,7 @@ class BatchConverter:
             raw = source[1:-1].strip()
             if not raw:
                 return self._for_todo_lines(lineno, text, body, "for /f 的 '命令' 为空，请手工转换")
+            raw = self._unwrap_for_f_command(raw)
             if _ERRORLEVEL_VAR_RE.search(raw) or (
                 self._delayed_expansion and _DELAYED_ERRORLEVEL_RE.search(raw)
             ):
