@@ -3,7 +3,7 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.6.0**（HEAD `11cd50e`，tag `v1.6.0` → `030ab72`）。
+> 当前版本为 **v1.7.0**（tag `v1.7.0` → `7864015`；打包同步 commit `f18d625`）。
 
 ---
 
@@ -36,16 +36,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | 1.6.0 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
+| 当前版本 | 1.7.0 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1048 passed** | `docs/releases/v1.6.0.md` §验证 |
+| 测试基线 | pytest **1087 passed** | `docs/releases/v1.7.0.md` §验证 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.6.0（共 15 个） | `git tag` |
+| 已有 tag | v1.0.0 … v1.7.0（共 16 个） | `git tag` |
 
 ---
 
@@ -53,7 +53,7 @@
 
 ```text
 bat2sh/
-├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.6.0）
+├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.7.0）
 ├── PKGBUILD                     # Arch/CachyOS 打包脚本（makepkg -si）
 ├── .SRCINFO                     # PKGBUILD 的机读元数据（pkgver/sha256sums 同步）
 ├── bat2sh.desktop               # 桌面项（MIME 关联 x-bat / x-powershell）
@@ -155,12 +155,13 @@ ConvertReport（errors / warnings / todos 三层）
 CLI：--report / --report-json / 退出码    GUI：报告对话框 / 差异预览 / 状态栏计数
 ```
 
-### 4.3 `core/api` 子系统（v1.4 引入，v1.5 流式）
+### 4.3 `core/api` 子系统（v1.4 引入，v1.5 流式，v1.7 并行）
 
 ```text
 core/api/config.py    优先级合并：CLI > 环境变量 > ~/.config/bat2sh/api.json（原子写 0600）
 core/api/provider.py  OpenAI 兼容（urllib，stream:true SSE）；空闲超时语义；注入式 Transport
 core/api/fixer.py     M1/M3/M4 三类 TODO 标记扫描 + 发送边界构造 + diff 应用（纯函数）
+core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并发 + 从后往前合并（bash -n 可注入）
 ```
 
 ---
@@ -265,12 +266,12 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 - 框架：**pytest**（`pyproject.toml` 配置 `testpaths=["tests"]`、`pythonpath=["python"]`、
   `-p no:cacheprovider`）。运行方式：`pip install -e .[test] && pytest`。
-- 规模：`tests/` 下 70 个 `test_*.py`，v1.6.0 报告 **1048 passed**。
+- 规模：`tests/` 下 71 个 `test_*.py`，v1.7.0 报告 **1087 passed**（v1.6.0 基线 1048，新增 39）。
 - 主要测试类别（按文件名归组）：
   - 批处理转换：`test_batch*.py`（含 args/arithmetic/call/forf/goto/pipeline/robocopy 等）
   - PowerShell 转换：`test_powershell*.py`（含 advanced_function/block_stack/hashtable/try_dispatch）
   - 注册表映射：`test_registry_*.py`（batch/p0-p5/ps/writes）
-  - API 修复：`test_api_config.py`、`test_api_fixer.py`、`test_api_provider.py`
+  - API 修复：`test_api_config.py`、`test_api_fixer.py`、`test_api_provider.py`、`test_api_parallel.py`
   - CLI：`test_cli*.py`（colors/run/stdout/fix_todos）
   - GUI：`test_gui_*.py`（api_test/fix/run/startup/pure/logging）
   - 端到端与冒烟：`test_examples*.py`、`test_real_corpus.py`、`test_stress_no_crash.py`
@@ -288,13 +289,14 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 ## 8. 发布流程
 
 1. **版本号两处同步**：`pyproject.toml` 的 `version` 与 `python/bat2sh/__init__.py` 的
-   `__version__`（两者当前均为 `1.6.0`）。
+   `__version__`（两者当前均为 `1.7.0`）。
 2. **PKGBUILD 同步**：更新 `pkgver`；tag 生成后同步 `sha256sums`（可用 `updpkgsums`），
    并更新 `.SRCINFO` 使其与 `PKGBUILD` 一致。v1.6.0 的提交序列即为
    `030ab72 chore: bump version to v1.6.0` → `1f68d42 chore(pkg): sync PKGBUILD hashes`
-   → `11cd50e docs: v1.6.0 release note`。
-3. **打 tag**：tag 打在版本 bump commit 上（`v1.6.0` → `030ab72`）。
-4. **发布说明**：在 `docs/releases/` 下新增 `<版本>.md`（现有 v1.3.0 … v1.6.0），
+   → `11cd50e docs: v1.6.0 release note`；v1.7.0 为 `7864015 chore: bump version to v1.7.0`
+   → `f18d625 chore(pkg): sync PKGBUILD hashes for v1.7.0`。
+3. **打 tag**：tag 打在版本 bump commit 上（`v1.6.0` → `030ab72`，`v1.7.0` → `7864015`）。
+4. **发布说明**：在 `docs/releases/` 下新增 `<版本>.md`（现有 v1.3.0 … v1.7.0），
    记录 New features / Fixes / 验证（pytest 数、CI 结果、`bat2sh --version` 输出）。
 5. **CI 门槛**：GitHub Actions 在 Python 3.12 / 3.13 / 3.14 上运行 `pytest -q`，
    全绿方可发布。
@@ -310,13 +312,14 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/pipeline-patterns.md` | v1.3 管道模式挖掘报告：真实管道行频次统计与候选清单 |
 | `docs/real-corpus-report.md` | v1.3 真实语料覆盖率体检报告（37 脚本，归一化描述） |
 | `docs/testing-strategy.md` | 测试策略与发布门槛（三层语料） |
-| `docs/v1.7.0-design.md` | v1.7.0（C 阶段）TODO 多选并行修复的实现契约（进行中，非 v1.6.0 已发布功能） |
+| `docs/v1.7.0-design.md` | v1.7.0（C 阶段）TODO 多选并行修复的实现契约（并发/429/合并/配置/GUI） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
 | `docs/releases/v1.4.2.md` | v1.4.2 发布说明（for/f 包装引号等修复） |
 | `docs/releases/v1.5.0.md` | v1.5.0 发布说明（API 修复支持流式 SSE） |
 | `docs/releases/v1.6.0.md` | v1.6.0 发布说明（PS 块结构加固 + 注册表智能映射） |
+| `docs/releases/v1.7.0.md` | v1.7.0 发布说明（TODO 多选并行修复 + `[REG]` 语义明确） |
 | `docs/research/b1-dynamic-tracing.md` | B1 研究：PS 动态追踪可行性（结论：值得做，作为静态转换的补充） |
 | `docs/research/b2-registry-mapping.md` | B2 研究：注册表映射可行性（读可做、写一律拒绝） |
 | `docs/research/b3-ps-block-structure.md` | B3 研究：PS 块结构 4 缺陷修复评估 |
