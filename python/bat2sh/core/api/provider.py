@@ -68,6 +68,10 @@ class ProviderRequestError(ProviderError):
         self.status = status
 
 
+class ProviderCancelledError(ProviderError):
+    """用户在途取消（socket shutdown）：不可重试，调用方应标记 skipped。"""
+
+
 RETRYABLE_ERRORS = (
     ProviderRateLimitError,
     ProviderServerError,
@@ -98,6 +102,7 @@ _ERROR_CATEGORIES: tuple[tuple[type[ProviderError], str], ...] = (
     (ProviderNetworkError, "网络"),
     (ProviderProtocolError, "格式"),
     (ProviderRequestError, "请求"),
+    (ProviderCancelledError, "取消"),
 )
 
 
@@ -119,6 +124,10 @@ class TransportTimeoutError(TransportError):
 
 class TransportNetworkError(TransportError):
     """DNS/连接失败、连接中断等网络错误。"""
+
+
+class TransportCancelledError(TransportError):
+    """主动取消（socket shutdown）导致的读取中断，区别于网络错误。"""
 
 
 class Transport(Protocol):
@@ -155,11 +164,17 @@ class UrllibTransport:
     def request_stream(
         self, url: str, headers: dict[str, str], body: bytes, timeout: float
     ) -> tuple[int, Iterator[bytes]]:
+        status, response = self._open(url, headers, body, timeout)
+        return status, self._iter_response(response)
+
+    def _open(
+        self, url: str, headers: dict[str, str], body: bytes, timeout: float
+    ) -> tuple[int, "http.client.HTTPResponse"]:
         request = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
             response = urllib.request.urlopen(request, timeout=timeout)
         except urllib.error.HTTPError as exc:
-            return exc.code, _iter_lines(exc)
+            return exc.code, exc
         except (socket.timeout, TimeoutError) as exc:
             raise TransportTimeoutError(str(exc)) from exc
         except urllib.error.URLError as exc:
@@ -169,7 +184,72 @@ class UrllibTransport:
             raise TransportNetworkError(str(reason or exc)) from exc
         except OSError as exc:
             raise TransportNetworkError(str(exc)) from exc
-        return response.status, _iter_lines(response)
+        return response.status, response
+
+    def _iter_response(self, response) -> Iterator[bytes]:
+        yield from _iter_lines(response)
+
+
+class CancelAwareTransport(UrllibTransport):
+    """可取消 transport：登记在途响应，取消时对底层 socket 执行 shutdown。
+
+    `shutdown(SHUT_RDWR)` 是唯一能打断阻塞读的手段（`close()`/`response.close()`
+    不能——见 docs/v1.8.0-design.md §3.3.1）。
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._active: dict[int, object] = {}
+        self._cancelled: set[int] = set()
+
+    def _iter_response(self, response) -> Iterator[bytes]:
+        key = id(response)
+        with self._lock:
+            self._active[key] = response
+        try:
+            yield from _iter_lines(response)
+            with self._lock:
+                cancelled = key in self._cancelled
+            if cancelled:
+                raise TransportCancelledError("请求已被取消（socket shutdown）")
+        except TransportError:
+            with self._lock:
+                cancelled = key in self._cancelled
+            if cancelled:
+                raise TransportCancelledError("请求已被取消（socket shutdown）") from None
+            raise
+        finally:
+            with self._lock:
+                self._active.pop(key, None)
+                self._cancelled.discard(key)
+
+    def cancel_in_flight(self) -> int:
+        with self._lock:
+            items = list(self._active.items())
+        hits = 0
+        for key, response in items:
+            sock = _socket_of(response)
+            if sock is None:
+                continue
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                continue
+            with self._lock:
+                self._cancelled.add(key)
+            hits += 1
+        return hits
+
+
+def _socket_of(response) -> socket.socket | None:
+    raw = getattr(getattr(response, "fp", None), "raw", None)
+    sock = getattr(raw, "_sock", None)
+    if isinstance(sock, socket.socket):
+        return sock
+    try:
+        return socket.fromfd(response.fileno(), socket.AF_INET, socket.SOCK_STREAM)
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 class Provider(Protocol):
@@ -186,6 +266,8 @@ class Provider(Protocol):
         on_warning: Callable[[str], None] | None = None,
         on_rate_limit: Callable[[int], None] | None = None,
     ) -> Iterator[str]: ...
+
+    def cancel_in_flight(self) -> int: ...
 
 
 def redact(text: str, *secrets: str) -> str:
@@ -211,11 +293,16 @@ class OpenAICompatibleProvider:
         sleep: Callable[[float], None] = time.sleep,
     ):
         self._config = config
-        self._transport = transport or UrllibTransport()
+        self._transport = transport or CancelAwareTransport()
         self._sleep = sleep
         self._thinking_param_unsupported = False
         # 并发修复（v1.7.0）下单实例可能被多个工作线程共享
         self._thinking_lock = threading.Lock()
+
+    def cancel_in_flight(self) -> int:
+        """取消所有在途请求（打断阻塞读）；返回被 shutdown 的 socket 数。"""
+        cancel = getattr(self._transport, "cancel_in_flight", None)
+        return cancel() if callable(cancel) else 0
 
     def complete(self, prompt: str, *, timeout: float) -> str:
         return "".join(self.complete_stream(prompt, timeout=timeout))
@@ -305,6 +392,8 @@ class OpenAICompatibleProvider:
     ) -> Iterator[str]:
         try:
             status, lines = self._transport.request_stream(url, headers, body, timeout)
+        except TransportCancelledError as exc:
+            raise ProviderCancelledError(str(exc)) from exc
         except TransportTimeoutError as exc:
             raise ProviderTimeoutError(str(exc)) from exc
         except TransportError as exc:
@@ -312,6 +401,8 @@ class OpenAICompatibleProvider:
         try:
             self._raise_for_status(status)
             yield from self._consume_stream(lines, on_reasoning)
+        except TransportCancelledError as exc:
+            raise ProviderCancelledError(str(exc)) from exc
         except TransportTimeoutError as exc:
             raise ProviderTimeoutError(str(exc)) from exc
         except TransportError as exc:

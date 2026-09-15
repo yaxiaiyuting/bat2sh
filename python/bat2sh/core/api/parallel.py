@@ -376,9 +376,15 @@ def run_parallel(
             set_status(task, STATUS_FAILED, f"限流 429（重试 {task.retries} 次后仍失败）：{exc}")
             return False
         except ProviderError as exc:
+            if cancel.is_set():
+                set_status(task, STATUS_SKIPPED, "已取消")
+                return False
             set_status(task, STATUS_FAILED, f"API 调用失败：{exc}")
             return False
         except Exception as exc:  # 单任务意外异常不得阻塞其余任务（错误隔离）
+            if cancel.is_set():
+                set_status(task, STATUS_SKIPPED, "已取消")
+                return False
             set_status(task, STATUS_FAILED, f"意外错误：{exc}")
             return False
         finally:
@@ -430,6 +436,9 @@ def run_parallel(
     except KeyboardInterrupt:
         interrupted = True
         cancel.set()
+        cancel_in_flight = getattr(provider, "cancel_in_flight", None)
+        if callable(cancel_in_flight):
+            cancel_in_flight()
         for thread in threads:
             thread.join(timeout=2.0)
 

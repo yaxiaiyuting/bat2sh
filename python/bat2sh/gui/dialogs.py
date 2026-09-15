@@ -712,6 +712,7 @@ class TodoFixDialog(QDialog):
         self._workers: list = []  # 保活：已结束的线程对象不被提前 GC
         self._stream_started: set = set()
         self._cancel_event = threading.Event()
+        self._active_provider = None
         self._build()
         self._sync_selection()
 
@@ -925,6 +926,7 @@ class TodoFixDialog(QDialog):
         except ProviderError as exc:
             self.status_label.setText(f"API 配置错误：{exc}")
             return
+        self._active_provider = provider
         for task in tasks:
             if not any(task is item for item in self._attempted):
                 self._attempted.append(task)
@@ -1029,7 +1031,11 @@ class TodoFixDialog(QDialog):
 
     def _request_stop(self) -> None:
         self._cancel_event.set()
-        self.status_label.setText("正在停止…（需等待当前请求返回，最长一个空闲超时）")
+        provider = getattr(self, "_active_provider", None)
+        cancel_in_flight = getattr(provider, "cancel_in_flight", None)
+        if callable(cancel_in_flight):
+            cancel_in_flight()
+        self.status_label.setText("正在停止…（已打断在途请求）")
         self.stop_button.setEnabled(False)
 
     def _apply_all(self) -> None:
