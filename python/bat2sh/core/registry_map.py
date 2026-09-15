@@ -40,6 +40,22 @@ PACKAGE_WARNING = (
     "Windows 显示名与发行版包名不同，请核对"
 )
 
+MIME_WARNING = (
+    "文件关联已映射到 xdg-mime query default（输出 .desktop 名称），"
+    "与 Windows 默认程序语义不同，请核对"
+)
+
+_MIME_KEY_RE = re.compile(
+    r"(?i)^(?:HKCR|HKEY_CLASSES_ROOT|HKLM:\\SOFTWARE\\CLASSES):?\\(\.[^\\\s]+)$"
+)
+
+
+def _mime_default(ext: str) -> str:
+    return (
+        f"__f=$(mktemp --suffix={dq(ext)}) && "
+        'xdg-mime query default "$(xdg-mime query filetype "$__f")"; rm -f "$__f"'
+    )
+
 
 def _package_query(app: str) -> str:
     quoted = dq(app)
@@ -132,6 +148,9 @@ def _lookup_read(key: str, normalized: str, value: str) -> RegistryRead | None:
             return RegistryRead(_package_query(match.group(1)), PACKAGE_WARNING)
         if normalized.endswith("\\UNINSTALL"):
             return RegistryRead(_package_list(), PACKAGE_WARNING)
+    mime = _MIME_KEY_RE.match(key)
+    if mime:
+        return RegistryRead(_mime_default(mime.group(1)), MIME_WARNING)
     return None
 
 
