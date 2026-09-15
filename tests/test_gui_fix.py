@@ -158,7 +158,8 @@ def test_settings_dialog_api_roundtrip():
         QApplication.processEvents()
 
 
-def test_settings_dialog_enable_thinking_roundtrip(tmp_path):
+def test_settings_dialog_enable_thinking_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     _ensure_app()
     api = _make_api_config(enable_thinking=True)
     dialog = SettingsDialog(ConvertSettings(), api)
@@ -166,8 +167,8 @@ def test_settings_dialog_enable_thinking_roundtrip(tmp_path):
         assert dialog.enable_thinking_check.isChecked()
         dialog.enable_thinking_check.setChecked(False)
         assert dialog.result_api_config().enable_thinking is False
-        save_api_config(dialog.result_api_config())
-        assert load_api_config().enable_thinking is False
+        save_api_config(dialog.result_api_config(), tmp_path / "api.json")
+        assert load_api_config(tmp_path / "api.json").enable_thinking is False
     finally:
         dialog.deleteLater()
         QApplication.processEvents()

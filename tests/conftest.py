@@ -25,6 +25,18 @@ from bat2sh.core.settings import ConvertSettings  # noqa: E402
 from bat2sh.core.types import ConvertReport, SourceKind  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _isolate_user_dirs(tmp_path, monkeypatch):
+    """隔离 XDG 配置/状态目录到临时目录，杜绝测试误写用户真实配置。
+
+    事故背景（2026-09-15）：单个测试未隔离 XDG_CONFIG_HOME 时调用
+    ``save_api_config(...)``（默认路径）覆盖了用户 ``~/.config/bat2sh/api.json``；
+    此兜底对所有测试生效。
+    """
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg-state"))
+
+
 @pytest.fixture
 def convert_bat():
     """把批处理文本转换为 (bash 文本, 报告)。"""
