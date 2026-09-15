@@ -151,3 +151,55 @@
 **无许可语料处理：** `common_powershell_scripts-main`、`windows-batch-script-master`、`bat-master` 仅用于 **统计**；本文未引用任何原文 — 只有标准化键路径、构造类型和操作计数。CC0（fleschutz）和用户自有/仓库文件可按构造形式引用。
 
 **仓库完整性：** `git -C /home/duanjb666/bat2sh status --short` 输出零行 — **工作树干净**，无文件被修改、暂存或创建；未执行 git 写操作；所有临时数据限于 `/tmp/opencode/b2/`。
+
+---
+
+## § 实现结果（v1.6.0 阶段 B，2026-09-16）
+
+> 本节由实现阶段追加，记录 B2 结论的落地与更正。相关 commit：`1bc9c9e`（B-1）、`4b57669`（B-2）、
+> `ba8ea0d`（P0）、`b438ac6`（P1）、`ad95efb`（P2）、`4399adc`（P3）、`37298f6`（P4）、`ea849b2`（P5）、
+> `75b51b1`（写类）。
+
+### 更正
+- **`regedit` / `reg.exe` 原未被丢弃。** §当前转换器行为 称二者“同路径 / 丢弃”有误：实测仅精确 `reg`
+  （`rules.BATCH_HANDLER_MAP → cmd_todo_hint` 返回 `None`）被派发器整行丢弃；`regedit` 走
+  `BATCH_TODO_COMMANDS`、`reg.exe` 走 `.exe` 分支，均已保留为普通 TODO。
+- **静默误译已消除。** `Test-Path` / `Get-Item` / `Get-ChildItem` / `New-Item` / `Remove-Item` 的 `HK*:`
+  路径不再生成 `[[ -e "HKLM:/…" ]]` / `ls -la` / `touch` / `rm -r`。
+
+### 已修两个前置缺陷
+1. **reg 行不再静默丢弃** → 结构化 TODO，覆盖 `reg` / `regedit` / `reg.exe`。
+2. **PS 注册表路径不再误译为文件操作**（根前缀 HKLM/HKCU/HKCR/HKU/HKCC）。
+
+结构化 TODO 形态（机读；末尾 `: 手动检查: <原命令>` 保留以兼容 `fixer.scan_todo_markers`）：
+
+```
+# TODO[REG] op=<read|write|delete|import|export|test|enumerate> key="<路径>" value="<值名>": 手动检查: <原命令>
+```
+
+### 已实现映射（16 条规则条目，全部只读；`core/registry_map.py`）
+| 级别 | 条目 | 键/值（字面量） | 目标 |
+|---|---|---|---|
+| P0 | 3 | RebootRequired / RebootPending / Session Manager | `/var/run/reboot-required` + `needs-restarting -r` 回退 |
+| P2 | 2 | ProductName / CurrentVersion·CurrentBuildNumber | `/etc/os-release` 的 PRETTY_NAME / VERSION_ID |
+| P3 | 8 | BIOS 值名（SystemManufacturer 等） | `/sys/class/dmi/id/*` |
+| P4 | 2 | `Uninstall\<app>` 读取 / `Uninstall` 枚举（含 Wow6432Node） | dpkg-query / rpm / pacman 探测 |
+| P5 | 1 | `HKCR\.ext`（兼容 `HKLM\SOFTWARE\Classes` 前缀） | `xdg-mime query default/filetype` |
+
+### 拒绝（红线：无证据不发明）
+- **P1 服务名 → systemd unit**：无 Windows 服务名与 Linux unit 等价性的证据 → **不映射**，仅输出结构化
+  TODO 并追加 `systemctl is-active/is-enabled/show` 引导。
+- **全部写类（431 次）**：结构化 TODO（`op=write/delete/import`），覆盖 cmd `reg add/delete/import`、
+  PS `Set/New/Remove-ItemProperty`、注册表路径上的 `New/Remove-Item`、COM `WScript.Shell`、
+  `.NET Microsoft.Win32.Registry`。
+- `.reg` 生成/导入、PSProvider、动态/变量键路径：维持拒绝。
+
+### 语料计数说明
+读:写 ≈ 1:11 的实测分布未变；可自动映射的读类总量上限仍为 **38**。实现后，无 Linux 对应物的读
+（服务名、未收录值名、动态键）仍按结构化 TODO 处理。
+
+### 测试
+新增 64 例（`tests/test_registry_batch.py`、`tests/test_registry_ps.py`、`tests/test_registry_p0..p5.py`、
+`tests/test_registry_writes.py`），含键形态断言、结构化 TODO 断言与**沙箱运行验证**
+（stub PATH 重启探针、`/etc/os-release`、dmi 文件比对、包管理器查询、`xdg-mime`）。
+
