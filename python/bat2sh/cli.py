@@ -155,7 +155,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--fix-todos",
         action="store_true",
         help="调用 API 为无法自动转换的 TODO 生成修复建议（需交互终端；每次发送前逐条确认，"
-        "diff 确认后才写入；API 建议仍需人工复核；与 --run 互斥）",
+        "模型输出实时流式显示；diff 确认后才写入；API 建议仍需人工复核；与 --run 互斥）",
     )
     parser.add_argument(
         "--api-provider", default=None, help="API 类型（当前仅 openai；默认读配置文件/环境变量）"
@@ -170,7 +170,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="API key（不推荐：会进入 shell 历史；建议用 BAT2SH_API_KEY 或配置文件）",
     )
     parser.add_argument(
-        "--api-timeout", type=float, default=None, metavar="N", help="API 超时秒数（默认 30）"
+        "--api-timeout",
+        type=float,
+        default=None,
+        metavar="N",
+        help="API 空闲超时秒数（默认 30；流式响应中两次数据到达的最大间隔）",
     )
     parser.add_argument(
         "--api-context-lines",
@@ -461,6 +465,48 @@ def _ask_fix_send(prompt: str, base_url: str) -> str:
     return "n"
 
 
+_REASONING_STATUS_SHOWN = False
+_REASONING_CLEAR = "\r" + " " * 48 + "\r"
+
+
+def _reasoning_status(count: int) -> None:
+    """思维链活动指示：仅显示段数，不显示内容；第 1 段及每 25 段刷新一次。"""
+    global _REASONING_STATUS_SHOWN
+    if count == 1 or count % 25 == 0:
+        sys.stderr.write(f"\rbat2sh: 模型思考中…（思维链 {count} 段）")
+        sys.stderr.flush()
+        _REASONING_STATUS_SHOWN = True
+
+
+def _clear_reasoning_status() -> None:
+    """清除思维链状态行（仅在显示过时用空白覆盖），并复位状态标记。"""
+    global _REASONING_STATUS_SHOWN
+    if _REASONING_STATUS_SHOWN:
+        sys.stderr.write(_REASONING_CLEAR)
+        sys.stderr.flush()
+    _REASONING_STATUS_SHOWN = False
+
+
+def _stream_reply(stream) -> str:
+    """实时把流式正文写到 stderr（逐块 flush），返回拼接全文。"""
+    chunks: list[str] = []
+    wrote = False
+    try:
+        for chunk in stream:
+            if not wrote:
+                _clear_reasoning_status()
+            sys.stderr.write(chunk)
+            sys.stderr.flush()
+            chunks.append(chunk)
+            wrote = True
+    finally:
+        _clear_reasoning_status()
+        if wrote:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+    return "".join(chunks)
+
+
 def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namespace) -> int:
     """``--fix-todos`` 主流程：逐条发送/确认/diff，全部结束后一次性写盘。
 
@@ -539,7 +585,14 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
                 skipped += 1
                 continue
             try:
-                raw = provider.complete(prompt, timeout=api_config.timeout)
+                sys.stderr.write("bat2sh: 正在接收模型输出（流式；Ctrl+C 可取消）\n")
+                sys.stderr.flush()
+                stream = provider.complete_stream(
+                    prompt,
+                    timeout=api_config.timeout,
+                    on_reasoning=_reasoning_status,
+                )
+                raw = _stream_reply(stream)
             except ProviderError as exc:
                 message = redact(str(exc), api_config.api_key)
                 print(

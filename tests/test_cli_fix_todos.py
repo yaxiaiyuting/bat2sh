@@ -14,7 +14,7 @@ import pytest
 import bat2sh.cli as cli
 from bat2sh.cli import main
 from bat2sh.core.api.config import ApiConfig, save_api_config
-from bat2sh.core.api.provider import ProviderNetworkError
+from bat2sh.core.api.provider import ProviderNetworkError, ProviderTimeoutError
 
 M1_BAT = '@echo off\nfor /f "usebackq" %%i in (`dir /b`) do echo %%i\n'
 M2_BAT = '@echo off\ndir /b | findstr /i "foo" | sort /r > out.txt\n'
@@ -42,18 +42,43 @@ class _NonTty:
 
 
 class _FakeProvider:
-    def __init__(self, replies=None, error=None):
+    """脚本化 Provider：逐次调用产出 chunks；可模拟思维链与中途异常。
+
+    - ``replies``：每次 API 调用的完整回复（整段作为一个正文块产出）；
+    - ``chunks``：显式正文块序列（覆盖 ``replies``，用于检验逐块流式）；
+    - ``error``：每次调用开始时抛出（``complete_stream`` 首次迭代时触发）；
+    - ``reasoning``：在首个正文块之前调用 ``on_reasoning`` 的次数；
+    - ``mid_error``：产出第 2 块前抛出（模拟流中途 ProviderError/KeyboardInterrupt）。
+    """
+
+    def __init__(self, replies=None, error=None, *, chunks=None, reasoning=0, mid_error=None):
         self.replies = list(replies or [])
         self.error = error
+        self.chunks = list(chunks) if chunks is not None else None
+        self.reasoning = reasoning
+        self.mid_error = mid_error
         self.prompts: list[str] = []
 
     def complete(self, prompt: str, *, timeout: float) -> str:
+        return "".join(self.complete_stream(prompt, timeout=timeout))
+
+    def complete_stream(self, prompt: str, *, timeout: float, on_reasoning=None):
         self.prompts.append(prompt)
         if self.error is not None:
             raise self.error
-        if not self.replies:
-            raise AssertionError("FakeProvider 无更多预置回复")
-        return self.replies.pop(0)
+        if self.chunks is not None:
+            reply_chunks = list(self.chunks)
+        else:
+            if not self.replies:
+                raise AssertionError("FakeProvider 无更多预置回复")
+            reply_chunks = [self.replies.pop(0)]
+        for count in range(1, self.reasoning + 1):
+            if on_reasoning is not None:
+                on_reasoning(count)
+        for index, chunk in enumerate(reply_chunks):
+            if index and self.mid_error is not None:
+                raise self.mid_error
+            yield chunk
 
 
 @pytest.fixture(autouse=True)
@@ -109,6 +134,71 @@ def test_fix_todos_success_writes_once(tmp_path, monkeypatch, capfd):
     assert "手动检查: for /f" not in out
     assert len(provider.prompts) == 1
     assert ">>> " in provider.prompts[0]
+
+
+def test_fix_todos_streams_chunks_to_stderr_not_stdout(tmp_path, monkeypatch, capfd):
+    """流式正文逐块写到 stderr 与接收提示；stdout 保持干净；最终仍写盘。"""
+    provider = _FakeProvider(chunks=['echo "str', 'eamed"'])
+    _install_provider(monkeypatch, provider)
+    monkeypatch.setattr(sys, "stdin", _ScriptedTty(["y\n", "y\n"]))
+    path = _write(tmp_path, M1_BAT)
+    code = main([str(path), "--fix-todos", *API_ARGS])
+    captured = capfd.readouterr()
+    assert code == 0
+    assert "正在接收模型输出" in captured.err
+    assert 'echo "str' in captured.err
+    assert 'eamed"' in captured.err
+    assert 'echo "str' not in captured.out
+    assert 'eamed"' not in captured.out
+    out = (tmp_path / "demo.sh").read_text(encoding="utf-8")
+    assert 'echo "streamed"' in out
+
+
+def test_fix_todos_reasoning_status_without_text(tmp_path, monkeypatch, capfd):
+    """思维链仅显示段数状态行（含第 25 段刷新），不显示思维链文本；正文照常显示。"""
+    provider = _FakeProvider(replies=['echo "reasoned"'], reasoning=25)
+    _install_provider(monkeypatch, provider)
+    monkeypatch.setattr(sys, "stdin", _ScriptedTty(["y\n", "y\n"]))
+    path = _write(tmp_path, M1_BAT)
+    code = main([str(path), "--fix-todos", *API_ARGS])
+    err = capfd.readouterr().err
+    assert code == 0
+    assert "模型思考中" in err
+    assert "思维链 1 段" in err
+    assert "思维链 25 段" in err
+    assert 'echo "reasoned"' in err
+
+
+def test_fix_todos_keyboard_interrupt_mid_stream(tmp_path, monkeypatch, capfd):
+    """流中途 Ctrl+C：退出码 1、不写盘，状态行清理不崩溃且提示未写盘。"""
+    provider = _FakeProvider(
+        chunks=['echo "partial"', 'echo "never"'], mid_error=KeyboardInterrupt()
+    )
+    _install_provider(monkeypatch, provider)
+    monkeypatch.setattr(sys, "stdin", _ScriptedTty(["y\n"]))
+    path = _write(tmp_path, M1_BAT)
+    code = main([str(path), "--fix-todos", *API_ARGS])
+    err = capfd.readouterr().err
+    assert code == 1
+    assert "已中断" in err
+    assert "未写盘" in err
+    assert not (tmp_path / "demo.sh").exists()
+
+
+def test_fix_todos_mid_stream_provider_error_keeps_todo(tmp_path, monkeypatch, capfd):
+    """流中途 ProviderError：本条保留 TODO、不写盘，流程按既有语义结束。"""
+    provider = _FakeProvider(
+        chunks=['echo "partial"', 'echo "never"'], mid_error=ProviderTimeoutError("slow")
+    )
+    _install_provider(monkeypatch, provider)
+    monkeypatch.setattr(sys, "stdin", _ScriptedTty(["y\n"]))
+    path = _write(tmp_path, M1_BAT)
+    code = main([str(path), "--fix-todos", *API_ARGS])
+    err = capfd.readouterr().err
+    assert code == 3
+    assert "本条保留 TODO" in err
+    assert "失败 1" in err
+    assert not (tmp_path / "demo.sh").exists()
 
 
 def test_fix_todos_send_declined_keeps_todo_and_no_write(tmp_path, monkeypatch, capfd):

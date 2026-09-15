@@ -224,7 +224,7 @@ bat2sh --cli a.bat --fix-todos             # 交互式：调用 API 为 TODO 获
 | `--api-base` / `--api-model` | API 地址 / 模型（覆盖配置文件；通常配合 `--fix-todos`） |
 | `--api-provider` | API 类型（当前仅 `openai` 兼容） |
 | `--api-key` | API key（不推荐：会进入 shell 历史；建议用 `BAT2SH_API_KEY`） |
-| `--api-timeout N` | API 超时秒数（默认 30） |
+| `--api-timeout N` | API 空闲超时秒数（默认 30；流式响应中两次数据到达的最大间隔） |
 | `--api-context-lines N` | 发送的源文件上下文行数（默认 3，上限 10） |
 | `-q, --quiet` | 静默 |
 
@@ -286,6 +286,9 @@ GUI 中"转换并运行"（`Ctrl+Shift+Enter`）流程相同：结果框有未�
 export BAT2SH_API_KEY=...                  # 推荐：key 走环境变量（不落盘）
 bat2sh --cli deploy.bat --fix-todos        # 在交互终端逐条确认
 ```
+
+模型输出实时流式显示在 stderr（仅正文；思维链只以"思维链 N 段"状态行提示，不显示内容），
+stdout 始终保留给脚本本身（`--print`）。
 
 配置（优先级 **CLI > 环境变量 > 文件**）：
 
