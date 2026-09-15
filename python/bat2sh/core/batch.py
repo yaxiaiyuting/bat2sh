@@ -2256,6 +2256,9 @@ class BatchConverter:
         redir_text = self._render_redirs(redirs, lineno)
         if not body.strip():
             return [self._c(redir_text)] if redir_text else []
+        spaced_set = re.sub(r"(?i)^(@?\s*)set\s*/([ap])(?=\s|$)", r"\1set /\2", body)
+        if spaced_set != body:
+            body = spaced_set
         prompt_only = re.match(r"(?i)^@?\s*set\s*/p\s*=\s*(.*)$", body.strip())
         if prompt_only is not None:
             # 语料惯用法：`<nul set /p=文本` 输出文本且不换行（进度条/同行提示）。
