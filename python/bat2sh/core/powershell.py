@@ -98,6 +98,11 @@ class PowerShellConverter:
         self._rc_scope: _Block | None = None
         self._complex_try_lines: set[int] = set()
         self._complex_try_end: dict[int, int] = {}
+        self._hashtable_depth = 0
+        self._hashtable_target = ""
+        self._hashtable_header = ""
+        self._hashtable_lines: list[str] = []
+        self._hashtable_lineno = 0
 
     # ------------------------------------------------------------------
     # 对外入口
@@ -805,6 +810,8 @@ class PowerShellConverter:
         return list(buffer)
 
     def _convert_line(self, lineno: int, raw: str) -> list[str]:
+        if self._hashtable_depth > 0:
+            return self._collect_hashtable_line(lineno, raw)
         if self._here_end is not None:
             return self._collect_here_line(lineno, raw)
         text = raw.strip()
@@ -941,6 +948,92 @@ class PowerShellConverter:
         if self._here_mode == "assign":
             lines.append(self._c(")"))
         return lines
+
+    def _collect_hashtable_line(self, lineno: int, raw: str) -> list[str]:
+        text = raw.strip()
+        self._hashtable_depth += self._net_open_braces(text)
+        self._hashtable_lines.append(text)
+        if self._hashtable_depth <= 0:
+            return self._emit_hashtable()
+        return []
+
+    @staticmethod
+    def _is_flat_hashtable_value(val: str) -> bool:
+        v = val.strip()
+        if not v:
+            return False
+        if re.fullmatch(r"-?\d+(\.\d+)?", v):
+            return True
+        if v.lower() in ("$true", "$false", "$null"):
+            return True
+        if re.fullmatch(r"\$[A-Za-z_]\w*", v):
+            return True
+        return len(v) >= 2 and v[0] in "\"'" and v[-1] == v[0] and v.count(v[0]) == 2
+
+    def _convert_hashtable_entry(self, key: str, val: str, lineno: int) -> str:
+        k = key.strip()
+        if not (len(k) >= 2 and k[0] in "\"'" and k[-1] == k[0]):
+            k = dq(k)
+        v = val.strip()
+        low = v.lower()
+        if low == "$null":
+            return f'[{k}]=""'
+        if low in ("$true", "$false"):
+            return f"[{k}]={low[1:]}"
+        if re.fullmatch(r"-?\d+(\.\d+)?", v):
+            return f"[{k}]={v}"
+        if v[0] == "'":
+            return f"[{k}]={v}"
+        if v[0] == '"':
+            return f'[{k}]="{self._replace_vars(v[1:-1], lineno)}"'
+        return f'[{k}]="${{{v[1:]}}}"'
+
+    def _emit_hashtable(self) -> list[str]:
+        target = self._hashtable_target
+        lineno = self._hashtable_lineno
+        header = self._hashtable_header
+        lines = self._hashtable_lines
+        self._hashtable_depth = 0
+        self._hashtable_lines = []
+        self._hashtable_header = ""
+        entries: list[tuple[str, str]] = []
+        flat = True
+        for line in lines:
+            body = line.strip()
+            if not body or body == "}" or body.startswith("#"):
+                continue
+            if body.endswith("}"):
+                body = body[:-1].strip()
+            for part in split_top_level(body, ";"):
+                part = part.strip().rstrip("}").strip()
+                if not part:
+                    continue
+                entry = re.match(r"^(.*?)\s*=\s*(.+)$", part)
+                if entry is None or not self._is_flat_hashtable_value(entry.group(2)):
+                    flat = False
+                    break
+                entries.append((entry.group(1).strip(), entry.group(2).strip()))
+            if not flat:
+                break
+        if flat:
+            items = [self._convert_hashtable_entry(k, v, lineno) for k, v in entries]
+            self._warn(
+                lineno,
+                "哈希表已转换为 bash 关联数组（declare -A），键/值语义请核对",
+                header,
+                category="objects",
+            )
+            return [self._c(f"declare -A {target}=( " + " ".join(items) + " )")]
+        self._warn(
+            lineno,
+            "哈希表字面量（含嵌套或复杂值）无法等价转换，已整体注释，请人工检查",
+            header,
+            category="objects",
+        )
+        out = [self._c("# TODO: 手动检查: " + header)]
+        out.extend(self._c("# " + line) for line in lines if line.strip() and line.strip() != "}")
+        out.append(self._c("# TODO: 哈希表结束"))
+        return out
 
     @staticmethod
     def _split_statements(text: str) -> list[str]:
@@ -1788,6 +1881,31 @@ class PowerShellConverter:
             block.brace_depth = max(1, self._net_open_braces(rhs))
             self._stack.append(block)
             return [self._c("# TODO: 手动检查: " + original)]
+
+        inline_hashtable = re.match(
+            r"(?i)^(?:\[(ordered|hashtable|pscustomobject)\]\s*)?@\{\s*(.*?)\s*\}\s*$",
+            rhs,
+            re.S,
+        )
+        if inline_hashtable:
+            self._hashtable_lineno = lineno
+            self._hashtable_target = name
+            self._hashtable_header = original
+            body = inline_hashtable.group(2)
+            self._hashtable_lines = [body] if body else []
+            return self._emit_hashtable()
+
+        open_hashtable = re.match(
+            r"(?i)^(?:\[(ordered|hashtable|pscustomobject)\]\s*)?@\{\s*(.*)$", rhs, re.S
+        )
+        if open_hashtable and self._net_open_braces(rhs) > 0:
+            self._hashtable_lineno = lineno
+            self._hashtable_target = name
+            self._hashtable_header = original
+            tail = open_hashtable.group(2)
+            self._hashtable_lines = [tail] if tail.strip() else []
+            self._hashtable_depth = self._net_open_braces(rhs)
+            return []
 
         # 统一块栈加固：右值含未闭合花括号（如 @{ / 块表达式）→ 安全 comment 容器
         # 置于属性访问检查之前，避免 $obj.Prop 分支提前返回而不压块
@@ -3187,6 +3305,20 @@ class PowerShellConverter:
             self._try_inline_pending = False
             while self._stack and self._stack[-1].kind == "try":
                 self._stack.pop()
+        if self._hashtable_depth > 0:
+            self._warn(
+                self._hashtable_lineno,
+                "哈希表字面量未找到结束花括号，内容已注释，请人工检查",
+                self._hashtable_header,
+                category="objects",
+            )
+            self._out.append(self._c("# TODO: 手动检查: " + self._hashtable_header))
+            self._out.extend(
+                self._c("# " + line) for line in self._hashtable_lines if line.strip()
+            )
+            self._hashtable_depth = 0
+            self._hashtable_lines = []
+            self._hashtable_header = ""
         if self._here_end is not None:
             self._warn(
                 self._here_lineno,
