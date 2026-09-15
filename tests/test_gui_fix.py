@@ -58,6 +58,7 @@ class _FakeProvider:
     - ``chunks``：显式正文块序列（覆盖 ``reply``，用于检验逐块流式）；
     - ``error``：首次迭代时抛出（模拟调用即失败）；
     - ``reasoning``：在正文之前调用 ``on_reasoning`` 的次数（仅计数，无文本）；
+    - ``warning``：在正文之前调用 ``on_warning`` 的文本（模拟端点拒绝参数后降级）；
     - ``mid_error``：产出第 2 块前抛出（模拟流中途异常）；
     - ``gate``：正文开始前阻塞，测试观察到思维链状态后再放行；
     - ``body_gate``：首块之后阻塞，测试在流中途触发取消后再放行。
@@ -73,6 +74,7 @@ class _FakeProvider:
         mid_error: Exception | None = None,
         gate: threading.Event | None = None,
         body_gate: threading.Event | None = None,
+        warning: str | None = None,
     ):
         self.reply = reply
         self.error = error
@@ -81,13 +83,16 @@ class _FakeProvider:
         self.mid_error = mid_error
         self.gate = gate
         self.body_gate = body_gate
+        self.warning = warning
         self.reasoning_text = ""
         self.prompts: list[str] = []
 
     def complete(self, prompt: str, *, timeout: float) -> str:
         return "".join(self.complete_stream(prompt, timeout=timeout))
 
-    def complete_stream(self, prompt: str, *, timeout: float, on_reasoning=None):
+    def complete_stream(
+        self, prompt: str, *, timeout: float, on_reasoning=None, on_warning=None
+    ):
         self.prompts.append(prompt)
         if self.error is not None:
             raise self.error
@@ -95,6 +100,8 @@ class _FakeProvider:
         for count in range(1, self.reasoning + 1):
             if on_reasoning is not None:
                 on_reasoning(count)
+        if self.warning is not None and on_warning is not None:
+            on_warning(self.warning)
         if self.gate is not None:
             self.gate.wait(timeout=5.0)
         for index, chunk in enumerate(reply_chunks):
@@ -146,6 +153,31 @@ def test_settings_dialog_api_roundtrip():
         assert result.timeout == 45.0
         assert result.api_key == "secret"
         assert result.model == "demo-model"
+    finally:
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
+def test_settings_dialog_enable_thinking_roundtrip(tmp_path):
+    _ensure_app()
+    api = _make_api_config(enable_thinking=True)
+    dialog = SettingsDialog(ConvertSettings(), api)
+    try:
+        assert dialog.enable_thinking_check.isChecked()
+        dialog.enable_thinking_check.setChecked(False)
+        assert dialog.result_api_config().enable_thinking is False
+        save_api_config(dialog.result_api_config())
+        assert load_api_config().enable_thinking is False
+    finally:
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
+def test_settings_dialog_enable_thinking_default_off():
+    _ensure_app()
+    dialog = SettingsDialog(ConvertSettings(), _make_api_config())
+    try:
+        assert not dialog.enable_thinking_check.isChecked()
     finally:
         dialog.deleteLater()
         QApplication.processEvents()
@@ -312,6 +344,30 @@ def test_todo_fix_dialog_reasoning_shows_count_only():
         QApplication.processEvents()
 
 
+def test_todo_fix_dialog_warning_appended_to_stream_panel():
+    _ensure_app()
+    text, report = _converted(TODO_BAT)
+    dialog = TodoFixDialog(
+        text,
+        report,
+        TODO_BAT,
+        _make_api_config(),
+        provider_factory=lambda _config: _FakeProvider(
+            chunks=['echo "warn-ok"'], warning="端点拒绝了 enable_thinking，已自动降级"
+        ),
+    )
+    try:
+        dialog.send_button.click()
+        assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        panel = dialog.stream_view.toPlainText()
+        assert "[警告]" in panel
+        assert "端点拒绝了 enable_thinking，已自动降级" in panel
+        assert 'echo "warn-ok"' in panel
+    finally:
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
 def test_todo_fix_dialog_stop_cancel_keeps_todo():
     _ensure_app()
     text, report = _converted(TODO_BAT)
@@ -361,7 +417,9 @@ def test_todo_fix_worker_cancel_during_reasoning_emits_cancelled():
         def complete(self, prompt: str, *, timeout: float) -> str:
             return "".join(self.complete_stream(prompt, timeout=timeout))
 
-        def complete_stream(self, prompt: str, *, timeout: float, on_reasoning=None):
+        def complete_stream(
+            self, prompt: str, *, timeout: float, on_reasoning=None, on_warning=None
+        ):
             if on_reasoning is not None:
                 on_reasoning(1)
             worker_ref["worker"].request_cancel()  # 模拟用户点击“停止接收”

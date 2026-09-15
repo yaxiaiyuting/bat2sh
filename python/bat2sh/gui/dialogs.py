@@ -177,6 +177,13 @@ class SettingsDialog(QDialog):
         )
         form.addRow("API 超时", self.api_timeout_spin)
 
+        self.enable_thinking_check = QCheckBox("启用思维链（更准但更慢）")
+        self.enable_thinking_check.setToolTip(
+            "关闭（默认）时请求显式携带 enable_thinking: false（更快）；"
+            "开启则交由端点默认行为决定"
+        )
+        form.addRow("思维链", self.enable_thinking_check)
+
         self.api_context_spin = QSpinBox()
         self.api_context_spin.setRange(0, 10)
         self.api_context_spin.setSuffix(" 行")
@@ -259,6 +266,7 @@ class SettingsDialog(QDialog):
         self.api_model_edit.setText(api_config.model)
         self.api_key_edit.setText(api_config.api_key)
         self.api_timeout_spin.setValue(int(api_config.timeout))
+        self.enable_thinking_check.setChecked(api_config.enable_thinking)
         self.api_context_spin.setValue(api_config.context_lines)
 
     # -- API 连接测试 ------------------------------------------------
@@ -385,6 +393,7 @@ class SettingsDialog(QDialog):
             timeout=float(self.api_timeout_spin.value()),
             max_retries=self._api_config.max_retries,
             context_lines=self.api_context_spin.value(),
+            enable_thinking=self.enable_thinking_check.isChecked(),
         ).normalized()
 
 
@@ -518,6 +527,7 @@ class TodoFixWorker(QThread):
     failed = Signal(str)
     chunk = Signal(str)
     reasoning = Signal(int)
+    warning = Signal(str)
     cancelled = Signal()
 
     def __init__(self, provider, prompt: str, timeout: float, parent=None):
@@ -545,6 +555,7 @@ class TodoFixWorker(QThread):
                 self._prompt,
                 timeout=self._timeout,
                 on_reasoning=self._on_reasoning,
+                on_warning=self.warning.emit,
             )
             for chunk in stream:
                 if self._cancel_requested:
@@ -811,6 +822,7 @@ class TodoFixDialog(QDialog):
         worker.failed.connect(self._on_failure)
         worker.chunk.connect(self._on_chunk)
         worker.reasoning.connect(self._on_reasoning)
+        worker.warning.connect(self._on_warning)
         worker.cancelled.connect(self._on_cancelled)
         worker.finished.connect(self._on_worker_finished)
         self._worker = worker
@@ -832,6 +844,15 @@ class TodoFixDialog(QDialog):
         if self._closed:
             return
         self.status_label.setText(f"模型思考中…（思维链 {count} 段）")
+
+    def _on_warning(self, message: str) -> None:
+        if self._closed:
+            return
+        cursor = self.stream_view.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.stream_view.setTextCursor(cursor)
+        self.stream_view.insertPlainText(f"[警告] {message}\n")
+        self.stream_view.ensureCursorVisible()
 
     def _stop_request(self) -> None:
         if self._worker is None:

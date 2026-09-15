@@ -298,7 +298,7 @@ stdout 始终保留给脚本本身（`--print`）。GUI 对话框同样在只读
 - 环境变量：`BAT2SH_API_BASE`、`BAT2SH_API_MODEL`、`BAT2SH_API_KEY`、`BAT2SH_API_PROVIDER`、`BAT2SH_API_TIMEOUT`、`BAT2SH_ENABLE_THINKING`（`1/0`、`true/false`）
 - 不内置任何服务商默认：`base_url`/`model` 缺失即报错（退出码 `6`），并给出配置指引
 - 兼容 OpenAI / Ollama(`/v1`) / vLLM / LM Studio 等 OpenAI 兼容端点；仅标准库实现
-- **思维链开关**（`enable_thinking`，默认关）：关闭时请求显式携带 `enable_thinking: false`（Qwen3 等混合思考模型可快 10 倍以上）；开启则由端点默认行为决定。端点拒绝该参数（400/422）时自动降级（去掉参数重试）并提示一次警告，之后本会话不再携带
+- **思维链开关**（`enable_thinking`，默认关）：关闭时请求显式携带 `enable_thinking: false`（Qwen3 等混合思考模型可快 10 倍以上）；开启则由端点默认行为决定。端点拒绝该参数（400/422）时自动降级（去掉参数重试）并提示一次警告，之后本会话不再携带；GUI 设置页提供同名开关，降级警告显示在流式面板
 - GUI 设置页提供"测试连接"按钮：用当前填写的地址/模型/key 发送一次最小请求（固定 10 秒超时，
   不发送文件内容），成功显示延迟毫秒，失败显示分类（超时/认证/网络/格式/…）
 
