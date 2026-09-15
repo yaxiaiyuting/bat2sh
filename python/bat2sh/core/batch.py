@@ -30,6 +30,19 @@ from .utils import (
 )
 
 _DOLLAR_PLACEHOLDER = "\ue000"
+_REG_COMMANDS = frozenset({"reg", "regedit", "reg.exe"})
+_REG_VERB_OPS = {
+    "query": "read",
+    "add": "write",
+    "delete": "delete",
+    "export": "export",
+    "import": "import",
+    "copy": "write",
+    "save": "write",
+    "restore": "write",
+    "load": "write",
+    "unload": "write",
+}
 
 
 #: cmd 的 echo 空行写法：`echo.`、`echo(`、`echo:` 等（分隔符后紧跟的内容仍按字面回显）
@@ -2400,10 +2413,49 @@ class BatchConverter:
     def cmd_noop(self, lineno: int, args: str, original: str) -> None:
         return None
 
-    def cmd_todo_hint(self, lineno: int, args: str, original: str) -> None:
+    def cmd_todo_hint(self, lineno: int, args: str, original: str) -> str | None:
+        if self._current_command in _REG_COMMANDS:
+            op, key, value = self._parse_reg_invocation(args)
+            return self._reg_todo_comment(lineno, original, op, key, value)
         hint = rules.BATCH_TODO_COMMANDS.get(self._current_command, "")
         self._todo(lineno, original, hint, category="command")
         return None
+
+    def _parse_reg_invocation(self, args: str) -> tuple[str, str, str]:
+        if self._current_command == "regedit":
+            return "import", "", ""
+        tokens = tokenize_args(args)
+        if not tokens:
+            return "write", "", ""
+        op = _REG_VERB_OPS.get(tokens[0].strip("\"'").lower(), "write")
+        key = ""
+        value = ""
+        i = 1
+        while i < len(tokens):
+            low = tokens[i].lower()
+            if low == "/v" and i + 1 < len(tokens):
+                value = tokens[i + 1].strip("\"'")
+                i += 2
+                continue
+            if not low.startswith("/") and not key:
+                key = tokens[i].strip("\"'")
+            i += 1
+        return op, key, value
+
+    def _reg_todo_comment(
+        self, lineno: int, original: str, op: str, key: str = "", value: str = ""
+    ) -> str:
+        if op in ("write", "delete", "import"):
+            hint = "Linux 无统一可写注册表，请改为编辑对应配置文件"
+        else:
+            hint = "注册表读取在 Linux 无直接对应物，请手工处理"
+        self._todo(lineno, original, hint, category="registry")
+        fields = [f"op={op}"]
+        if key:
+            fields.append(f'key="{key}"')
+        if value:
+            fields.append(f'value="{value}"')
+        return "# TODO[REG] " + " ".join(fields) + ": 手动检查: " + original
 
     def cmd_echo(self, lineno: int, args: str, original: str) -> str:
         text = convert_backslashes(self._expand_vars(args, lineno))

@@ -79,6 +79,8 @@ BATCH_HANDLER_MAP: dict[str, str] = {
     "sc": "cmd_todo_hint",
     "schtasks": "cmd_todo_hint",
     "reg": "cmd_todo_hint",
+    "regedit": "cmd_todo_hint",
+    "reg.exe": "cmd_todo_hint",
     "wmic": "cmd_todo_hint",
     "powershell": "cmd_powershell",
     "pwsh": "cmd_powershell",
