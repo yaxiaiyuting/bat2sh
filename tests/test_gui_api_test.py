@@ -44,13 +44,13 @@ def _wait_until(predicate, timeout: float = 5.0) -> bool:
 
 
 class _FakeTransport:
-    """按序返回预设响应：``(status, body)`` 元组或待抛出的异常实例。"""
+    """按序返回预设响应：``(status, lines)`` 元组或待抛出的异常实例；lines 为逐行字节列表。"""
 
     def __init__(self, *responses):
         self._responses = list(responses)
         self.calls: list[tuple[str, dict, bytes, float]] = []
 
-    def request(self, url, headers, body, timeout):
+    def request_stream(self, url, headers, body, timeout):
         self.calls.append((url, headers, body, timeout))
         response = self._responses.pop(0)
         if isinstance(response, Exception):
@@ -73,9 +73,10 @@ def _make_dialog(transport: _FakeTransport, **config_overrides) -> SettingsDialo
     return SettingsDialog(ConvertSettings(), config, api_test_factory=_factory(transport))
 
 
-def _chat_ok(content: str = "ok") -> tuple[int, bytes]:
+def _chat_ok(content: str = "ok") -> tuple[int, list[bytes]]:
+    """纯 JSON 回退形态（端点忽略 stream 时的兼容路径）。"""
     payload = {"choices": [{"message": {"content": content}}]}
-    return 200, json.dumps(payload).encode("utf-8")
+    return 200, [json.dumps(payload).encode("utf-8")]
 
 
 def test_connection_test_success_reports_latency():
@@ -92,6 +93,7 @@ def test_connection_test_success_reports_latency():
     payload = json.loads(body)
     assert payload["model"] == "demo-model"
     assert payload["messages"][0]["content"] == ConnectionTestWorker.PROMPT
+    assert payload["stream"] is True  # v1.5：统一流式请求（空闲超时替代总时长超时）
     assert _wait_until(lambda: dialog.api_test_button.isEnabled())
     assert dialog._test_worker is None
     dialog.close()
@@ -123,7 +125,7 @@ def test_connection_test_timeout_classified():
 
 
 def test_connection_test_auth_failure_not_retried():
-    transport = _FakeTransport((401, b"{}"))
+    transport = _FakeTransport((401, [b"{}"]))
     dialog = _make_dialog(transport)
     dialog.api_test_button.click()
     assert _wait_until(lambda: "✗" in dialog.api_test_status.text())

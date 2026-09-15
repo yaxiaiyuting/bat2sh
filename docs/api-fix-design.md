@@ -674,4 +674,52 @@ class OpenAICompatibleProvider:
 - 刷新范围仅本文件 `docs/api-fix-design.md`；行号经逐目核对，并以刷新前备份做了全文 diff 审计。
 - 未改任何代码、未新增/删除测试、未 commit / 未 push（`origin/main` 保持 `8529755`）。
 
-（附录 B 完，全文完）
+（附录 B 完）
+
+---
+
+## 附录 C：v1.5 流式改造（超时语义变化）（2026-09-15，A2 实施）
+
+> 背景：用户实测 `the read operation timed out`。根因：Qwen3-8B 默认思维链，非流式响应在
+> 思考期零字节输出，30s 读超时必然触发（复现 62s = 30s + 1s 退避 + 30s；探针：一次 "ok"
+> 回复产生 319 个 reasoning chunk / 11.8s；流式实测 chunk 最大间隔 0.653s）。
+
+### C.1 接口
+
+- `complete(prompt, *, timeout) -> str` **保持不变**（内部改为 `complete_stream` 拼接，对外行为不变）。
+- 新增 `complete_stream(prompt, *, timeout, on_reasoning=None) -> Iterator[str]`：
+  - 逐块产出**正文**（`delta.content`）；
+  - 思维链（`reasoning_content`）默认不产出，仅经 `on_reasoning(累计段数)` 回调报告；
+  - 重试语义不变（网络/429/5xx/超时可重试；4xx 除 429 外不重试）；**已产出内容后不再重试**
+    （避免重复输出，调用方丢弃部分内容）。
+
+### C.2 超时语义（重要变化）
+
+| | 改造前（非流式） | 改造后（流式 SSE） |
+|---|---|---|
+| `timeout` 含义 | 整个响应（连接 + 完整 body）≈ 总时长上限 | 连接 + 两次数据之间的**空闲上限** |
+| 长思考模型 | 30s 必超时 | 生成总时长不受限（实测余量约 46×） |
+| 端到端实测 | 同一请求 30/60s 间歇超时 | 53.77s 稳定成功 |
+
+### C.3 端点兼容与回退
+
+- 统一发送 `stream: true`；OpenAI / Ollama / vLLM / LM Studio 兼容层均支持 SSE。
+- 端点忽略 `stream` 返回普通 JSON：**同一响应**按普通响应解析（零额外请求）。
+- **不做**自动二次非流式回退（避免双倍计费与重试语义复杂化；需要时另行拍板）。
+
+### C.4 流式协议与完成判定（保守）
+
+- 逐行消费 `data:` 行；`[DONE]` 或末块 `finish_reason` 均视为正常结束；
+- 两者皆无（净截断）→ `ProviderProtocolError("流式响应意外中断")`，**绝不返回可能截断的内容**；
+- 数据行 JSON 损坏 → `ProviderProtocolError`；正文为空但存在思维链 → `ProviderProtocolError`；
+- transport 层分类：超时 → `TransportTimeoutError`（可重试）；
+  连接中断 / `http.client.IncompleteRead` → `TransportNetworkError`。
+
+### C.5 测试
+
+- `tests/test_api_provider.py`：FakeTransport 改为 `request_stream`（脚本化行序列），覆盖
+  多 chunk 拼接 / `[DONE]` / 仅 finish_reason / 纯 JSON 回退 / 首块仅 role / reasoning+content
+  混合 / 坏 JSON / 净截断 / 流中途超时（不重试）/ 流关闭传播等（40 项），全程无网络。
+- `tests/test_gui_api_test.py`：测试连接改走流式接口（JSON 回退形态）。
+
+（附录 C 完，全文完）
