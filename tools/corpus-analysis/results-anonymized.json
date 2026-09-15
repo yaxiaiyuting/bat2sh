@@ -1,0 +1,5141 @@
+{
+  "meta": {
+    "tool": "bat2sh v1.4.1 corpus analysis",
+    "method": "bwrap --unshare-all 沙箱运行（无网络；仅挂载 /usr 与临时 workdir）",
+    "anonymized": true,
+    "note": "仅保留文件名、分类、计数、错误类型与命令 token；不含脚本原文/输出/绝对路径"
+  },
+  "summary": {
+    "files": 114,
+    "conversion": {
+      "DEGRADED": 19,
+      "OK": 95
+    },
+    "run": {
+      "MISSING_CMD": 8,
+      "MISSING_FILE": 10,
+      "OK": 54,
+      "RC_NONZERO": 21
+    },
+    "correlation": {
+      "CONVERT_OK_RUN_FAILED": 39,
+      "DEGRADED": 19,
+      "UNSAFE_SKIPPED": 2,
+      "USABLE": 54
+    },
+    "todo_total": 2519,
+    "warning_total": 2580,
+    "error_total": 37,
+    "missing_commands_top": {
+      "adb": 7,
+      "powercfg": 3,
+      "Role": 3,
+      "Port": 3,
+      "dev": 3,
+      "staging": 3,
+      "prod": 3,
+      "default": 3,
+      "script.sh": 2,
+      "DEBUG": 2,
+      "htox32c": 2,
+      "web01": 2,
+      "finally": 2,
+      "process": 2,
+      "cscript": 1,
+      "pwsh": 1,
+      "db01": 1,
+      "cache01": 1,
+      "catch": 1,
+      "end": 1
+    },
+    "failed_then_ok_without_strict": 12
+  },
+  "entries": [
+    {
+      "id": "001-bat-master-=号怎么替换掉.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 7,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 6,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "002-bat-master-BatchDelayOnExit.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 22,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 6,
+        "unchanged_lines": 10,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 2,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 12,
+        "stderr_bytes": 116
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 13,
+        "stderr_bytes": 580
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "003-bat-master-BuildAll.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 243,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 141,
+        "unchanged_lines": 71,
+        "todo_count": 14,
+        "warning_count": 9,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 5,
+          "errorlevel": 8
+        },
+        "warning_categories": {
+          "command": 8,
+          "variables": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "004-bat-master-SETLOCAL.BAT",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 16,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 10,
+        "unchanged_lines": 6,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "variables": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 180,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "005-bat-master-call-1.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 29,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 16,
+        "unchanged_lines": 8,
+        "todo_count": 0,
+        "warning_count": 3,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "variables": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 61,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "006-bat-master-for+findstr过滤.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 3,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 2,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "007-bat-master-hiddenDIsk.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 20,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 13,
+        "unchanged_lines": 4,
+        "todo_count": 2,
+        "warning_count": 7,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 2
+        },
+        "warning_categories": {
+          "command": 6,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": [
+          "mount"
+        ]
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "UNSAFE_SKIPPED"
+    },
+    {
+      "id": "008-bat-master-ipc.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 63,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 21,
+        "unchanged_lines": 33,
+        "todo_count": 35,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 33,
+          "control_flow": 2
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "009-bat-master-ipchelper.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 29,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 19,
+        "unchanged_lines": 9,
+        "todo_count": 4,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 3,
+          "errorlevel": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 2,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 37,
+        "stderr_bytes": 116
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.11,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 335,
+        "stderr_bytes": 5506
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "010-bat-master-ipcupdate.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 56,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 10,
+        "unchanged_lines": 35,
+        "todo_count": 36,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 34,
+          "control_flow": 2
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 1,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "011-bat-master-mid批量下载.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 6,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 5,
+        "unchanged_lines": 1,
+        "todo_count": 1,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 37
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 37
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "012-bat-master-modecon.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 10,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 6,
+        "unchanged_lines": 4,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "013-bat-master-mountvol.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 60,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 34,
+        "unchanged_lines": 2,
+        "todo_count": 1,
+        "warning_count": 32,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 1
+        },
+        "warning_categories": {
+          "command": 32
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": [
+          "mount"
+        ]
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "UNSAFE_SKIPPED"
+    },
+    {
+      "id": "014-bat-master-random随机数生成器.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 15,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 8,
+        "unchanged_lines": 7,
+        "todo_count": 1,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 114
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "015-bat-master-url-title重命名.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 7,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 6,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "016-bat-master-wmic查找文件.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 37,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 10,
+        "unchanged_lines": 23,
+        "todo_count": 8,
+        "warning_count": 9,
+        "error_count": 6,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 7
+        },
+        "warning_categories": {
+          "command": 3,
+          "control_flow": 2,
+          "misc": 1,
+          "variables": 3
+        },
+        "error_categories": {
+          "control_flow": 6
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 126
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 126
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "017-bat-master-下载天涯论坛帖子.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 9,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 7,
+        "unchanged_lines": 2,
+        "todo_count": 1,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 7,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 108,
+        "fixtures": [
+          "1.htm"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 148,
+        "fixtures": [
+          "1.htm"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "018-bat-master-下载帖子.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 6,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 4,
+        "unchanged_lines": 2,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 114
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 114
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "019-bat-master-产生任意随机数.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 10,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 6,
+        "unchanged_lines": 4,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 164
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 17,
+        "stderr_bytes": 121
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "020-bat-master-以数字递增重命名.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 7,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 6,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "021-bat-master-修改版批处理发邮件.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 28,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 17,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 9,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 6,
+          "control_flow": 2,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 53,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "022-bat-master-修改访问时间.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 2,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 2,
+        "unchanged_lines": 0,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 98
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 98
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "023-bat-master-倒序输出.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 12,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 8,
+        "unchanged_lines": 4,
+        "todo_count": 2,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 2
+        },
+        "warning_categories": {
+          "control_flow": 1,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "024-bat-master-删除出错的mid.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 6,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 4,
+        "unchanged_lines": 2,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "025-bat-master-去除一个等号的批处理嘎嘎嘎.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 14,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 9,
+        "unchanged_lines": 4,
+        "todo_count": 0,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 7,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "026-bat-master-哥本哈根提取mp3.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 35,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 32,
+        "unchanged_lines": 3,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 308,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 352,
+        "stderr_bytes": 146
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "027-bat-master-备份更新文件.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 17,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 11,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "028-bat-master-将文本中的所有内容无规则打乱顺序排列.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 9,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 4,
+        "unchanged_lines": 4,
+        "todo_count": 0,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 49,
+        "missing_commands": [
+          "script.sh"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 49,
+        "missing_commands": [
+          "script.sh"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "029-bat-master-打造右键.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 2069,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 1669,
+        "unchanged_lines": 283,
+        "todo_count": 192,
+        "warning_count": 80,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 65,
+          "control_flow": 121,
+          "pipeline": 6
+        },
+        "warning_categories": {
+          "command": 1,
+          "variables": 79
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.06,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 5135,
+        "stderr_bytes": 75
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.06,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 5387,
+        "stderr_bytes": 123
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "030-bat-master-批处理不显示密码.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 14,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 7,
+        "unchanged_lines": 7,
+        "todo_count": 1,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 1,
+        "stderr_bytes": 49
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "031-bat-master-批处理修改文件名.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 17,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 13,
+        "unchanged_lines": 3,
+        "todo_count": 1,
+        "warning_count": 8,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 8
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "032-bat-master-批处理把双引号去掉.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 9,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 5,
+        "unchanged_lines": 4,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "033-bat-master-批处理排列修改IP.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 8,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 4,
+        "unchanged_lines": 4,
+        "todo_count": 3,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 3
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 2,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "fixtures": [
+          "ip.txt",
+          "temp.txt"
+        ]
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "034-bat-master-批量下载deskcity的图片.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 57,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 45,
+        "unchanged_lines": 12,
+        "todo_count": 0,
+        "warning_count": 5,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 5
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 7,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "null",
+        "fixture_count": 3,
+        "stdout_bytes": 0,
+        "stderr_bytes": 2268,
+        "fixtures": [
+          "initial.txt",
+          "target.txt",
+          "url.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD",
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.06,
+        "stdin": "null",
+        "fixture_count": 3,
+        "stdout_bytes": 0,
+        "stderr_bytes": 2745,
+        "fixtures": [
+          "initial.txt",
+          "target.txt",
+          "url.txt"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "035-bat-master-批量编码转换.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 16,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 14,
+        "unchanged_lines": 2,
+        "todo_count": 0,
+        "warning_count": 5,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 5
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 45,
+        "missing_commands": [
+          "DEBUG"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 92,
+        "missing_commands": [
+          "DEBUG",
+          "htox32c"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "036-bat-master-批量转换pdf2word.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 7,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 5,
+        "unchanged_lines": 2,
+        "todo_count": 1,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 1
+        },
+        "warning_categories": {
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 18,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "037-bat-master-批量重命名去除文件名中的空格等特殊符号.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 18,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 15,
+        "unchanged_lines": 3,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "038-bat-master-把命令赋值给变量再引用.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 8,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 7,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 3,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 2,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 52,
+        "fixtures": [
+          "1.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 52,
+        "fixtures": [
+          "1.txt"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "039-bat-master-把文本文件转化成网页格式.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 27,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 23,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 4,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 2,
+          "control_flow": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 544,
+        "stderr_bytes": 0,
+        "fixtures": [
+          "i.htm"
+        ]
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "040-bat-master-排版.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 47,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 37,
+        "unchanged_lines": 10,
+        "todo_count": 7,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 7
+        },
+        "warning_categories": {
+          "command": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 2,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 143,
+        "fixtures": [
+          "splitlongline.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 143,
+        "fixtures": [
+          "splitlongline.txt"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "041-bat-master-提取ip.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 12,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 11,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 5,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 5
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 116
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "042-bat-master-新浪读书简易下载器.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 12,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 9,
+        "unchanged_lines": 3,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 2,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 11,
+        "stderr_bytes": 101,
+        "fixtures": [
+          "test.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD",
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 11,
+        "stderr_bytes": 209,
+        "fixtures": [
+          "test.txt"
+        ],
+        "missing_commands": [
+          "htox32c"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "043-bat-master-智能重命名.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 12,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 9,
+        "unchanged_lines": 2,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 159
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 159
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "044-bat-master-更新音乐播放列表test.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 9,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 3,
+        "unchanged_lines": 6,
+        "todo_count": 4,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 4
+        },
+        "warning_categories": {
+          "command": 1,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "045-bat-master-根据TITLE重命名文件.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 17,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 3,
+        "unchanged_lines": 14,
+        "todo_count": 1,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0,
+        "fixtures": [
+          "j.txt"
+        ]
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "046-bat-master-汉字横排变竖排---转置.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 24,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 17,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 7,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 2,
+          "control_flow": 1,
+          "glob": 3,
+          "variables": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 43
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 53
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "047-bat-master-禁止磁盘访问.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 4,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 0,
+        "unchanged_lines": 4,
+        "todo_count": 3,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "pipeline": 3
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "048-bat-master-精确延迟2秒.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 14,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 8,
+        "unchanged_lines": 6,
+        "todo_count": 3,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 3
+        },
+        "warning_categories": {
+          "command": 1,
+          "variables": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 9,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "049-bat-master-统计ping的延迟.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 17,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 16,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 3,
+        "stderr_bytes": 116
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "050-bat-master-统计学.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 15,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 13,
+        "unchanged_lines": 2,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "yes",
+        "fixture_count": 2,
+        "stdout_bytes": 0,
+        "stderr_bytes": 77,
+        "fixtures": [
+          "script.txt",
+          "tmp.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "yes",
+        "fixture_count": 2,
+        "stdout_bytes": 0,
+        "stderr_bytes": 77,
+        "fixtures": [
+          "script.txt",
+          "tmp.txt"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "051-bat-master-自己做的mp3 flv提取器.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 20,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 14,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {
+          "params": 1
+        },
+        "warning_categories": {
+          "command": 1,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 68,
+        "stderr_bytes": 129
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 68,
+        "stderr_bytes": 129
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "052-bat-master-还原备份.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 16,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 10,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "053-bat-master-进度条解析.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 19,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 13,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 18,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 1,
+          "variables": 17
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 322,
+        "stderr_bytes": 39
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 327,
+        "stderr_bytes": 39
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "054-bat-master-退格符.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 14,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 10,
+        "unchanged_lines": 4,
+        "todo_count": 0,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 21,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "055-bat-master-重命名.bat",
+      "group": "bat-master",
+      "kind": "bat",
+      "source_lines": 13,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 10,
+        "unchanged_lines": 3,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 18,
+        "stderr_bytes": 52,
+        "fixtures": [
+          "txt.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 18,
+        "stderr_bytes": 52,
+        "fixtures": [
+          "txt.txt"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "056-windows-batch-bat脚本传入参数测试.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 20,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 11,
+        "unchanged_lines": 6,
+        "todo_count": 5,
+        "warning_count": 9,
+        "error_count": 0,
+        "todo_categories": {
+          "params": 5
+        },
+        "warning_categories": {
+          "glob": 1,
+          "params": 8
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 199,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "057-windows-batch-choose file.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 24,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 15,
+        "unchanged_lines": 4,
+        "todo_count": 0,
+        "warning_count": 12,
+        "error_count": 1,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 11,
+          "control_flow": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "058-windows-batch-if.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 10,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 7,
+        "unchanged_lines": 1,
+        "todo_count": 0,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 3,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "059-windows-batch-png转ico和icns.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 5,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 4,
+        "unchanged_lines": 0,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "060-windows-batch-删除嵌套.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 153,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 153,
+        "unchanged_lines": 0,
+        "todo_count": 0,
+        "warning_count": 153,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 153
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 23,
+        "timed_out": false,
+        "duration_s": 0.16,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 263
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 23,
+        "timed_out": false,
+        "duration_s": 22.15,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 40392
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "061-windows-batch-压缩jpg 像素500w 质量50.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 51,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 28,
+        "unchanged_lines": 13,
+        "todo_count": 3,
+        "warning_count": 13,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 3
+        },
+        "warning_categories": {
+          "command": 4,
+          "control_flow": 2,
+          "glob": 1,
+          "variables": 6
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 18,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "062-windows-batch-压缩当前文件夹内的png.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 10,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 2,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 16,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "063-windows-batch-FFmpeg批处理.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 65,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 40,
+        "unchanged_lines": 8,
+        "todo_count": 0,
+        "warning_count": 24,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1,
+          "glob": 1,
+          "variables": 22
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 143,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "064-windows-batch-FFmpeg烧录字幕.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 42,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 20,
+        "unchanged_lines": 10,
+        "todo_count": 0,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "065-windows-batch-FFmpeg转为mp3格式.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 51,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 31,
+        "unchanged_lines": 5,
+        "todo_count": 0,
+        "warning_count": 22,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "glob": 1,
+          "variables": 19
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 18,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "066-windows-batch-adb发送到手机.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 46,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 25,
+        "unchanged_lines": 10,
+        "todo_count": 1,
+        "warning_count": 14,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 3,
+          "control_flow": 1,
+          "glob": 2,
+          "variables": 8
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 49,
+        "stderr_bytes": 43,
+        "missing_commands": [
+          "adb"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 49,
+        "stderr_bytes": 43,
+        "missing_commands": [
+          "adb"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "067-windows-batch-pdf解密.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 35,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 7,
+        "unchanged_lines": 22,
+        "todo_count": 0,
+        "warning_count": 3,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 26,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "068-windows-batch-png转jpg.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 35,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 7,
+        "unchanged_lines": 22,
+        "todo_count": 0,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "control_flow": 1,
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 26,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "069-windows-batch-压缩图片 像素500w 质量70.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 95,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 38,
+        "unchanged_lines": 43,
+        "todo_count": 9,
+        "warning_count": 19,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 9
+        },
+        "warning_categories": {
+          "command": 13,
+          "glob": 1,
+          "variables": 5
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 26,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "070-windows-batch-无损压缩png图片.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 15,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 7,
+        "unchanged_lines": 4,
+        "todo_count": 1,
+        "warning_count": 3,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 2,
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 18,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "071-windows-batch-有损压缩png图片.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 16,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 8,
+        "unchanged_lines": 4,
+        "todo_count": 1,
+        "warning_count": 3,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 2,
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 18,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "072-windows-batch-无线adb连接手机.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 43,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 17,
+        "unchanged_lines": 22,
+        "todo_count": 2,
+        "warning_count": 5,
+        "error_count": 0,
+        "todo_categories": {
+          "errorlevel": 1,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 4,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 42,
+        "missing_commands": [
+          "adb"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 55,
+        "stderr_bytes": 171,
+        "missing_commands": [
+          "adb"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "073-windows-batch-本文件夹内 mp4 文件旋转90度.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 13,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 3,
+        "unchanged_lines": 6,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 62,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "074-windows-batch-本文件夹内 wav 转 aac.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 16,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 3,
+        "unchanged_lines": 9,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 62,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "075-windows-batch-FFmpeg将本文件夹内mp4转为mp3格式.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 51,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 11,
+        "unchanged_lines": 24,
+        "todo_count": 1,
+        "warning_count": 4,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "command": 1,
+          "misc": 1,
+          "variables": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 64
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.06,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 50,
+        "stderr_bytes": 2064
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "076-windows-batch-将本文件夹内的ncm转为mp3格式.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 46,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 3,
+        "unchanged_lines": 28,
+        "todo_count": 1,
+        "warning_count": 1,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "variables": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 18,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "077-windows-batch-把本文件夹内的 gif 变成横向 480 分辨率.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 7,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 1,
+        "unchanged_lines": 5,
+        "todo_count": 1,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 16,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "078-windows-batch-生成速查手册.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 46,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 32,
+        "unchanged_lines": 8,
+        "todo_count": 2,
+        "warning_count": 10,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 7,
+          "errorlevel": 1,
+          "misc": 1,
+          "variables": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 152,
+        "stderr_bytes": 43,
+        "fixtures": [
+          "CMDHelp.htm"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 741,
+        "stderr_bytes": 455,
+        "fixtures": [
+          "CMDHelp.htm"
+        ],
+        "missing_commands": [
+          "cscript"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "079-windows-batch-生成随机字符串.bat",
+      "group": "windows-batch",
+      "kind": "bat",
+      "source_lines": 22,
+      "conversion": {
+        "status": "OK",
+        "encoding": "gbk",
+        "converted_lines": 9,
+        "unchanged_lines": 11,
+        "todo_count": 1,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1
+        },
+        "warning_categories": {
+          "control_flow": 1,
+          "glob": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 1,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "080-common-powershell-Add-DomainUserToLocalAdmin_fixed.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 1133,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 201,
+        "unchanged_lines": 756,
+        "todo_count": 234,
+        "warning_count": 151,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 17,
+          "misc": 102,
+          "objects": 110,
+          "params": 3,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 50,
+          "control_flow": 29,
+          "glob": 4,
+          "misc": 55,
+          "params": 10,
+          "strings": 1,
+          "variables": 2
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "081-common-powershell-Join-DomainRemoteBatch-Parallel-Enhanced.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 1794,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 494,
+        "unchanged_lines": 1062,
+        "todo_count": 341,
+        "warning_count": 529,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 7,
+          "control_flow": 58,
+          "misc": 107,
+          "objects": 165,
+          "params": 1,
+          "pipeline": 3
+        },
+        "warning_categories": {
+          "command": 146,
+          "control_flow": 47,
+          "glob": 12,
+          "misc": 105,
+          "params": 174,
+          "strings": 5,
+          "variables": 40
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "082-common-powershell-Export-ADGroupMembers.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 256,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 108,
+        "unchanged_lines": 103,
+        "todo_count": 60,
+        "warning_count": 57,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 12,
+          "misc": 17,
+          "objects": 30
+        },
+        "warning_categories": {
+          "command": 17,
+          "control_flow": 2,
+          "glob": 2,
+          "misc": 18,
+          "params": 9,
+          "path": 1,
+          "strings": 3,
+          "variables": 5
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "083-common-powershell-Get-ADAccountLockoutSource.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 349,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 162,
+        "unchanged_lines": 133,
+        "todo_count": 64,
+        "warning_count": 119,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 4,
+          "control_flow": 14,
+          "misc": 10,
+          "objects": 32,
+          "pipeline": 4
+        },
+        "warning_categories": {
+          "command": 59,
+          "control_flow": 10,
+          "glob": 2,
+          "misc": 30,
+          "params": 14,
+          "strings": 1,
+          "variables": 3
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "084-common-powershell-Get-DisplayGraphicsCard.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 1236,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 343,
+        "unchanged_lines": 733,
+        "todo_count": 443,
+        "warning_count": 187,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 48,
+          "misc": 162,
+          "objects": 229,
+          "params": 1,
+          "pipeline": 2
+        },
+        "warning_categories": {
+          "command": 78,
+          "control_flow": 14,
+          "glob": 12,
+          "misc": 77,
+          "params": 3,
+          "strings": 3
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "085-common-powershell-Get-RemoteHostInfo.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 1166,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 404,
+        "unchanged_lines": 629,
+        "todo_count": 224,
+        "warning_count": 387,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 7,
+          "control_flow": 36,
+          "misc": 79,
+          "objects": 99,
+          "pipeline": 3
+        },
+        "warning_categories": {
+          "command": 98,
+          "control_flow": 65,
+          "glob": 3,
+          "misc": 100,
+          "params": 93,
+          "strings": 6,
+          "variables": 22
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "086-common-powershell-Install-Fonts.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 161,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 54,
+        "unchanged_lines": 72,
+        "todo_count": 20,
+        "warning_count": 42,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "misc": 5,
+          "objects": 11,
+          "pipeline": 2
+        },
+        "warning_categories": {
+          "command": 29,
+          "control_flow": 2,
+          "misc": 6,
+          "params": 2,
+          "path": 2,
+          "strings": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "087-common-powershell-Prevent-ScreenSaver-Sleep-Tool.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 369,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 56,
+        "unchanged_lines": 260,
+        "todo_count": 132,
+        "warning_count": 53,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 2,
+          "control_flow": 3,
+          "misc": 64,
+          "objects": 63
+        },
+        "warning_categories": {
+          "command": 26,
+          "control_flow": 7,
+          "misc": 12,
+          "params": 7,
+          "strings": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "088-common-powershell-Set-HighPerformancePowerPlan.cmd",
+      "group": "common-powershell",
+      "kind": "bat",
+      "source_lines": 70,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 24,
+        "unchanged_lines": 35,
+        "todo_count": 5,
+        "warning_count": 5,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "errorlevel": 3
+        },
+        "warning_categories": {
+          "command": 4,
+          "misc": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 165,
+        "stderr_bytes": 48,
+        "missing_commands": [
+          "powercfg"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 506,
+        "stderr_bytes": 96,
+        "missing_commands": [
+          "powercfg"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "089-common-powershell-将源AD域中的用户账户批量同步至目标域中.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 216,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 53,
+        "unchanged_lines": 124,
+        "todo_count": 47,
+        "warning_count": 48,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 2,
+          "control_flow": 7,
+          "misc": 17,
+          "objects": 20,
+          "params": 1
+        },
+        "warning_categories": {
+          "command": 26,
+          "control_flow": 3,
+          "glob": 1,
+          "misc": 9,
+          "params": 8,
+          "strings": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "090-common-powershell-get-currentlogonuser.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 42,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 17,
+        "unchanged_lines": 15,
+        "todo_count": 9,
+        "warning_count": 8,
+        "error_count": 1,
+        "todo_categories": {
+          "control_flow": 2,
+          "misc": 2,
+          "objects": 5
+        },
+        "warning_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "glob": 2,
+          "misc": 3,
+          "params": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "091-common-powershell-Get-SystemInfo.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 1193,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 300,
+        "unchanged_lines": 710,
+        "todo_count": 325,
+        "warning_count": 152,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 2,
+          "control_flow": 27,
+          "misc": 128,
+          "objects": 168
+        },
+        "warning_categories": {
+          "command": 74,
+          "control_flow": 24,
+          "glob": 7,
+          "misc": 34,
+          "params": 8,
+          "strings": 3,
+          "variables": 2
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "092-common-powershell-Get-RemoteAdminMembers_ADSI.ps1",
+      "group": "common-powershell",
+      "kind": "ps1",
+      "source_lines": 108,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8-sig",
+        "converted_lines": 15,
+        "unchanged_lines": 77,
+        "todo_count": 14,
+        "warning_count": 23,
+        "error_count": 1,
+        "todo_categories": {
+          "control_flow": 2,
+          "misc": 3,
+          "objects": 8,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 12,
+          "glob": 1,
+          "misc": 7,
+          "params": 2,
+          "strings": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "093-download-root-deepseek_bat_20260913_895203.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 573,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 279,
+        "unchanged_lines": 181,
+        "todo_count": 61,
+        "warning_count": 40,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 12,
+          "control_flow": 24,
+          "errorlevel": 5,
+          "params": 5,
+          "pipeline": 14,
+          "variables": 1
+        },
+        "warning_categories": {
+          "command": 32,
+          "control_flow": 1,
+          "glob": 2,
+          "variables": 5
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 1.07,
+        "stdin": "null",
+        "fixture_count": 4,
+        "stdout_bytes": 2188,
+        "stderr_bytes": 116,
+        "fixtures": [
+          "numbers.txt",
+          "pipe.txt",
+          "redirect.txt",
+          "test1.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD",
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 1.17,
+        "stdin": "null",
+        "fixture_count": 4,
+        "stdout_bytes": 4255,
+        "stderr_bytes": 16806,
+        "fixtures": [
+          "numbers.txt",
+          "pipe.txt",
+          "redirect.txt",
+          "test1.txt"
+        ],
+        "missing_commands": [
+          "pwsh"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "094-download-root-deepseek_bat_20260913_faa286.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 582,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 264,
+        "unchanged_lines": 192,
+        "todo_count": 36,
+        "warning_count": 38,
+        "error_count": 12,
+        "todo_categories": {
+          "control_flow": 21,
+          "errorlevel": 4,
+          "params": 6,
+          "pipeline": 3,
+          "variables": 2
+        },
+        "warning_categories": {
+          "command": 8,
+          "control_flow": 15,
+          "misc": 1,
+          "params": 3,
+          "variables": 11
+        },
+        "error_categories": {
+          "control_flow": 12
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 2,
+        "stdout_bytes": 988,
+        "stderr_bytes": 109,
+        "fixtures": [
+          "err.txt",
+          "out.txt"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_FILE",
+        "flags": [
+          "MISSING_FILE"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "null",
+        "fixture_count": 2,
+        "stdout_bytes": 2372,
+        "stderr_bytes": 109,
+        "fixtures": [
+          "err.txt",
+          "out.txt"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "095-download-root-deepseek_bat_20260914_364694.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 65,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 44,
+        "unchanged_lines": 9,
+        "todo_count": 3,
+        "warning_count": 12,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1,
+          "errorlevel": 1,
+          "params": 1
+        },
+        "warning_categories": {
+          "glob": 1,
+          "misc": 1,
+          "variables": 10
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 80,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "096-download-root-deepseek_bat_20260914_38947d.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 52,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 27,
+        "unchanged_lines": 15,
+        "todo_count": 2,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 2
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 339,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "097-download-root-deepseek_bat_20260914_6375a0.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 95,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 66,
+        "unchanged_lines": 19,
+        "todo_count": 15,
+        "warning_count": 10,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 2,
+          "control_flow": 11,
+          "errorlevel": 1,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 9,
+          "variables": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 2,
+        "timed_out": false,
+        "duration_s": 2.07,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 483,
+        "stderr_bytes": 326
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 4.07,
+        "stdin": "yes",
+        "fixture_count": 0,
+        "stdout_bytes": 725,
+        "stderr_bytes": 326
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "098-download-root-deepseek_bat_20260914_67345f.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 56,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 28,
+        "unchanged_lines": 19,
+        "todo_count": 3,
+        "warning_count": 4,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 3
+        },
+        "warning_categories": {
+          "control_flow": 1,
+          "glob": 1,
+          "variables": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 2481,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "099-download-root-deepseek_bat_20260914_735127.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 73,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 53,
+        "unchanged_lines": 7,
+        "todo_count": 0,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {},
+        "warning_categories": {
+          "command": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 526,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "100-download-root-deepseek_bat_20260914_931735.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 44,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 17,
+        "unchanged_lines": 17,
+        "todo_count": 3,
+        "warning_count": 0,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 2,
+          "errorlevel": 1
+        },
+        "warning_categories": {},
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 44
+      },
+      "run_relaxed": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 127,
+        "stderr_bytes": 0
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "101-download-root-deepseek_bat_20260914_a36f6f.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 54,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 24,
+        "unchanged_lines": 20,
+        "todo_count": 3,
+        "warning_count": 7,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 1,
+          "errorlevel": 2
+        },
+        "warning_categories": {
+          "command": 1,
+          "glob": 2,
+          "misc": 2,
+          "variables": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 2,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 41,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.06,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 248,
+        "stderr_bytes": 0
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "102-download-root-deepseek_bat_20260914_ad2b59.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 66,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 31,
+        "unchanged_lines": 27,
+        "todo_count": 5,
+        "warning_count": 14,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "errorlevel": 2,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 4,
+          "control_flow": 2,
+          "misc": 2,
+          "variables": 6
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.03,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 221,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "103-download-root-deepseek_bat_20260914_ebf70c.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 70,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 43,
+        "unchanged_lines": 16,
+        "todo_count": 3,
+        "warning_count": 2,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 1,
+          "errorlevel": 2
+        },
+        "warning_categories": {
+          "command": 2
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 2,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 297,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 334,
+        "stderr_bytes": 84
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "104-download-root-deepseek_bat_20260914_f7d196.bat",
+      "group": "download-root",
+      "kind": "bat",
+      "source_lines": 112,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 69,
+        "unchanged_lines": 23,
+        "todo_count": 5,
+        "warning_count": 12,
+        "error_count": 0,
+        "todo_categories": {
+          "control_flow": 1,
+          "errorlevel": 2,
+          "params": 2
+        },
+        "warning_categories": {
+          "control_flow": 1,
+          "glob": 1,
+          "variables": 10
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 162,
+        "stderr_bytes": 0
+      },
+      "run_relaxed": null,
+      "correlation": "USABLE"
+    },
+    {
+      "id": "105-download-root-deepseek_powershell_20260914_038099.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 32,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 16,
+        "unchanged_lines": 10,
+        "todo_count": 6,
+        "warning_count": 11,
+        "error_count": 0,
+        "todo_categories": {
+          "misc": 2,
+          "objects": 3,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 7,
+          "glob": 1,
+          "misc": 3
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 44,
+        "fixtures": [
+          "servers.json"
+        ],
+        "missing_commands": [
+          "web01"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 391,
+        "fixtures": [
+          "servers.json"
+        ],
+        "missing_commands": [
+          "Port",
+          "Role",
+          "cache01",
+          "db01",
+          "web01"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "106-download-root-deepseek_powershell_20260914_0716ad.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 37,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 23,
+        "unchanged_lines": 9,
+        "todo_count": 8,
+        "warning_count": 15,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 2,
+          "misc": 1,
+          "objects": 3,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 7,
+          "glob": 1,
+          "misc": 3,
+          "strings": 1,
+          "variables": 3
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "107-download-root-deepseek_powershell_20260914_0c1ad2.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 44,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 16,
+        "unchanged_lines": 22,
+        "todo_count": 11,
+        "warning_count": 12,
+        "error_count": 1,
+        "todo_categories": {
+          "misc": 2,
+          "objects": 8,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 5,
+          "glob": 1,
+          "misc": 3,
+          "strings": 3
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "108-download-root-deepseek_powershell_20260914_16cb3b.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 38,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 14,
+        "unchanged_lines": 17,
+        "todo_count": 16,
+        "warning_count": 5,
+        "error_count": 1,
+        "todo_categories": {
+          "control_flow": 2,
+          "misc": 5,
+          "objects": 8,
+          "params": 1
+        },
+        "warning_categories": {
+          "glob": 1,
+          "misc": 2,
+          "params": 1,
+          "variables": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "109-download-root-deepseek_powershell_20260914_27eace.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 43,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 21,
+        "unchanged_lines": 19,
+        "todo_count": 8,
+        "warning_count": 15,
+        "error_count": 0,
+        "todo_categories": {
+          "misc": 4,
+          "objects": 4
+        },
+        "warning_categories": {
+          "command": 4,
+          "control_flow": 5,
+          "misc": 6
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 47,
+        "fixtures": [
+          "config.json"
+        ],
+        "missing_commands": [
+          "finally"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD",
+          "MISSING_FILE"
+        ],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 1,
+        "stdout_bytes": 0,
+        "stderr_bytes": 188,
+        "fixtures": [
+          "config.json"
+        ],
+        "missing_commands": [
+          "finally"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "110-download-root-deepseek_powershell_20260914_2c4c5b.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 43,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 27,
+        "unchanged_lines": 10,
+        "todo_count": 3,
+        "warning_count": 22,
+        "error_count": 1,
+        "todo_categories": {
+          "misc": 1,
+          "objects": 1,
+          "pipeline": 1
+        },
+        "warning_categories": {
+          "command": 13,
+          "glob": 1,
+          "misc": 8
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "111-download-root-deepseek_powershell_20260914_34c474.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 54,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 11,
+        "unchanged_lines": 34,
+        "todo_count": 14,
+        "warning_count": 20,
+        "error_count": 0,
+        "todo_categories": {
+          "misc": 5,
+          "objects": 7,
+          "pipeline": 2
+        },
+        "warning_categories": {
+          "command": 7,
+          "glob": 1,
+          "misc": 8,
+          "params": 3,
+          "pipeline": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 47,
+        "missing_commands": [
+          "process"
+        ]
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 155,
+        "missing_commands": [
+          "catch",
+          "end",
+          "process"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "112-download-root-deepseek_powershell_20260914_3def29.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 31,
+      "conversion": {
+        "status": "DEGRADED",
+        "encoding": "utf-8",
+        "converted_lines": 11,
+        "unchanged_lines": 16,
+        "todo_count": 15,
+        "warning_count": 11,
+        "error_count": 1,
+        "todo_categories": {
+          "command": 2,
+          "misc": 5,
+          "objects": 5,
+          "pipeline": 3
+        },
+        "warning_categories": {
+          "command": 4,
+          "control_flow": 1,
+          "misc": 4,
+          "params": 1,
+          "strings": 1
+        },
+        "error_categories": {
+          "syntax": 1
+        }
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": null,
+      "run_relaxed": null,
+      "correlation": "DEGRADED"
+    },
+    {
+      "id": "113-download-root-deepseek_powershell_20260914_6e6b4d.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 42,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 11,
+        "unchanged_lines": 24,
+        "todo_count": 19,
+        "warning_count": 11,
+        "error_count": 0,
+        "todo_categories": {
+          "command": 1,
+          "control_flow": 1,
+          "misc": 7,
+          "objects": 7,
+          "pipeline": 3
+        },
+        "warning_categories": {
+          "command": 3,
+          "misc": 4,
+          "params": 3,
+          "strings": 1
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 41
+      },
+      "run_relaxed": {
+        "category": "OK",
+        "flags": [],
+        "rc": 0,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    },
+    {
+      "id": "114-download-root-deepseek_powershell_20260914_d5bf28.ps1",
+      "group": "download-root",
+      "kind": "ps1",
+      "source_lines": 41,
+      "conversion": {
+        "status": "OK",
+        "encoding": "utf-8",
+        "converted_lines": 24,
+        "unchanged_lines": 9,
+        "todo_count": 1,
+        "warning_count": 15,
+        "error_count": 0,
+        "todo_categories": {
+          "objects": 1
+        },
+        "warning_categories": {
+          "command": 6,
+          "control_flow": 1,
+          "misc": 5,
+          "params": 3
+        },
+        "error_categories": {}
+      },
+      "static": {
+        "syntax_ok": true,
+        "unsafe": []
+      },
+      "run": {
+        "category": "RC_NONZERO",
+        "flags": [],
+        "rc": 1,
+        "timed_out": false,
+        "duration_s": 0.01,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 45
+      },
+      "run_relaxed": {
+        "category": "MISSING_CMD",
+        "flags": [
+          "MISSING_CMD"
+        ],
+        "rc": 127,
+        "timed_out": false,
+        "duration_s": 0.02,
+        "stdin": "null",
+        "fixture_count": 0,
+        "stdout_bytes": 92,
+        "stderr_bytes": 729,
+        "missing_commands": [
+          "default",
+          "dev",
+          "prod",
+          "staging"
+        ]
+      },
+      "correlation": "CONVERT_OK_RUN_FAILED"
+    }
+  ]
+}
