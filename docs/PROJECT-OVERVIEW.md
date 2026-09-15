@@ -320,6 +320,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/releases/v1.5.0.md` | v1.5.0 发布说明（API 修复支持流式 SSE） |
 | `docs/releases/v1.6.0.md` | v1.6.0 发布说明（PS 块结构加固 + 注册表智能映射） |
 | `docs/releases/v1.7.0.md` | v1.7.0 发布说明（TODO 多选并行修复 + `[REG]` 语义明确） |
+| `docs/releases/v1.7.0-verification.md` | v1.7.0 本机安装验证日志（版本 + 并行修复实跑 + 门槛数据） |
 | `docs/research/b1-dynamic-tracing.md` | B1 研究：PS 动态追踪可行性（结论：值得做，作为静态转换的补充） |
 | `docs/research/b2-registry-mapping.md` | B2 研究：注册表映射可行性（读可做、写一律拒绝） |
 | `docs/research/b3-ps-block-structure.md` | B3 研究：PS 块结构 4 缺陷修复评估 |
