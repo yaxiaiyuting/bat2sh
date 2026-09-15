@@ -60,7 +60,11 @@ class ProviderProtocolError(ProviderError):
 
 
 class ProviderRequestError(ProviderError):
-    """其它 4xx（如 400），语义上不可重试。"""
+    """其它 4xx（如 400/422），语义上不可重试。``status`` 为原始 HTTP 状态码（若可得）。"""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 RETRYABLE_ERRORS = (
@@ -178,6 +182,7 @@ class Provider(Protocol):
         *,
         timeout: float,
         on_reasoning: Callable[[int], None] | None = None,
+        on_warning: Callable[[str], None] | None = None,
     ) -> Iterator[str]: ...
 
 
@@ -206,6 +211,7 @@ class OpenAICompatibleProvider:
         self._config = config
         self._transport = transport or UrllibTransport()
         self._sleep = sleep
+        self._thinking_param_unsupported = False
 
     def complete(self, prompt: str, *, timeout: float) -> str:
         return "".join(self.complete_stream(prompt, timeout=timeout))
@@ -216,21 +222,32 @@ class OpenAICompatibleProvider:
         *,
         timeout: float,
         on_reasoning: Callable[[int], None] | None = None,
+        on_warning: Callable[[str], None] | None = None,
     ) -> Iterator[str]:
-        """逐块产出正文（str）。``on_reasoning`` 每收到一段思维链回调累计段数（默认不产出思维链）。"""
+        """逐块产出正文（str）。
+
+        ``on_reasoning`` 每收到一段思维链回调累计段数（默认不产出思维链）；
+        ``on_warning`` 在兼容性降级（端点拒绝 ``enable_thinking`` 参数）时回调说明文字。
+        """
         url = f"{self._config.base_url.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json"}
         if self._config.api_key:
             headers["Authorization"] = f"Bearer {self._config.api_key}"
-        payload = {
-            "model": self._config.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
-            "stream": True,
-        }
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        include_thinking_param = (
+            not self._config.enable_thinking and not self._thinking_param_unsupported
+        )
         attempts = 0
         while True:
+            payload = {
+                "model": self._config.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0,
+                "stream": True,
+            }
+            if include_thinking_param:
+                # 仅显式关闭时携带 false；开启交由端点默认（见附录 D）
+                payload["enable_thinking"] = False
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             yielded = False
             stream = self._stream_once(url, headers, body, timeout, on_reasoning)
             try:
@@ -248,6 +265,18 @@ class OpenAICompatibleProvider:
                     raise advice from exc
                 self._sleep(1.0 * (2**attempts))
                 attempts += 1
+            except ProviderRequestError as exc:
+                if include_thinking_param and exc.status in (400, 422):
+                    # 自动降级（方案 C）：端点不认该参数 → 去掉后立即重试，并记忆+告警
+                    include_thinking_param = False
+                    self._thinking_param_unsupported = True
+                    if on_warning is not None:
+                        on_warning(
+                            "端点不支持 enable_thinking 参数"
+                            f"（HTTP {exc.status}），已自动降级：后续请求不再携带该参数"
+                        )
+                    continue
+                raise
             finally:
                 stream.close()
 
@@ -286,7 +315,7 @@ class OpenAICompatibleProvider:
         if 500 <= status <= 599:
             raise ProviderServerError(f"服务端错误（HTTP {status}）")
         if not 200 <= status <= 299:
-            raise ProviderRequestError(f"请求被拒绝（HTTP {status}）")
+            raise ProviderRequestError(f"请求被拒绝（HTTP {status}）", status)
 
     def _consume_stream(
         self, lines: Iterator[bytes], on_reasoning: Callable[[int], None] | None

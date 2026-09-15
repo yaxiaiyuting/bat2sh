@@ -62,7 +62,7 @@ class _FakeProvider:
     def complete(self, prompt: str, *, timeout: float) -> str:
         return "".join(self.complete_stream(prompt, timeout=timeout))
 
-    def complete_stream(self, prompt: str, *, timeout: float, on_reasoning=None):
+    def complete_stream(self, prompt: str, *, timeout: float, on_reasoning=None, on_warning=None):
         self.prompts.append(prompt)
         if self.error is not None:
             raise self.error

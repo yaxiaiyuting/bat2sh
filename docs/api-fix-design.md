@@ -726,4 +726,38 @@ class OpenAICompatibleProvider:
   混合 / 坏 JSON / 净截断 / 流中途超时（不重试）/ 流关闭传播等（40 项），全程无网络。
 - `tests/test_gui_api_test.py`：测试连接改走流式接口（JSON 回退形态）。
 
-（附录 C 完，全文完）
+（附录 C 完）
+
+---
+
+## 附录 D：enable_thinking 开关（2026-09-15，A2 后追加）
+
+> 背景：Qwen3-8B 思维链占 completion 的 99%+（321/323 tokens），单条 TODO 修复 50–300s+；
+> 关闭思维链预期快 10–20 倍。SiliconFlow Qwen3 系列支持 `enable_thinking` 参数。
+
+### D.1 配置与优先级
+
+- 字段：`enable_thinking: bool`（api.json）；env：`BAT2SH_ENABLE_THINKING`（`0/1/true/false/yes/no/on/off`）；
+  CLI：`--enable-thinking` / `--no-thinking`（三态：未指定 = 回退低优先级）。
+- 优先级：CLI > env > file > 默认。**默认 `false`（关）**：首次体验优先；质量优先的用户可显式开启。
+- 容错：非布尔值回退默认（文件/环境变量均不抛异常）。
+
+### D.2 请求透传
+
+- `enable_thinking=false` → **显式携带** `"enable_thinking": false`（核心用途）。
+- `enable_thinking=true` → **不携带**（交由端点默认；避免向不支持该字段的端点发送未知参数）。
+
+### D.3 兼容性降级（方案 C：自动降级 + 警告）
+
+- 仅在「本次携带了该参数」且 HTTP 400/422 时触发：去掉参数、**立即重试一次**（不占普通重试次数），
+  并通过 `on_warning` 回调说明（CLI 打印警告；GUI 状态栏展示）。
+- 降级后**按 Provider 实例记忆**（`_thinking_param_unsupported`），后续请求直接不携带，避免每次调用都多一轮 400。
+- 其它 4xx（如 405）不触发降级，照常报错且不重试。
+
+### D.4 测试
+
+- 配置：文件布尔/字符串容错、env 真值解析、CLI 三态、优先级（CLI > env > file）。
+- Provider：默认携带 false / 开启时不携带 / 400 降级 + 警告 + 重试成功 / 422 降级跨调用记忆 /
+  未携带参数时 4xx 不降级（`ProviderRequestError.status` 保留）。
+
+（附录 D 完，全文完）

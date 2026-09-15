@@ -22,6 +22,7 @@ PROVIDER_CHOICES = ("openai",)
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 1
 DEFAULT_CONTEXT_LINES = 3
+DEFAULT_ENABLE_THINKING = False  # 默认关：首次体验优先（见 docs/api-fix-design.md 附录 D）
 MAX_CONTEXT_LINES = 10
 MIN_TIMEOUT = 1.0
 MAX_TIMEOUT = 600.0
@@ -34,9 +35,11 @@ API_ENV_KEYS: dict[str, str] = {
     "api_key": "BAT2SH_API_KEY",
     "timeout": "BAT2SH_API_TIMEOUT",
     "context_lines": "BAT2SH_API_CONTEXT_LINES",
+    "enable_thinking": "BAT2SH_ENABLE_THINKING",
 }
 
 _NUMERIC_FIELDS = ("timeout", "max_retries", "context_lines")
+_BOOL_FIELDS = ("enable_thinking",)
 
 
 @dataclass
@@ -55,6 +58,7 @@ class ApiConfig:
     timeout: float = DEFAULT_TIMEOUT
     max_retries: int = DEFAULT_MAX_RETRIES
     context_lines: int = DEFAULT_CONTEXT_LINES
+    enable_thinking: bool = DEFAULT_ENABLE_THINKING
 
     def normalized(self) -> "ApiConfig":
         data = asdict(self)
@@ -75,6 +79,7 @@ class ApiConfig:
         data["context_lines"] = int(
             _clamp_number(data["context_lines"], DEFAULT_CONTEXT_LINES, 0, MAX_CONTEXT_LINES)
         )
+        data["enable_thinking"] = _coerce_bool(data["enable_thinking"], DEFAULT_ENABLE_THINKING)
         return ApiConfig(**data)
 
 
@@ -88,6 +93,29 @@ def _clamp_number(value: object, default: float, low: float, high: float) -> flo
     if number <= 0 and low > 0:
         return default
     return min(max(number, low), high)
+
+
+def _parse_bool_token(token: str) -> bool | None:
+    """解析常见布尔字面量（0/1/true/false/yes/no/on/off，忽略大小写与空白）；无法解析返回 None。"""
+    normalized = token.strip().lower()
+    if normalized in ("1", "true", "yes", "on"):
+        return True
+    if normalized in ("0", "false", "no", "off"):
+        return False
+    return None
+
+
+def _coerce_bool(value: object, default: bool) -> bool:
+    """布尔容错：bool 原样；0/1 与常见真值字符串解析；其余回退默认。"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        parsed = _parse_bool_token(value)
+        if parsed is not None:
+            return parsed
+    return default
 
 
 def api_config_path() -> Path:
@@ -104,7 +132,9 @@ def api_config_from_dict(data: object) -> ApiConfig:
     for name in ApiConfig.__dataclass_fields__:
         default = getattr(defaults, name)
         candidate = data.get(name, default)
-        if isinstance(default, str):
+        if isinstance(default, bool):
+            values[name] = candidate  # 交给 normalized() 统一容错
+        elif isinstance(default, str):
             values[name] = candidate if isinstance(candidate, str) else default
         elif isinstance(default, (int, float)):
             values[name] = (
@@ -142,6 +172,14 @@ def save_api_config(config: ApiConfig, path: str | Path | None = None) -> None:
 
 def _coerce_value(name: str, value: object) -> object | None:
     """把 CLI/env 的原生值转为字段类型；无法转换返回 None（调用方回退低优先级值）。"""
+    if name in _BOOL_FIELDS:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int) and value in (0, 1):
+            return bool(value)
+        if isinstance(value, str):
+            return _parse_bool_token(value)
+        return None
     if name in _NUMERIC_FIELDS:
         if isinstance(value, bool):
             return None

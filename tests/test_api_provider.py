@@ -340,9 +340,10 @@ def test_empty_response_protocol_error():
 
 
 def test_other_4xx_request_error_not_retried():
-    provider, transport = make_provider([(400, []), (200, sse(chunk("x")))])
-    with pytest.raises(ProviderRequestError):
+    provider, transport = make_provider([(405, []), (200, sse(chunk("x")))])
+    with pytest.raises(ProviderRequestError) as caught:
         provider.complete("p", timeout=1.0)
+    assert caught.value.status == 405
     assert len(transport.calls) == 1
 
 
@@ -369,6 +370,53 @@ def test_stream_close_propagates_to_transport():
     assert next(stream) == "a"
     stream.close()
     assert spy.closed is True
+
+
+def test_payload_disables_thinking_by_default():
+    provider, transport = make_provider([(200, sse(chunk("ok")))])
+    provider.complete("p", timeout=1.0)
+    body = json.loads(transport.calls[0]["body"].decode("utf-8"))
+    assert body["enable_thinking"] is False
+
+
+def test_payload_omits_thinking_param_when_enabled():
+    provider, transport = make_provider([(200, sse(chunk("ok")))], enable_thinking=True)
+    provider.complete("p", timeout=1.0)
+    body = json.loads(transport.calls[0]["body"].decode("utf-8"))
+    assert "enable_thinking" not in body
+
+
+def test_downgrade_on_400_retries_without_param_and_warns():
+    warnings: list[str] = []
+    provider, transport = make_provider([(400, []), (200, sse(chunk("ok")))])
+    result = "".join(provider.complete_stream("p", timeout=1.0, on_warning=warnings.append))
+    assert result == "ok"
+    assert len(transport.calls) == 2
+    assert json.loads(transport.calls[0]["body"].decode("utf-8"))["enable_thinking"] is False
+    assert "enable_thinking" not in json.loads(transport.calls[1]["body"].decode("utf-8"))
+    assert len(warnings) == 1
+    assert "enable_thinking" in warnings[0] and "400" in warnings[0]
+
+
+def test_downgrade_on_422_memoized_across_calls():
+    provider, transport = make_provider(
+        [(422, []), (200, sse(chunk("a"))), (200, sse(chunk("b")))]
+    )
+    assert provider.complete("p", timeout=1.0) == "a"
+    assert provider.complete("p", timeout=1.0) == "b"
+    bodies = [json.loads(call["body"].decode("utf-8")) for call in transport.calls]
+    assert bodies[0]["enable_thinking"] is False
+    assert "enable_thinking" not in bodies[1]
+    assert "enable_thinking" not in bodies[2]
+    assert len(transport.calls) == 3
+
+
+def test_400_without_thinking_param_is_not_downgraded():
+    provider, transport = make_provider([(400, [])], enable_thinking=True)
+    with pytest.raises(ProviderRequestError) as caught:
+        provider.complete("p", timeout=1.0)
+    assert caught.value.status == 400
+    assert len(transport.calls) == 1
 
 
 def test_create_provider_rejects_unknown_provider():

@@ -183,6 +183,20 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="发送的源文件上下文行数（默认 3，上限 10）",
     )
+    parser.add_argument(
+        "--enable-thinking",
+        dest="enable_thinking",
+        action="store_true",
+        default=None,
+        help="启用模型思维链（更准但更慢；默认关；对应配置文件字段 enable_thinking）",
+    )
+    parser.add_argument(
+        "--no-thinking",
+        dest="enable_thinking",
+        action="store_false",
+        default=None,
+        help="关闭模型思维链（默认；对 Qwen3 等混合思考模型生效）",
+    )
     parser.add_argument("-q", "--quiet", action="store_true", help="静默模式")
     parser.add_argument("--version", action="version", version=f"bat2sh {__version__}")
     return parser
@@ -434,6 +448,7 @@ def _api_cli_values(args: argparse.Namespace) -> dict[str, object]:
         "api_key": args.api_key,
         "timeout": args.api_timeout,
         "context_lines": args.api_context_lines,
+        "enable_thinking": args.enable_thinking,
     }
 
 
@@ -485,6 +500,11 @@ def _clear_reasoning_status() -> None:
         sys.stderr.write(_REASONING_CLEAR)
         sys.stderr.flush()
     _REASONING_STATUS_SHOWN = False
+
+
+def _api_warning(message: str) -> None:
+    """Provider 兼容性降级等警告（如端点不支持 enable_thinking）。"""
+    print(f"bat2sh: 警告：{message}", file=sys.stderr)
 
 
 def _stream_reply(stream) -> str:
@@ -591,6 +611,7 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
                     prompt,
                     timeout=api_config.timeout,
                     on_reasoning=_reasoning_status,
+                    on_warning=_api_warning,
                 )
                 raw = _stream_reply(stream)
             except ProviderError as exc:

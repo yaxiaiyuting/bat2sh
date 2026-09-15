@@ -147,3 +147,44 @@ def test_save_api_config_atomic_replace_no_tmp_left(tmp_path):
     assert load_api_config(target).base_url == "https://b.test/v1"
     leftovers = [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")]
     assert leftovers == []
+
+
+def test_from_dict_reads_enable_thinking_bool():
+    assert api_config_from_dict({"enable_thinking": True}).enable_thinking is True
+    assert api_config_from_dict({"enable_thinking": False}).enable_thinking is False
+    assert api_config_from_dict({"enable_thinking": "true"}).enable_thinking is True
+    assert api_config_from_dict({"enable_thinking": "0"}).enable_thinking is False
+    assert api_config_from_dict({"enable_thinking": 1}).enable_thinking is True
+    assert api_config_from_dict({"enable_thinking": "maybe"}).enable_thinking is False
+
+
+def test_enable_thinking_precedence_and_env_tokens():
+    file_config = ApiConfig(enable_thinking=True)
+    resolved = resolve_api_config({"enable_thinking": False}, {}, file_config)
+    assert resolved.enable_thinking is False
+    resolved = resolve_api_config(None, {"BAT2SH_ENABLE_THINKING": "false"}, file_config)
+    assert resolved.enable_thinking is False
+    resolved = resolve_api_config(None, {"BAT2SH_ENABLE_THINKING": "1"}, ApiConfig())
+    assert resolved.enable_thinking is True
+    resolved = resolve_api_config(None, {"BAT2SH_ENABLE_THINKING": "TRUE"}, ApiConfig())
+    assert resolved.enable_thinking is True
+    resolved = resolve_api_config(None, {"BAT2SH_ENABLE_THINKING": "nonsense"}, file_config)
+    assert resolved.enable_thinking is True
+    assert resolve_api_config(None, {}, file_config).enable_thinking is True
+    assert resolve_api_config(None, {}, ApiConfig()).enable_thinking is False
+
+
+def test_cli_flags_enable_thinking_tristate():
+    from bat2sh.cli import build_parser
+
+    parser = build_parser()
+    assert parser.parse_args(["x.bat"]).enable_thinking is None
+    assert parser.parse_args(["x.bat", "--enable-thinking"]).enable_thinking is True
+    assert parser.parse_args(["x.bat", "--no-thinking"]).enable_thinking is False
+
+
+def test_save_load_roundtrip_enable_thinking(tmp_path):
+    target = tmp_path / "api.json"
+    config = ApiConfig(base_url="https://a.test/v1", model="m", enable_thinking=True)
+    save_api_config(config, target)
+    assert load_api_config(target).enable_thinking is True
