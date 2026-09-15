@@ -415,7 +415,7 @@ def test_here_string_literal_standalone(convert_ps, bash_check):
 def test_here_string_interpolated_standalone(convert_ps, bash_check):
     out, report = convert_ps('@"\nhello $name\n"@\n')
     assert "cat <<__BAT2SH_EOF__" in out
-    assert "hello ${name}" in out
+    assert "hello ${name:-}" in out
     assert report.todo_count == 0
     assert report.warning_count == 1
     bash_check(out)
@@ -936,7 +936,7 @@ def test_condition_testconnection_maps_to_ping(convert_ps, bash_check):
     out, report = convert_ps(
         'if (Test-Connection -ComputerName $C -Count 1 -Quiet) {\n    Write-Host "ok"\n}\n'
     )
-    assert 'if ping -c 1 "${C}"; then' in out
+    assert 'if ping -c 1 "${C:-}"; then' in out
     assert "[[ " not in out
     assert report.todo_count == 0
     bash_check(out)
@@ -947,7 +947,7 @@ def test_condition_negated_testconnection_silentlycontinue(convert_ps, bash_chec
         "if (-not (Test-Connection -ComputerName $C -Count 1 "
         '-ErrorAction SilentlyContinue)) {\n    Write-Host "fail"\n}\n'
     )
-    assert 'if ! ping -c 1 "${C}" 2>/dev/null; then' in out
+    assert 'if ! ping -c 1 "${C:-}" 2>/dev/null; then' in out
     assert report.todo_count == 0
     bash_check(out)
 
@@ -995,13 +995,13 @@ def test_condition_user_function_todo(convert_ps, bash_check):
 
 def test_testconnection_colon_form(convert_ps, bash_check):
     out, _ = convert_ps("if (Test-Connection -ComputerName:$C -Quiet) {\n    Write-Host \"ok\"\n}\n")
-    assert 'if ping -c 1 "${C}"; then' in out
+    assert 'if ping -c 1 "${C:-}"; then' in out
     bash_check(out)
 
 
 def test_testconnection_standalone_count_and_stop(convert_ps, bash_check):
     out, _ = convert_ps("Test-Connection -ComputerName $C -Count 2 -ErrorAction Stop\n")
-    assert 'ping -c 2 "${C}"' in out
+    assert 'ping -c 2 "${C:-}"' in out
     bash_check(out)
 
 
@@ -1023,14 +1023,14 @@ def test_assignment_testconnection_quiet_bool(convert_ps, bash_check):
         "-Quiet -ErrorAction SilentlyContinue\n"
     )
     assert (
-        'pingResult=$(ping -c 1 "${C}" 2>/dev/null && echo true || echo false)' in out
+        'pingResult=$(ping -c 1 "${C:-}" 2>/dev/null && echo true || echo false)' in out
     )
     bash_check(out)
 
 
 def test_assignment_testconnection_output_capture(convert_ps, bash_check):
     out, _ = convert_ps("$r = Test-Connection -ComputerName $C -Count 2\n")
-    assert 'r=$(ping -c 2 "${C}")' in out
+    assert 'r=$(ping -c 2 "${C:-}")' in out
     bash_check(out)
 
 

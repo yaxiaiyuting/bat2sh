@@ -82,6 +82,7 @@ class PowerShellConverter:
         self._out: list[str] = []
         self._stack: list[_Block] = []
         self._var_map: dict[str, str] = {}
+        self._assigned: set[str] = set()
         self._function_map: dict[str, str] = {}
         self._function_params: dict[str, list[str]] = {}
         self._needs_script_dir = False
@@ -328,7 +329,11 @@ class PowerShellConverter:
             return rules.PS_AUTOMATIC_VARS[low]
         if low in rules.PS_TODO_VARS:
             return "${%s}" % name
-        return "${%s}" % self._var_map.get(low, name)
+        canonical = self._var_map.get(low, name)
+        # PowerShell 中未赋值变量展开为空串；bash `set -u` 会中止，故用 :- 兜底
+        if low in self._assigned:
+            return "${%s}" % canonical
+        return "${%s:-}" % canonical
 
     def _replace_vars(self, text: str, lineno: int) -> str:
         """替换变量，单引号内的内容不做替换。"""
@@ -613,6 +618,7 @@ class PowerShellConverter:
         if not self._rc_captured:
             self._rc_captured = True
             self._rc_scope = scope
+            self._assigned.add("__bat2sh_rc")
             prefix = [
                 self._c("# 近似: $LASTEXITCODE 在首次引用处捕获为 __bat2sh_rc（$? 语义相近）"),
                 self._c("__bat2sh_rc=$?"),
@@ -1685,6 +1691,7 @@ class PowerShellConverter:
             self._todo(lineno, text, "无法解析 foreach 语法", category="control_flow")
             return [self._c("# TODO: 手动检查: " + text)]
         var = sanitize_identifier(parts[0].strip().lstrip("$"))
+        self._assigned.add(parts[0].strip().lstrip("$").lower())
         collection = self._convert_collection(parts[1].strip(), lineno)
         header = self._c(f"for {var} in {collection}; do")
         if block_open:
@@ -1728,10 +1735,14 @@ class PowerShellConverter:
             return f"$(seq {m.group(1)} {m.group(2)})"
         m = re.match(r"(?i)^Get-ChildItem\s+(.*)$", expr)
         if m:
-            base, pattern, recursive = self._parse_childitem(m.group(1))
+            base, pattern, recursive, attributes = self._parse_childitem(m.group(1))
             if recursive:
                 self._warn(lineno, "Get-ChildItem -Recurse 已转换为 find，请检查", expr, category="path")
                 return f"$(find {base or '.'} -name {pattern})"
+            attr_kind = self._childitem_attr_kind(attributes)
+            if attr_kind is not None:
+                base_for_find = self._convert_arg(base, lineno) if base else '"."'
+                return f"$(find {base_for_find} -maxdepth 1 -type {attr_kind})"
             if base is None:
                 return pattern
             base_quoted = self._convert_arg(base, lineno)
@@ -1765,13 +1776,16 @@ class PowerShellConverter:
             self._todo(lineno, text, "无法解析 for 循环", category="control_flow")
             return [self._c("# TODO: 手动检查: " + text)]
         init, cond, step = (p.strip() for p in parts)
-        init = re.sub(r"\$\{(\w+)\}", r"\1", self._replace_vars(init, lineno)).strip()
-        cond = re.sub(r"\$\{(\w+)\}", r"\1", self._replace_vars(cond, lineno))
+        init = re.sub(r"\$\{(\w+)(?::-)?\}", r"\1", self._replace_vars(init, lineno)).strip()
+        cond = re.sub(r"\$\{(\w+)(?::-)?\}", r"\1", self._replace_vars(cond, lineno))
         for ps_op, bash_op in (("-lt", "<"), ("-le", "<="), ("-gt", ">"), ("-ge", ">="),
                                ("-eq", "=="), ("-ne", "!=")):
             cond = re.sub(rf"(?i){re.escape(ps_op)}\b", bash_op, cond)
-        step = re.sub(r"\$\{(\w+)\}", r"\1", self._replace_vars(step, lineno)).strip()
+        step = re.sub(r"\$\{(\w+)(?::-)?\}", r"\1", self._replace_vars(step, lineno)).strip()
         header = self._c(f"for (( {init}; {cond}; {step} )); do")
+        init_var = re.match(r"([A-Za-z_]\w*)=", init)
+        if init_var:
+            self._assigned.add(init_var.group(1).lower())
         if block_open:
             block = _Block("for", "done")
             block.opener = header.strip()
@@ -1878,6 +1892,7 @@ class PowerShellConverter:
                 self._warn(lineno, f"无法解析的参数声明: {raw}", raw, category="params")
                 continue
             name = m.group(1)
+            self._assigned.add(name.lower())
             default = (m.group(2) or "").strip().rstrip(",")
             if default:
                 default = self._convert_expression(default, lineno)
@@ -1935,6 +1950,31 @@ class PowerShellConverter:
         return None
 
     def _emit_assignment(self, lineno: int, original: str, var: str, op: str, rhs: str) -> list[str]:
+        lines = self._emit_assignment_inner(lineno, original, var, op, rhs)
+        canonical = self._var_map.get(var[1:].lower(), var[1:])
+        if op == "+=":
+            lines = [
+                self._as_append(line, canonical) for line in lines
+            ]
+        # 仅顶层直线赋值视为“必定已赋值”；分支/块内赋值在运行时可能未执行，保守用 :- 兜底
+        if not self._stack and any(
+            re.match(rf"\s*{re.escape(canonical)}(\+)?=", line)
+            for line in lines
+            if not line.lstrip().startswith("#")
+        ):
+            self._assigned.add(var[1:].lower())
+        return lines
+
+    @staticmethod
+    def _as_append(line: str, canonical: str) -> str:
+        m = re.match(rf"^(\s*{re.escape(canonical)})=", line)
+        if not m or line[m.end():].startswith("$(( "):
+            return line
+        return m.group(1) + "+=" + line[m.end():]
+
+    def _emit_assignment_inner(
+        self, lineno: int, original: str, var: str, op: str, rhs: str
+    ) -> list[str]:
         name = self._var_map.get(var[1:].lower(), var[1:])
         rhs = rhs.strip()
         low = rhs.lower()
@@ -2077,11 +2117,37 @@ class PowerShellConverter:
         m = re.match(r"(?i)^Get-ChildItem\s*(.*)$", rhs)
         if m:
             self._array_vars.add(name)
-            base, pattern, recursive = self._parse_childitem(m.group(1))
+            base, pattern, recursive, attributes = self._parse_childitem(m.group(1))
             if recursive:
                 self._warn(lineno, "Get-ChildItem -Recurse 已转换为 find，请检查", original, category="path")
                 find_cmd = f"find {base} -name {pattern}"
                 return [self._c(f"{name}=$({find_cmd})")]
+            attr_kind = self._childitem_attr_kind(attributes)
+            if attr_kind is not None:
+                base_for_find = self._convert_arg(base, lineno) if base else '""'
+                find_cmd = f"find {base_for_find} -maxdepth 1 -type {attr_kind}"
+                if attributes.startswith("!"):
+                    self._warn(
+                        lineno,
+                        f"Get-ChildItem -attributes {attributes} 已转换为 find -type f（仅文件）",
+                        original,
+                        category="command",
+                    )
+                else:
+                    self._warn(
+                        lineno,
+                        f"Get-ChildItem -attributes {attributes} 已转换为 find -type d（仅目录）",
+                        original,
+                        category="command",
+                    )
+                return [self._c(f"{name}=({find_cmd})")]
+            if attributes:
+                self._warn(
+                    lineno,
+                    f"Get-ChildItem -attributes {attributes} 无法可靠映射，已忽略该过滤",
+                    original,
+                    category="command",
+                )
             if base is None:
                 expression = "*"
             else:
@@ -2142,6 +2208,8 @@ class PowerShellConverter:
             return [self._c(f"{name}=$({converted})")]
 
         # 算术
+        if op == "+=" and re.fullmatch(r"-?\d+(?:\.\d+)?", rhs.strip()):
+            return [self._c(f"{name}=$(( ${{{name}:-0}} + {rhs.strip()} ))")]
         arith = self._try_arithmetic(rhs, lineno)
         if arith is not None:
             if op == "=":
@@ -2174,17 +2242,22 @@ class PowerShellConverter:
         self._warn(lineno, "无法确定右值类型，已按字符串处理，请检查", original, category="misc")
         return [self._c(f"{name}={dq(expression)}")]
 
-    def _parse_childitem(self, args: str) -> tuple[str | None, str, bool]:
+    def _parse_childitem(self, args: str) -> tuple[str | None, str, bool, str]:
         tokens = tokenize_args(args)
         path = None
         pattern = "*"
         recursive = False
+        attributes = ""
         i = 0
         while i < len(tokens):
             low = tokens[i].lower()
             if low == "-recurse":
                 recursive = True
                 i += 1
+                continue
+            if low == "-attributes" and i + 1 < len(tokens):
+                attributes = tokens[i + 1].strip("\"'")
+                i += 2
                 continue
             if low in ("-filter", "-include") and i + 1 < len(tokens):
                 value, _ = strip_outer_quotes(tokens[i + 1])
@@ -2200,7 +2273,15 @@ class PowerShellConverter:
             if not tokens[i].startswith("-") and path is None:
                 path = tokens[i]
             i += 1
-        return path, pattern, recursive
+        return path, pattern, recursive, attributes
+
+    @staticmethod
+    def _childitem_attr_kind(attributes: str) -> str | None:
+        negated = attributes.startswith("!")
+        low = attributes.lstrip("!").lower()
+        if low != "directory":
+            return None
+        return "f" if negated else "d"
 
     @staticmethod
     def _fix_glob_value(value: str) -> str:
@@ -2213,6 +2294,7 @@ class PowerShellConverter:
         return '"' + inner[:index] + '"/' + inner[index + 1:]
 
     def _read_host(self, lineno: int, original: str, name: str, args: str) -> list[str]:
+        self._assigned.add(name.lower())
         secure = bool(re.search(r"(?i)-AsSecureString", args))
         args = re.sub(r"(?i)-AsSecureString", "", args)
         args = re.sub(r"(?i)-Prompt\s+", "", args)
@@ -2231,7 +2313,7 @@ class PowerShellConverter:
             if "|" in rhs or re.match(r"^[A-Za-z][A-Za-z0-9_]*-\w", rhs):
                 return None
             converted = self._replace_vars(rhs, lineno)
-            converted = re.sub(r"\$\{(\w+)\}", r"${\1:-0}", converted)
+            converted = re.sub(r"\$\{(\w+)(?::-)?\}", r"${\1:-0}", converted)
             if re.search(r"\$\(|\$\{[\w]+\}\s*[a-z]", converted):
                 return None
             if '"' in converted or "'" in converted:
@@ -2508,7 +2590,7 @@ class PowerShellConverter:
             converted = convert_backslashes(self._replace_vars(inner, lineno))
             return dq(converted) if quote == '"' else "'" + converted + "'"
         converted = convert_backslashes(self._replace_vars(token, lineno))
-        if re.fullmatch(r"\$\{\w+\}|\[\[.*\]\]", converted):
+        if re.fullmatch(r"\$\{\w+(?::-[^}]*)?\}|\[\[.*\]\]", converted):
             if self.settings.quote_variables:
                 return dq(converted)
             return converted
