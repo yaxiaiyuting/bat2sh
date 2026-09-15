@@ -28,6 +28,21 @@ OS_RELEASE_WARNING = (
 _OS_RELEASE_PRETTY = '. /etc/os-release 2>/dev/null; printf \'%s\\n\' "${PRETTY_NAME:-$(uname -s)}"'
 _OS_RELEASE_VERSION = '. /etc/os-release 2>/dev/null; printf \'%s\\n\' "${VERSION_ID:-$(uname -r)}"'
 
+BIOS_WARNING = (
+    "硬件信息已映射到 /sys/class/dmi/id/*，字段名与 Windows BIOS 键不同，请核对"
+)
+
+_BIOS_FIELDS = {
+    "SYSTEMMANUFACTURER": "sys_vendor",
+    "SYSTEMPRODUCTNAME": "product_name",
+    "SYSTEMVERSION": "product_version",
+    "SYSTEMFAMILY": "product_family",
+    "BASEBOARDMANUFACTURER": "board_vendor",
+    "BASEBOARDPRODUCT": "board_name",
+    "BIOSVENDOR": "bios_vendor",
+    "BIOSVERSION": "bios_version",
+}
+
 
 @dataclass(frozen=True)
 class RegistryRead:
@@ -73,6 +88,12 @@ def _lookup_read(key: str, normalized: str, value: str) -> RegistryRead | None:
             return RegistryRead(_OS_RELEASE_PRETTY, OS_RELEASE_WARNING)
         if value in ("CURRENTVERSION", "CURRENTBUILDNUMBER"):
             return RegistryRead(_OS_RELEASE_VERSION, OS_RELEASE_WARNING)
+    if normalized.endswith("\\HARDWARE\\DESCRIPTION\\SYSTEM\\BIOS"):
+        field = _BIOS_FIELDS.get(value)
+        if field is not None:
+            return RegistryRead(
+                f"cat /sys/class/dmi/id/{field} 2>/dev/null || true", BIOS_WARNING
+            )
     return None
 
 

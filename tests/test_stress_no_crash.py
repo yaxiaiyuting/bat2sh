@@ -37,6 +37,7 @@ FROZEN_WARNINGS = [
     (244, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
     (248, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
     (249, 'command', '已转换为 pwsh，请确认已安装 PowerShell 且参数引用正确'),
+    (253, 'registry', '硬件信息已映射到 /sys/class/dmi/id/*，字段名与 Windows BIOS 键不同，请核对'),
     (280, 'glob', '%* 变量集合已加引号以避免空格拆分，如需匹配 cmd 的空白拆词行为请手动去掉引号'),
     (297, 'command', 'assoc 已转换为 xdg-mime query default，输出为 .desktop 名称而非命令'),
     (298, 'command', 'ftype 已转换为 xdg-mime query default，输出为 .desktop 名称而非命令'),
