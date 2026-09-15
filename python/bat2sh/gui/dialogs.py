@@ -172,6 +172,9 @@ class SettingsDialog(QDialog):
         self.api_timeout_spin = QSpinBox()
         self.api_timeout_spin.setRange(1, 600)
         self.api_timeout_spin.setSuffix(" 秒")
+        self.api_timeout_spin.setToolTip(
+            "空闲超时：流式响应中两次数据到达的最大间隔（默认 30 秒）；超时后自动重试"
+        )
         form.addRow("API 超时", self.api_timeout_spin)
 
         self.api_context_spin = QSpinBox()

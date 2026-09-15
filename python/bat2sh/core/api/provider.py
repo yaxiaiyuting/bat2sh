@@ -70,6 +70,20 @@ RETRYABLE_ERRORS = (
     ProviderNetworkError,
 )
 
+
+def _timeout_with_advice(
+    error: ProviderError, timeout: float, retries: int, context_lines: int
+) -> ProviderError:
+    """给超时错误附加当前配置与可操作建议（决策②）；非超时错误原样返回。"""
+    if not isinstance(error, ProviderTimeoutError):
+        return error
+    return ProviderTimeoutError(
+        f"请求超时：{timeout:g} 秒内未收到数据（已重试 {retries} 次；底层：{error}）。"
+        f"建议：调大超时（--api-timeout / BAT2SH_API_TIMEOUT / api.json 的 timeout，"
+        f"当前 {timeout:g} 秒），或减小发送上下文"
+        f"（--api-context-lines，当前 {context_lines} 行）后重试。"
+    )
+
 _ERROR_CATEGORIES: tuple[tuple[type[ProviderError], str], ...] = (
     (ProviderConfigError, "配置"),
     (ProviderAuthError, "认证"),
@@ -224,12 +238,14 @@ class OpenAICompatibleProvider:
                     yielded = True
                     yield chunk
                 return
-            except RETRYABLE_ERRORS:
-                if yielded:
-                    # 已产出部分内容：不重试，避免重复输出（调用方丢弃部分内容）
-                    raise
-                if attempts >= self._config.max_retries:
-                    raise
+            except RETRYABLE_ERRORS as exc:
+                if yielded or attempts >= self._config.max_retries:
+                    advice = _timeout_with_advice(
+                        exc, timeout, attempts, self._config.context_lines
+                    )
+                    if advice is exc:
+                        raise
+                    raise advice from exc
                 self._sleep(1.0 * (2**attempts))
                 attempts += 1
             finally:
@@ -246,14 +262,14 @@ class OpenAICompatibleProvider:
         try:
             status, lines = self._transport.request_stream(url, headers, body, timeout)
         except TransportTimeoutError as exc:
-            raise ProviderTimeoutError(f"请求超时: {exc}") from exc
+            raise ProviderTimeoutError(str(exc)) from exc
         except TransportError as exc:
             raise ProviderNetworkError(f"网络错误: {exc}") from exc
         try:
             self._raise_for_status(status)
             yield from self._consume_stream(lines, on_reasoning)
         except TransportTimeoutError as exc:
-            raise ProviderTimeoutError(f"请求超时: {exc}") from exc
+            raise ProviderTimeoutError(str(exc)) from exc
         except TransportError as exc:
             raise ProviderNetworkError(f"网络错误: {exc}") from exc
         finally:

@@ -232,6 +232,45 @@ def test_mid_stream_network_error_not_retried():
     assert len(transport.calls) == 1
 
 
+def test_timeout_exhausted_message_includes_advice():
+    provider, _ = make_provider(
+        [
+            TransportTimeoutError("the read operation timed out"),
+            TransportTimeoutError("the read operation timed out"),
+        ],
+        context_lines=5,
+    )
+    with pytest.raises(ProviderTimeoutError) as caught:
+        provider.complete("p", timeout=1.0)
+    message = str(caught.value)
+    assert "请求超时：1 秒内未收到数据" in message
+    assert "已重试 1 次" in message
+    assert "底层：the read operation timed out" in message
+    assert "--api-timeout" in message and "当前 1 秒" in message
+    assert "--api-context-lines" in message and "当前 5 行" in message
+
+
+def test_mid_stream_timeout_message_includes_advice():
+    lines = sse(chunk("partial"))
+    provider, _ = make_provider(
+        [(200, failing_after(lines, TransportTimeoutError("gap"), 1))], context_lines=7
+    )
+    with pytest.raises(ProviderTimeoutError) as caught:
+        provider.complete("p", timeout=2.0)
+    message = str(caught.value)
+    assert "请求超时：2 秒内未收到数据" in message
+    assert "已重试 0 次" in message
+    assert "底层：gap" in message
+    assert "当前 7 行" in message
+
+
+def test_network_error_has_no_timeout_advice():
+    provider, _ = make_provider([TransportNetworkError("dns"), TransportNetworkError("dns")])
+    with pytest.raises(ProviderNetworkError) as caught:
+        provider.complete("p", timeout=1.0)
+    assert "--api-timeout" not in str(caught.value)
+
+
 def test_stream_interrupted_without_terminator():
     provider, transport = make_provider([(200, sse(chunk("partial"), done=False))])
     with pytest.raises(ProviderProtocolError, match="意外中断"):

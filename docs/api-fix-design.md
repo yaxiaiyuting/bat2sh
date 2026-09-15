@@ -712,6 +712,10 @@ class OpenAICompatibleProvider:
 - 逐行消费 `data:` 行；`[DONE]` 或末块 `finish_reason` 均视为正常结束；
 - 两者皆无（净截断）→ `ProviderProtocolError("流式响应意外中断")`，**绝不返回可能截断的内容**；
 - 数据行 JSON 损坏 → `ProviderProtocolError`；正文为空但存在思维链 → `ProviderProtocolError`；
+- 超时错误附带当前配置与可操作建议（决策②A）：
+  `请求超时：{timeout} 秒内未收到数据（已重试 N 次；底层：…）。建议：调大超时（--api-timeout /
+  BAT2SH_API_TIMEOUT / api.json 的 timeout，当前 {timeout} 秒），或减小发送上下文
+  （--api-context-lines，当前 {n} 行）后重试。`
 - transport 层分类：超时 → `TransportTimeoutError`（可重试）；
   连接中断 / `http.client.IncompleteRead` → `TransportNetworkError`。
 
