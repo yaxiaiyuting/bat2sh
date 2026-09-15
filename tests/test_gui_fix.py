@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 
 import pytest
@@ -17,7 +18,7 @@ from bat2sh.core.api.provider import ProviderNetworkError  # noqa: E402
 from bat2sh.core.engine import convert_text  # noqa: E402
 from bat2sh.core.settings import ConvertSettings  # noqa: E402
 from bat2sh.core.types import SourceKind  # noqa: E402
-from bat2sh.gui.dialogs import SettingsDialog, TodoFixDialog  # noqa: E402
+from bat2sh.gui.dialogs import SettingsDialog, TodoFixDialog, TodoFixWorker  # noqa: E402
 from bat2sh.gui.main_window import MainWindow  # noqa: E402
 
 TODO_BAT = '@echo off\nfor /f "usebackq" %%i in (`dir /b`) do echo %%i\n'
@@ -51,14 +52,57 @@ def _wait_until(predicate, timeout: float = 5.0) -> bool:
 
 
 class _FakeProvider:
-    def __init__(self, reply: str = "", error: Exception | None = None):
+    """脚本化流式 Provider（GUI 对话框用）。
+
+    - ``reply``：单块正文（默认整段一次产出）；
+    - ``chunks``：显式正文块序列（覆盖 ``reply``，用于检验逐块流式）；
+    - ``error``：首次迭代时抛出（模拟调用即失败）；
+    - ``reasoning``：在正文之前调用 ``on_reasoning`` 的次数（仅计数，无文本）；
+    - ``mid_error``：产出第 2 块前抛出（模拟流中途异常）；
+    - ``gate``：正文开始前阻塞，测试观察到思维链状态后再放行；
+    - ``body_gate``：首块之后阻塞，测试在流中途触发取消后再放行。
+    """
+
+    def __init__(
+        self,
+        reply: str = "",
+        error: Exception | None = None,
+        *,
+        chunks: list[str] | None = None,
+        reasoning: int = 0,
+        mid_error: Exception | None = None,
+        gate: threading.Event | None = None,
+        body_gate: threading.Event | None = None,
+    ):
         self.reply = reply
         self.error = error
+        self.chunks = list(chunks) if chunks is not None else None
+        self.reasoning = reasoning
+        self.mid_error = mid_error
+        self.gate = gate
+        self.body_gate = body_gate
+        self.reasoning_text = ""
+        self.prompts: list[str] = []
 
     def complete(self, prompt: str, *, timeout: float) -> str:
+        return "".join(self.complete_stream(prompt, timeout=timeout))
+
+    def complete_stream(self, prompt: str, *, timeout: float, on_reasoning=None):
+        self.prompts.append(prompt)
         if self.error is not None:
             raise self.error
-        return self.reply
+        reply_chunks = list(self.chunks) if self.chunks is not None else [self.reply]
+        for count in range(1, self.reasoning + 1):
+            if on_reasoning is not None:
+                on_reasoning(count)
+        if self.gate is not None:
+            self.gate.wait(timeout=5.0)
+        for index, chunk in enumerate(reply_chunks):
+            if index and self.mid_error is not None:
+                raise self.mid_error
+            if index and self.body_gate is not None:
+                self.body_gate.wait(timeout=5.0)
+            yield chunk
 
 
 def _make_api_config(**overrides) -> ApiConfig:
@@ -212,6 +256,126 @@ def test_todo_fix_dialog_failure_keeps_todo():
     finally:
         dialog.deleteLater()
         QApplication.processEvents()
+
+
+def test_todo_fix_dialog_streams_panel_then_applies():
+    _ensure_app()
+    text, report = _converted(TODO_BAT)
+    dialog = TodoFixDialog(
+        text,
+        report,
+        TODO_BAT,
+        _make_api_config(),
+        provider_factory=lambda _config: _FakeProvider(
+            chunks=['echo ', '"streamed-ok"']
+        ),
+    )
+    try:
+        dialog.send_button.click()
+        assert _wait_until(lambda: 'echo "streamed-ok"' in dialog.stream_view.toPlainText())
+        assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        assert dialog.diff_view.toHtml()
+        dialog.apply_button.click()
+        assert dialog.applied_count == 1
+        assert 'echo "streamed-ok"' in dialog.result_text()
+    finally:
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
+def test_todo_fix_dialog_reasoning_shows_count_only():
+    _ensure_app()
+    text, report = _converted(TODO_BAT)
+    gate = threading.Event()
+    fake = _FakeProvider(chunks=['echo "reason-ok"'], reasoning=2, gate=gate)
+    fake.reasoning_text = "思维链内部机密不应显示"
+    dialog = TodoFixDialog(
+        text,
+        report,
+        TODO_BAT,
+        _make_api_config(),
+        provider_factory=lambda _config: fake,
+    )
+    try:
+        dialog.send_button.click()
+        assert _wait_until(lambda: "思考中" in dialog.status_label.text())
+        assert "思维链 2 段" in dialog.status_label.text()
+        assert fake.reasoning_text not in dialog.stream_view.toPlainText()
+        gate.set()
+        assert _wait_until(lambda: dialog.apply_button.isEnabled())
+        panel = dialog.stream_view.toPlainText()
+        assert 'echo "reason-ok"' in panel
+        assert "思维链" not in panel
+    finally:
+        gate.set()
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
+def test_todo_fix_dialog_stop_cancel_keeps_todo():
+    _ensure_app()
+    text, report = _converted(TODO_BAT)
+    gate = threading.Event()
+    fake = _FakeProvider(chunks=['echo "partial"', 'echo "rest"'], body_gate=gate)
+    dialog = TodoFixDialog(
+        text,
+        report,
+        TODO_BAT,
+        _make_api_config(),
+        provider_factory=lambda _config: fake,
+    )
+    try:
+        dialog.send_button.click()
+        assert _wait_until(lambda: 'echo "partial"' in dialog.stream_view.toPlainText())
+        assert dialog.stop_button.isEnabled()
+        dialog.stop_button.click()
+        assert "正在停止接收" in dialog.status_label.text()
+        assert not dialog.stop_button.isEnabled()
+        gate.set()
+        assert _wait_until(lambda: "已停止接收" in dialog.status_label.text())
+        assert dialog.send_button.isEnabled()
+        assert dialog.skip_button.isEnabled()
+        assert not dialog.stop_button.isEnabled()
+        assert not dialog.apply_button.isEnabled()
+        assert dialog.diff_view.toPlainText() == ""
+        panel = dialog.stream_view.toPlainText()
+        assert 'echo "partial"' in panel
+        assert 'echo "rest"' not in panel
+        assert "# TODO" in dialog.result_text()
+        assert dialog.applied_count == 0
+    finally:
+        gate.set()
+        dialog.deleteLater()
+        QApplication.processEvents()
+
+
+def test_todo_fix_worker_cancel_during_reasoning_emits_cancelled():
+    """思考阶段点击停止：下一次思维链回调即触发取消（无需等待正文块），且不产出成功结果。"""
+    _ensure_app()
+    events: list[str] = []
+    worker_ref: dict = {}
+
+    class _ReasoningCancelProvider:
+        """模拟：思考阶段用户点了“停止接收”，随后仍有一段思维链回调。"""
+
+        def complete(self, prompt: str, *, timeout: float) -> str:
+            return "".join(self.complete_stream(prompt, timeout=timeout))
+
+        def complete_stream(self, prompt: str, *, timeout: float, on_reasoning=None):
+            if on_reasoning is not None:
+                on_reasoning(1)
+            worker_ref["worker"].request_cancel()  # 模拟用户点击“停止接收”
+            if on_reasoning is not None:
+                on_reasoning(2)  # 回调内应立即取消
+            yield 'echo "never"'
+
+    worker = TodoFixWorker(_ReasoningCancelProvider(), "prompt", 1.0)
+    worker_ref["worker"] = worker
+    worker.cancelled.connect(lambda: events.append("cancelled"))
+    worker.failed.connect(lambda message: events.append(f"failed:{message}"))
+    worker.succeeded.connect(lambda raw: events.append(f"succeeded:{raw}"))
+    worker.run()  # 同步驱动：确定性验证“思考阶段取消”路径
+    assert events == ["cancelled"]
 
 
 def test_main_window_fix_action_enabled_after_conversion(window, tmp_path):

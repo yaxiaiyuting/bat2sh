@@ -6,7 +6,13 @@ import difflib
 import time
 
 from PySide6.QtCore import Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QTextCharFormat, QTextCursor
+from PySide6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QFontDatabase,
+    QTextCharFormat,
+    QTextCursor,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -498,27 +504,72 @@ class RunConfirmDialog(QDialog):
         layout.addWidget(buttons)
 
 
+class _StreamCancelled(Exception):
+    """内部信号：用户在思考阶段请求停止（不作为错误展示）。"""
+
+
 class TodoFixWorker(QThread):
-    """后台执行一次 Provider 调用，避免阻塞 GUI 事件循环。"""
+    """后台执行一次流式 Provider 调用，避免阻塞 GUI 事件循环。"""
 
     succeeded = Signal(str)
     failed = Signal(str)
+    chunk = Signal(str)
+    reasoning = Signal(int)
+    cancelled = Signal()
 
     def __init__(self, provider, prompt: str, timeout: float, parent=None):
         super().__init__(parent)
         self._provider = provider
         self._prompt = prompt
         self._timeout = timeout
+        self._cancel_requested = False
+
+    def request_cancel(self) -> None:
+        """请求停止接收：正文块边界与思维链回调处都会检查（不应用部分输出）。"""
+        self._cancel_requested = True
+
+    def _on_reasoning(self, count: int) -> None:
+        """思维链回调：思考阶段也能立即响应取消（否则要等到正文才开始检查）。"""
+        if self._cancel_requested:
+            raise _StreamCancelled
+        self.reasoning.emit(count)
 
     def run(self) -> None:
+        stream = None
+        chunks: list[str] = []
         try:
-            raw = self._provider.complete(self._prompt, timeout=self._timeout)
+            stream = self._provider.complete_stream(
+                self._prompt,
+                timeout=self._timeout,
+                on_reasoning=self._on_reasoning,
+            )
+            for chunk in stream:
+                if self._cancel_requested:
+                    self.cancelled.emit()
+                    return
+                chunks.append(chunk)
+                self.chunk.emit(chunk)
+        except _StreamCancelled:
+            self.cancelled.emit()
         except ProviderError as exc:
-            self.failed.emit(str(exc))
+            if self._cancel_requested:
+                self.cancelled.emit()
+            else:
+                self.failed.emit(str(exc))
         except Exception as exc:  # GUI 不应因意外 Provider 异常崩溃
-            self.failed.emit(f"意外错误: {exc}")
+            if self._cancel_requested:
+                self.cancelled.emit()
+            else:
+                self.failed.emit(f"意外错误: {exc}")
         else:
-            self.succeeded.emit(raw)
+            if self._cancel_requested:
+                self.cancelled.emit()
+            else:
+                self.succeeded.emit("".join(chunks))
+        finally:
+            close = getattr(stream, "close", None)
+            if callable(close):
+                close()
 
 
 _LIVE_TEST_WORKERS: set[ConnectionTestWorker] = set()
@@ -621,6 +672,18 @@ class TodoFixDialog(QDialog):
         self.payload_view = QPlainTextEdit()
         self.payload_view.setReadOnly(True)
         right_layout.addWidget(self.payload_view, 1)
+        right_layout.addWidget(QLabel("模型输出（流式）"))
+        self.stream_view = QPlainTextEdit()
+        self.stream_view.setReadOnly(True)
+        self.stream_view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.stream_view.setPlaceholderText("发送后，模型正文将实时显示在这里（思维链仅显示段数）")
+        self.stream_view.setMinimumHeight(80)
+        self.stream_view.setMaximumHeight(200)
+        stream_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        if stream_font.pointSize() < 10:
+            stream_font.setPointSize(10)
+        self.stream_view.setFont(stream_font)
+        right_layout.addWidget(self.stream_view)
         right_layout.addWidget(QLabel("修复建议差异（当前 → 建议）"))
         self.diff_view = QTextBrowser()
         self.diff_view.setOpenExternalLinks(False)
@@ -642,12 +705,16 @@ class TodoFixDialog(QDialog):
         buttons.addWidget(self.privacy_label, 1)
         self.send_button = QPushButton("发送本条并获取建议")
         self.send_button.clicked.connect(self._start_request)
+        self.stop_button = QPushButton("停止接收")
+        self.stop_button.setEnabled(False)
+        self.stop_button.clicked.connect(self._stop_request)
         self.apply_button = QPushButton("应用这条修改")
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self._apply_current)
         self.skip_button = QPushButton("跳过本条")
         self.skip_button.clicked.connect(self._skip_current)
         buttons.addWidget(self.send_button)
+        buttons.addWidget(self.stop_button)
         buttons.addWidget(self.apply_button)
         buttons.addWidget(self.skip_button)
         layout.addLayout(buttons)
@@ -667,6 +734,8 @@ class TodoFixDialog(QDialog):
 
     def closeEvent(self, event) -> None:
         self._closed = True
+        if self._worker is not None:
+            self._worker.request_cancel()
         event.accept()
         self.accept()
 
@@ -688,6 +757,7 @@ class TodoFixDialog(QDialog):
             self.send_button.setEnabled(False)
             self.apply_button.setEnabled(False)
             self.skip_button.setEnabled(False)
+            self.stop_button.setEnabled(False)
             self.privacy_label.setText("")
             self.status_label.setText(
                 f"全部处理完成：已应用 {self._applied} 处（关闭后写回编辑器，保存仍由主界面完成）。"
@@ -716,6 +786,7 @@ class TodoFixDialog(QDialog):
         self.send_button.setEnabled(True)
         self.apply_button.setEnabled(False)
         self.skip_button.setEnabled(True)
+        self.stop_button.setEnabled(False)
 
     def _start_request(self) -> None:
         marker = self._pending_marker
@@ -726,18 +797,54 @@ class TodoFixDialog(QDialog):
         except ProviderError as exc:
             self.status_label.setText(f"API 配置错误：{exc}")
             return
+        self.stream_view.clear()
         self.send_button.setEnabled(False)
         self.skip_button.setEnabled(False)
+        self.stop_button.setEnabled(True)
+        self.apply_button.setEnabled(False)
         self.status_label.setText(f"请求中（{self._api_config.base_url}）…")
         worker = TodoFixWorker(provider, self._pending_prompt, self._api_config.timeout)
         worker.succeeded.connect(self._on_response)
         worker.failed.connect(self._on_failure)
+        worker.chunk.connect(self._on_chunk)
+        worker.reasoning.connect(self._on_reasoning)
+        worker.cancelled.connect(self._on_cancelled)
         worker.finished.connect(self._on_worker_finished)
         self._worker = worker
         worker.start()
 
     def _on_worker_finished(self) -> None:
         self._worker = None
+
+    def _on_chunk(self, chunk: str) -> None:
+        if self._closed:
+            return
+        cursor = self.stream_view.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.stream_view.setTextCursor(cursor)
+        self.stream_view.insertPlainText(chunk)
+        self.stream_view.ensureCursorVisible()
+
+    def _on_reasoning(self, count: int) -> None:
+        if self._closed:
+            return
+        self.status_label.setText(f"模型思考中…（思维链 {count} 段）")
+
+    def _stop_request(self) -> None:
+        if self._worker is None:
+            return
+        self._worker.request_cancel()
+        self.status_label.setText("正在停止接收…（本条保留 TODO）")
+        self.stop_button.setEnabled(False)
+
+    def _on_cancelled(self) -> None:
+        if self._closed:
+            return
+        self.status_label.setText("已停止接收（本条保留 TODO）")
+        self.send_button.setEnabled(True)
+        self.skip_button.setEnabled(True)
+        self.stop_button.setEnabled(False)
+        self.apply_button.setEnabled(False)
 
     def _on_failure(self, message: str) -> None:
         if self._closed:
@@ -748,10 +855,12 @@ class TodoFixDialog(QDialog):
         )
         self.send_button.setEnabled(True)
         self.skip_button.setEnabled(True)
+        self.stop_button.setEnabled(False)
 
     def _on_response(self, raw: str) -> None:
         if self._closed:
             return
+        self.stop_button.setEnabled(False)
         marker = self._pending_marker
         if marker is None:
             return
