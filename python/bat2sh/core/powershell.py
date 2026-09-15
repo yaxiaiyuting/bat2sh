@@ -1091,6 +1091,10 @@ class PowerShellConverter:
         if re.match(r"(?i)^param\s*\(", text):
             return self._emit_param(lineno, text)
 
+        m = re.match(r"(?i)^(begin|process|end|clean|dynamicparam)\b\s*\{", text)
+        if m:
+            return self._emit_pipeline_phase(lineno, text, m)
+
         # 单独出现的 "{"
         if text == "{":
             self._stack.append(_Block("group", "}"))
@@ -1537,6 +1541,31 @@ class PowerShellConverter:
     # ------------------------------------------------------------------
     # 函数 / param
     # ------------------------------------------------------------------
+    def _emit_pipeline_phase(self, lineno: int, text: str, m: re.Match[str]) -> list[str]:
+        keyword = m.group(1).lower()
+        open_index = text.find("{")
+        close_index = find_matching(text, "{", "}", open_index)
+        self._warn(
+            lineno,
+            f"{keyword} 是 PowerShell 管道生命周期块，bash 无等价语义，已保留结构，请人工核对",
+            text,
+            category="control_flow",
+        )
+        marker = f"# {keyword} 块（PowerShell 管道阶段，bash 无等价物）"
+        lines = [self._c(marker)]
+        if close_index < 0:
+            block = _Block("group", "")
+            block.opener = marker
+            self._stack.append(block)
+            body = text[open_index + 1:].strip()
+            if body:
+                lines.extend(self._convert_line(lineno, body))
+            return lines
+        body = text[open_index + 1:close_index].strip()
+        if body:
+            lines.extend(self._convert_line(lineno, body))
+        return lines
+
     def _emit_function(self, lineno: int, text: str, m: re.Match[str]) -> list[str]:
         raw_name = m.group(1)
         after = text[m.end(1):]
