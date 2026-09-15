@@ -45,6 +45,7 @@ _PS_ATTRIBUTE_NAMES = frozenset({"cmdletbinding", "parameter", "alias", "outputt
 _PS_TYPE_NAMES = frozenset({
     "string", "int", "int32", "int64", "bool", "double", "float", "decimal",
     "array", "hashtable", "datetime", "guid", "char", "byte",
+    "version", "pscustomobject", "ordered",
 })
 _ATTR_BUFFER_LIMIT = 40
 
@@ -1776,6 +1777,18 @@ class PowerShellConverter:
                                "warningpreference", "informationpreference"):
             return [self._c("# " + original)]
 
+        if re.match(r"(?i)^switch\b", rhs):
+            self._todo(
+                lineno,
+                original,
+                "赋值中的 switch 无法等价转换为 bash，块内代码已注释",
+                category="control_flow",
+            )
+            block = _Block("comment", "")
+            block.brace_depth = max(1, self._net_open_braces(rhs))
+            self._stack.append(block)
+            return [self._c("# TODO: 手动检查: " + original)]
+
         # 统一块栈加固：右值含未闭合花括号（如 @{ / 块表达式）→ 安全 comment 容器
         # 置于属性访问检查之前，避免 $obj.Prop 分支提前返回而不压块
         open_braces = self._net_open_braces(rhs)
@@ -1800,6 +1813,18 @@ class PowerShellConverter:
             return [self._c(self._todo(lineno, original, "对象属性访问（如 $obj.Prop）无法自动转换", category="objects"))]
         if re.search(r"\]\s*::", rhs):
             return [self._c(self._todo(lineno, original, ".NET 类型静态调用在 bash 中无对应物", category="objects"))]
+
+        cast = re.match(r"^\[([A-Za-z_][\w.]*)\]\s*(.+)$", rhs, re.S)
+        if cast and cast.group(1).lower() in _PS_TYPE_NAMES:
+            cast_type = cast.group(1)
+            rhs = cast.group(2).strip()
+            low = rhs.lower()
+            self._warn(
+                lineno,
+                f"右值类型转换 [{cast_type}] 已剥离（bash 无类型系统），比较/运算语义可能不同，请核对",
+                original,
+                category="misc",
+            )
 
         # 数组
         if rhs.startswith("@(") and rhs.endswith(")"):
