@@ -8,7 +8,10 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+
+from .utils import dq
 
 REBOOT_REQUIRED_PROBE = (
     "{ [ -e /var/run/reboot-required ] "
@@ -31,6 +34,33 @@ _OS_RELEASE_VERSION = '. /etc/os-release 2>/dev/null; printf \'%s\\n\' "${VERSIO
 BIOS_WARNING = (
     "硬件信息已映射到 /sys/class/dmi/id/*，字段名与 Windows BIOS 键不同，请核对"
 )
+
+PACKAGE_WARNING = (
+    "安装检测已映射到 Linux 包管理器查询（dpkg-query/rpm/pacman），"
+    "Windows 显示名与发行版包名不同，请核对"
+)
+
+
+def _package_query(app: str) -> str:
+    quoted = dq(app)
+    return (
+        "if command -v dpkg-query >/dev/null 2>&1; then "
+        f"dpkg-query -W {quoted} 2>/dev/null || echo 'not installed: {app}'; "
+        "elif command -v rpm >/dev/null 2>&1; then "
+        f"rpm -q {quoted} 2>/dev/null || echo 'not installed: {app}'; "
+        "elif command -v pacman >/dev/null 2>&1; then "
+        f"pacman -Q {quoted} 2>/dev/null || echo 'not installed: {app}'; "
+        "else echo 'unknown package manager'; fi"
+    )
+
+
+def _package_list() -> str:
+    return (
+        "if command -v dpkg-query >/dev/null 2>&1; then dpkg-query -W; "
+        "elif command -v rpm >/dev/null 2>&1; then rpm -qa; "
+        "elif command -v pacman >/dev/null 2>&1; then pacman -Q; "
+        "else echo 'unknown package manager'; fi"
+    )
 
 _BIOS_FIELDS = {
     "SYSTEMMANUFACTURER": "sys_vendor",
@@ -69,6 +99,8 @@ def lookup(key: str, value: str = "", op: str = "read") -> RegistryRead | None:
         return _lookup_test(normalized, name)
     if op == "read":
         return _lookup_read(_raw(key), normalized, name)
+    if op == "enumerate":
+        return _lookup_enumerate(normalized)
     return None
 
 
@@ -94,6 +126,18 @@ def _lookup_read(key: str, normalized: str, value: str) -> RegistryRead | None:
             return RegistryRead(
                 f"cat /sys/class/dmi/id/{field} 2>/dev/null || true", BIOS_WARNING
             )
+    if "\\CURRENTVERSION\\UNINSTALL" in normalized:
+        match = re.search(r"(?i)\\Uninstall\\(.+)$", key)
+        if match:
+            return RegistryRead(_package_query(match.group(1)), PACKAGE_WARNING)
+        if normalized.endswith("\\UNINSTALL"):
+            return RegistryRead(_package_list(), PACKAGE_WARNING)
+    return None
+
+
+def _lookup_enumerate(normalized: str) -> RegistryRead | None:
+    if normalized.endswith("\\CURRENTVERSION\\UNINSTALL"):
+        return RegistryRead(_package_list(), PACKAGE_WARNING)
     return None
 
 

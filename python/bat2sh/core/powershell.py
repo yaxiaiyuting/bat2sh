@@ -2008,7 +2008,8 @@ class PowerShellConverter:
                 "remove-item": "delete",
                 "remove-itemproperty": "delete",
             }.get(rhs.split(None, 1)[0].lower(), "read")
-            mapping = registry_map.lookup(reg, "", "test" if op == "test" else "read")
+            lookup_op = {"test": "test", "enumerate": "enumerate"}.get(op, "read")
+            mapping = registry_map.lookup(reg, "", lookup_op)
             if mapping is not None:
                 self._warn(lineno, mapping.warning, original, category="registry")
                 if mapping.is_test:
@@ -2457,6 +2458,10 @@ class PowerShellConverter:
     def cmd_get_childitem(self, lineno: int, args: list[str], original: str) -> str:
         reg = self._registry_path(" ".join(args))
         if reg is not None:
+            mapping = registry_map.lookup(reg, "", "enumerate")
+            if mapping is not None:
+                self._warn(lineno, mapping.warning, original, category="registry")
+                return mapping.bash
             return self._reg_todo(lineno, original, "enumerate", reg)
         recursive = False
         path = None

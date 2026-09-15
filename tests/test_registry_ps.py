@@ -21,10 +21,8 @@ def test_get_item_registry_not_file_op(convert_ps, bash_check):
 
 
 def test_get_childitem_registry_enumerate(convert_ps, bash_check):
-    out, _ = convert_ps(
-        'Get-ChildItem -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"\n'
-    )
-    assert "ls" not in out
+    out, _ = convert_ps('Get-ChildItem -Path "HKLM:\\SOFTWARE\\Vendor\\Unmapped"\n')
+    assert "ls -la" not in out
     assert r"op=enumerate" in out
     bash_check(out)
 
