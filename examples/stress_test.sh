@@ -196,6 +196,8 @@ echo "临时目录: ${TMPDIR:-/tmp}"
 
 # 注册表读取
 echo "注册表读取:"
+. /etc/os-release 2>/dev/null; printf '%s\n' "${PRETTY_NAME:-$(uname -s)}" 2>/dev/null
+# TODO[REG] op=read key="HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer" value="ShellState": 手动检查: reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer" /v ShellState 2>/dev/null
 
 # PowerShell 调用
 echo "PowerShell 调用:"
@@ -317,6 +319,8 @@ pwsh -NoProfile -Command "[System.DateTime]::Now.ToString('yyyy-MM-dd')" 2>/dev/
 
 # 注册表更多
 echo "注册表更多:"
+cat /sys/class/dmi/id/sys_vendor 2>/dev/null 2>/dev/null || true
+# TODO[REG] op=read key="HKCU\Control Panel\Desktop" value="Wallpaper": 手动检查: reg query "HKCU\Control Panel\Desktop" /v Wallpaper 2>/dev/null
 
 # 使用 goto 和标签
 echo "跳转测试:"
