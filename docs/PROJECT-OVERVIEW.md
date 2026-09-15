@@ -314,8 +314,10 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
    并更新 `.SRCINFO` 使其与 `PKGBUILD` 一致。v1.6.0 的提交序列即为
    `030ab72 chore: bump version to v1.6.0` → `1f68d42 chore(pkg): sync PKGBUILD hashes`
    → `11cd50e docs: v1.6.0 release note`；v1.7.0 为 `7864015 chore: bump version to v1.7.0`
-   → `f18d625 chore(pkg): sync PKGBUILD hashes for v1.7.0`。
-3. **打 tag**：tag 打在版本 bump commit 上（`v1.6.0` → `030ab72`，`v1.7.0` → `7864015`）。
+   → `f18d625 chore(pkg): sync PKGBUILD hashes for v1.7.0`；
+   v1.8.0 为 `81a50a3 chore: bump version to v1.8.0` → `0f6494b chore(pkg): sync PKGBUILD hashes for v1.8.0`。
+3. **打 tag**：tag 打在版本 bump commit 上（`v1.6.0` → `030ab72`，`v1.7.0` → `7864015`，
+   `v1.8.0` → `81a50a3`）。
 4. **发布说明**：在 `docs/releases/` 下新增 `<版本>.md`（现有 v1.3.0 … v1.8.0），
    记录 New features / Fixes / 验证（pytest 数、CI 结果、`bat2sh --version` 输出）。
 5. **CI 门槛**：GitHub Actions 在 Python 3.12 / 3.13 / 3.14 上运行 `pytest -q`，
