@@ -504,16 +504,19 @@ def test_try_catch_multi_command_falls_back(convert_ps, bash_check):
     bash_check(out)
 
 
-def test_try_catch_typed_keeps_structure(convert_ps, bash_check):
+def test_try_catch_typed_degrades_to_comment(convert_ps, bash_check):
     out, report = convert_ps(
         'try {\n    risky\n} catch [System.IO.IOException] {\n    Write-Host "io"\n}\n'
     )
+    assert report.error_count == 0
     assert "多余的 }" not in out
-    assert "if true; then  # TODO: try/catch 未等价转换" in out
-    assert any(
-        "catch 类型 System.IO.IOException 已忽略" in d.message for d in report.warnings
-    )
-    assert report.warning_count == 3
+    assert "# TODO: 手动检查: try {" in out
+    assert 'Write-Host "io"' in out
+    leaked = [
+        line for line in out.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and "catch" in line
+    ]
+    assert leaked == []
     bash_check(out)
 
 

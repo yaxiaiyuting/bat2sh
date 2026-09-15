@@ -56,6 +56,7 @@ class _Block:
     brace_depth: int = 1
     body_mark: int = -1
     opener: str = ""
+    end_line: int = -1
 
 
 class PowerShellConverter:
@@ -94,6 +95,8 @@ class PowerShellConverter:
         self._try_inline_pending = False
         self._rc_captured = False
         self._rc_scope: _Block | None = None
+        self._complex_try_lines: set[int] = set()
+        self._complex_try_end: dict[int, int] = {}
 
     # ------------------------------------------------------------------
     # 对外入口
@@ -183,6 +186,48 @@ class PowerShellConverter:
         self._scan_function_params(joined)
         if re.search(r"\$PSScriptRoot|\$PSCommandPath", joined, re.I):
             self._needs_script_dir = True
+        self._scan_try_constructs(logical)
+
+    def _scan_try_constructs(self, logical: list[tuple[int, str]]) -> None:
+        """预扫描：标记需要整体注释降级的多臂/带类型 try 构造及其结束行。"""
+        index = 0
+        total = len(logical)
+        while index < total:
+            lineno, line = logical[index]
+            stripped = line.strip()
+            if not re.match(r"(?i)^try\b", stripped) or stripped.find("{") < 0:
+                index += 1
+                continue
+            depth = self._net_open_braces(stripped)
+            if depth <= 0:
+                index += 1
+                continue
+            catch_count = 0
+            typed = False
+            end = lineno
+            cursor = index + 1
+            while cursor < total:
+                next_lineno, next_line = logical[cursor]
+                body = next_line.strip()
+                if body:
+                    arm = None
+                    if depth == 0:
+                        arm = re.match(r"(?i)^(catch|finally)\b(.*)$", body)
+                        if arm is None:
+                            break
+                    elif depth == 1:
+                        arm = re.match(r"(?i)^\}\s*(catch|finally)\b(.*)$", body)
+                    if arm is not None and arm.group(1).lower() == "catch":
+                        catch_count += 1
+                        if arm.group(2).strip().startswith("["):
+                            typed = True
+                    depth += self._net_open_braces(body)
+                    end = next_lineno
+                cursor += 1
+            if catch_count >= 2 or typed:
+                self._complex_try_lines.add(lineno)
+                self._complex_try_end[lineno] = end
+            index += 1
 
     def _scan_function_params(self, joined: str) -> None:
         """记录每个函数的参数声明顺序，用于把命名参数调用改写为位置参数。"""
@@ -798,7 +843,7 @@ class PowerShellConverter:
                 return self._emit_param(lineno, joined)
             return []
 
-        # 注释块内（switch 等）：只做花括号配平
+        # 注释块内（switch / 多臂 try 等）：只做花括号配平
         for block in reversed(self._stack):
             if block.kind == "comment":
                 if text.endswith("{"):
@@ -808,6 +853,11 @@ class PowerShellConverter:
                     if block.brace_depth <= 0:
                         self._stack.pop()
                 return [self._c("# " + text)]
+            if block.kind == "comment_until":
+                if lineno <= block.end_line:
+                    return [self._c("# " + text)]
+                self._stack.pop()
+                break
             break
 
         if text.startswith("}"):
@@ -998,7 +1048,10 @@ class PowerShellConverter:
             return attr_lines
         self._todo_reason = ""
 
-        if self._try_buffer is not None and re.match(r"(?i)^(catch|finally)\b", text):
+        if re.match(r"(?i)^(catch|finally)\b", text):
+            return self._close_block_line(lineno, text)
+
+        if re.match(r"(?i)^else(if)?\b", text):
             return self._close_block_line(lineno, text)
 
         if self._try_buffer is not None and re.match(r"(?i)^try\b", text):
@@ -1046,6 +1099,17 @@ class PowerShellConverter:
             return [todo_line]
 
         if re.match(r"(?i)^try\s*\{?", text) and self._try_buffer is None:
+            if lineno in self._complex_try_lines:
+                self._todo(
+                    lineno,
+                    text,
+                    "try/catch/finally 多臂或带类型，无法等价转换为 bash，块内代码已注释",
+                    category="control_flow",
+                )
+                block = _Block("comment_until", "")
+                block.end_line = self._complex_try_end.get(lineno, lineno)
+                self._stack.append(block)
+                return [self._c("# TODO: 手动检查: " + text)]
             self._try_lineno = lineno
             self._try_buffer = []
             self._try_inline_pending = False
@@ -2824,6 +2888,19 @@ class PowerShellConverter:
     # ------------------------------------------------------------------
     # 块闭合
     # ------------------------------------------------------------------
+    def _degrade_block_line(self, lineno: int, text: str) -> list[str]:
+        """把无法派发的分支关键字连同其块体整体注释降级，保持大括号平衡。"""
+        self._todo(
+            lineno,
+            text,
+            "无法解析的分支关键字，块内代码已注释，请人工检查",
+            category="control_flow",
+        )
+        block = _Block("comment", "")
+        block.brace_depth = max(1, self._net_open_braces(text))
+        self._stack.append(block)
+        return [self._c("# TODO: 手动检查: " + text)]
+
     def _close_block_line(self, lineno: int, text: str) -> list[str]:
         if text.startswith("}"):
             rest = text[1:].strip()
@@ -2836,6 +2913,9 @@ class PowerShellConverter:
             return self._pop_block(lineno)
         low = rest.lower()
         if low.startswith("elseif") or low.startswith("else if"):
+            if not self._stack or self._stack[-1].kind not in ("if", "else"):
+                self._warn(lineno, "未找到与 elseif 对应的 if，已注释", text, category="control_flow")
+                return self._degrade_block_line(lineno, text)
             after = re.sub(r"(?i)^else\s*", "", rest).strip()
             closing = self._stack.pop() if self._stack else None
             empty_before = closing is not None and self._branch_is_empty(closing)
@@ -2849,6 +2929,9 @@ class PowerShellConverter:
                 return [self._c(":")] + result
             return result
         if low.startswith("else"):
+            if not self._stack or self._stack[-1].kind not in ("if", "else"):
+                self._warn(lineno, "未找到与 else 对应的 if，已注释", text, category="control_flow")
+                return self._degrade_block_line(lineno, text)
             closing = self._stack.pop() if self._stack else None
             after = rest[4:].strip()
             lines: list[str] = []
@@ -3091,7 +3174,7 @@ class PowerShellConverter:
             self._here_lines = []
         while self._stack:
             block = self._stack.pop()
-            if block.kind == "comment":
+            if block.kind in ("comment", "comment_until"):
                 continue
             self._warn(0, f"{block.kind} 块未正常闭合，已自动补全", category="misc")
             if self._branch_is_empty(block):
