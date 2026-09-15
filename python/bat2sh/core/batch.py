@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from ..mappings import windows_tools
 from . import registry_map, rules
 from .settings import ConvertSettings
 from .suggestions import suggest_pipeline
@@ -420,6 +421,7 @@ class _Block:
     paren_depth: int = 1
     loop_vars: list[str] = field(default_factory=list)
     guard_close: str = ""
+    await_paren_close: bool = False
 
 
 @dataclass
@@ -999,8 +1001,29 @@ class BatchConverter:
         if not text:
             return [""]
 
+        if self._looks_binary(text):
+            self._warn(lineno, "疑似二进制/乱码内容（嵌入载荷或误码），已注释", text[:60], category="misc")
+            return [self._c("# " + text)]
+
+        if self._looks_like_free_text(text):
+            self._warn(lineno, "疑似说明文本（非命令），已注释", text[:60], category="misc")
+            return [self._c("# " + text)]
+
         if text.startswith(")"):
             return self._close_block_line(lineno, text)
+
+        if self._stack and self._stack[-1].await_paren_close:
+            split = self._paren_close_split(text)
+            if split is not None:
+                before, after = split
+                lines: list[str] = []
+                if before.strip():
+                    lines.extend(self._convert_line(lineno, before.strip()))
+                tail = after.strip()
+                lines.extend(
+                    self._close_block_line(lineno, ")" + (" " + tail if tail else ""))
+                )
+                return lines
 
         if self._stack and self._stack[-1].kind == "group" and self._stack[-1].paren_depth > 0:
             split = self._group_close_split(text)
@@ -1107,6 +1130,35 @@ class BatchConverter:
     # ------------------------------------------------------------------
     # 块闭合
     # ------------------------------------------------------------------
+    @staticmethod
+    def _looks_binary(text: str) -> bool:
+        """判定疑似二进制/误码行（控制字符，或拉丁补充区字符占多数）。"""
+        stripped = text.strip()
+        if not stripped:
+            return False
+        if any(ord(char) < 32 and char != "\t" for char in stripped):
+            return True
+        latin1 = sum(1 for char in stripped if 0x80 <= ord(char) <= 0x2FF)
+        visible = sum(1 for char in stripped if not char.isspace())
+        if visible > 0 and latin1 / visible >= 0.4:
+            return True
+        latin_letters = sum(
+            1 for char in stripped if 0xC0 <= ord(char) <= 0xFF and char not in "×÷"
+        )
+        cjk = sum(1 for char in stripped if 0x3400 <= ord(char) <= 0x9FFF)
+        return latin_letters >= 4 and latin_letters > cjk
+
+    @staticmethod
+    def _looks_like_free_text(text: str) -> bool:
+        """首 token 含 CJK 且整行有实质中文 → 说明文本（非命令），应注释而非执行。"""
+        tokens = text.split()
+        if not tokens:
+            return False
+        first = tokens[0]
+        if all(ord(char) < 128 for char in first):
+            return False
+        return sum(1 for char in text if 0x3400 <= ord(char) <= 0x9FFF) >= 2
+
     def _pop_block(self, lineno: int) -> list[str]:
         if not self._stack:
             self._warn(lineno, "多余的 ')'", "", category="misc")
@@ -1169,7 +1221,9 @@ class BatchConverter:
                     self._stack.pop()
                     lines.append(self._c("fi"))
                     return lines
-                self._stack.append(_Block("else", "fi"))
+                else_block = _Block("else", "fi")
+                else_block.await_paren_close = True
+                self._stack.append(else_block)
                 lines = [else_line]
                 if inner.strip():
                     lines.extend(self._convert_line(lineno, inner))
@@ -1177,6 +1231,26 @@ class BatchConverter:
             self._stack.append(_Block("else", "fi"))
             return [else_line]
         return self._pop_block(lineno)
+
+    @staticmethod
+    def _paren_close_split(text: str) -> tuple[str, str] | None:
+        """拆出行内粘连的括号块闭合 `)`；返回 (块内文本, 块后文本)，未闭合返回 None。"""
+        depth = 1
+        quote = ""
+        for index, char in enumerate(text):
+            if quote:
+                if char == quote:
+                    quote = ""
+                continue
+            if char in "\"'":
+                quote = char
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[:index], text[index + 1:]
+        return None
 
     def _group_close_split(self, text: str) -> tuple[str, str] | None:
         """在组块内容行内查找配对的 ``)``；返回 (块内文本, 块后文本)，未闭合返回 None。"""
@@ -1459,7 +1533,9 @@ class BatchConverter:
             if close < 0:
                 body = remainder[1:].strip()
                 header = self._c(f"{keyword} {cond}; then")
-                self._stack.append(_Block("if", "fi"))
+                block = _Block("if", "fi")
+                block.await_paren_close = True
+                self._stack.append(block)
                 lines = [header]
                 if body:
                     lines.extend(self._convert_line(lineno, body))
@@ -1500,12 +1576,18 @@ class BatchConverter:
             return [self._c("# TODO: 手动检查: " + text)]
 
         header = self._c(f"{keyword} {cond}; then")
-        self._stack.append(_Block("if", "fi"))
+        if_block = _Block("if", "fi")
+        self._stack.append(if_block)
         inner = self._convert_line(lineno, remainder)
-        self._stack.pop()
         lines = [header]
         lines.extend(inner)
-        lines.append(self._c("fi"))
+        if self._stack and self._stack[-1] is if_block:
+            self._stack.pop()
+            lines.append(self._c("fi"))
+        else:
+            # 显式语句体内开启了嵌套块（如 if ... for ... do ( ... )）：
+            # 本 if 的 fi 交由该内层块在其闭合时一并补出，避免提前 pop 破坏块栈。
+            self._stack[-1].guard_close = "fi"
         return lines
 
     def _parse_condition(
@@ -1811,7 +1893,9 @@ class BatchConverter:
             close = find_matching(body, "(", ")")
             if close < 0:
                 self._loop_vars.append(var)
-                self._stack.append(_Block("for", "done", var))
+                for_block = _Block("for", "done", var)
+                for_block.await_paren_close = True
+                self._stack.append(for_block)
                 lines = [header]
                 inner = body[1:].strip()
                 if inner:
@@ -2328,6 +2412,30 @@ class BatchConverter:
             line = handler(lineno, rest, expanded)
             if line is None:
                 return []
+        elif (
+            (entry := windows_tools.mapping_for(first)) is not None
+            and first not in rules.BATCH_SIMPLE_MAP
+            and first not in rules.BATCH_EXE_MAP
+        ):
+            if entry.confidence == "D":
+                self._todo(lineno, text, entry.notes or "Windows 专有命令，Linux 无对应物", category="command")
+                line = None
+            elif entry.form == "1:1":
+                self._warn(
+                    lineno,
+                    f"{raw_first} → {entry.linux}（置信度 {entry.confidence}）",
+                    text,
+                    category="command",
+                )
+                line = (entry.linux + " " + rest).strip()
+            elif entry.linux:
+                self._todo(
+                    lineno,
+                    text,
+                    f"建议 {entry.linux}（置信度 {entry.confidence}，语义不完全等价）：{entry.notes}",
+                    category="command",
+                )
+                line = None
         elif first in rules.BATCH_TODO_COMMANDS:
             hint = rules.BATCH_TODO_COMMANDS[first]
             self._todo(lineno, text, hint, category="command")
@@ -2353,10 +2461,28 @@ class BatchConverter:
             )
             line = expanded
         elif first in rules.BATCH_POSIX_KEEP:
-            line = expanded
+            if self._passthrough_unsafe(expanded):
+                self._todo(
+                    lineno,
+                    text,
+                    "命令含 bash 元字符（括号/反引号），原样透传会产生非法 bash，已保守标记",
+                    category="command",
+                )
+                line = None
+            else:
+                line = expanded
         else:
             self._warn(lineno, f"未知命令 {raw_first!r}，请确认 Linux 下可用", text, category="command")
-            line = expanded
+            if self._passthrough_unsafe(expanded):
+                self._todo(
+                    lineno,
+                    text,
+                    "未知命令含 bash 元字符（括号/反引号），原样透传会产生非法 bash，已保守标记",
+                    category="command",
+                )
+                line = None
+            else:
+                line = expanded
 
         if line is None:
             result = [self._c("# TODO: 手动检查: " + text)]
@@ -2364,6 +2490,21 @@ class BatchConverter:
             full = self._append_redirs(line, redir_text)
             result = [self._c(full)]
         return result
+
+    @staticmethod
+    def _passthrough_unsafe(line: str) -> bool:
+        """引号外的 `(`/`)`/反引号会让原样透传的未知命令变成非法 bash。"""
+        quote = ""
+        for char in line:
+            if quote:
+                if char == quote:
+                    quote = ""
+                continue
+            if char in "\"'":
+                quote = char
+            elif char in "()`":
+                return True
+        return False
 
     @staticmethod
     def _append_redirs(command: str, redir_text: str) -> str:
