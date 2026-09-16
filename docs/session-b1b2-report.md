@@ -5,12 +5,14 @@
 
 | 项 | 内容 |
 | :--- | :--- |
-| **分支名** | `session-b1b2`（未合并 main） |
+| **分支名** | `session-b1b2`（已 push；未合并 main） |
 | **起点 HEAD** | `7048e6c0b59d75b5a28c856c6f8072f03197159a`（= v1.9.2 发布后 main） |
 | **代码终点 HEAD**（B1/B2 实现完成） | `84d7e0a`（B2 首批契约消费） |
-| **分支终点 HEAD**（含 bump + 发布文档） | 见 §发布（post-tag 回填） |
-| **tag** | `v1.10.0a1`（PEP 440 pre-release，打在本 bump commit 上） |
-| **GitHub Release** | v1.10.0a1，**pre-release（不打 latest）** |
+| **发布终点 HEAD**（= tag 目标，bump commit） | **`90af605`**（`chore: bump version to v1.10.0a1`） |
+| **分支终点 HEAD**（Session B 起点） | 分支 `session-b1b2` 的 HEAD：**`90af605` + 其后追加的文档 commit**（`02c1bbb` docs、`v1.10.0a1-verification.md` 等，**无代码改动**）；Session B 以 `git rev-parse HEAD` 为准 |
+| **tag** | `v1.10.0a1`（PEP 440 pre-release，annotated，打在 `90af605`） |
+| **GitHub Release** | v1.10.0a1，**pre-release（`isPrerelease:true`；`Latest` 仍为 v1.9.2）** |
+| **CI（tag 上）** | ✅ 3.12 / 3.13 / 3.14 **全绿**（PR #3 `pull_request` run `35127369625`，head = tag commit） |
 
 ---
 
@@ -40,8 +42,13 @@
    改为结构化诚实 TODO（只接管裸命令，`.exe` 与 `ipconfig`/`ping`/`help`/`for /f` 行为不变）。
 7. **测试**：新增 62 条（30 框架 + 9 首批表 + 23 契约 + 9 集成 − 重复计数见 rounds 表），
    pytest **1262 → 1344**；每 commit 全量回归。
-8. **发布**：版本 bump → `1.10.0a1`；`release-preflight.sh` 通过；tag `v1.10.0a1`；
-   push 分支 + tag；CI 全绿确认；GitHub **pre-release**；本机安装验证。
+8. **发布**：版本 bump → `1.10.0a1`（commit `90af605`）；`release-preflight.sh` 通过；
+   tag `v1.10.0a1` 打在 bump commit；push 分支 + tag；**tag 上 CI 3.12/3.13/3.14 全绿**；
+   GitHub **pre-release**（`Latest` 仍为 v1.9.2）；本机安装验证（`install.sh` → 启动器
+   `--version` = 1.10.0a1 + 5 项实跑），见 `docs/releases/v1.10.0a1-verification.md`。
+9. **CI 入口披露**：仓库 CI 仅触发 `push main` 与 `pull_request`（分支/tag push 不触发），
+   故开了**草稿 PR #3**（`session-b1b2` → main，**未合并**）作为 CI 与审阅入口；
+   PR head = tag commit `90af605`。若不需要可关闭，不影响 tag/release。
 
 ---
 
@@ -121,6 +128,7 @@ degraded 变化可解释、崩溃 0、examples 零漂移、映射有 evidence、
 | 触及块栈核心 | **未触发**（未改块栈/词法层） |
 | 映射缺 evidence | **未触发**（4 名称 + 5 契约全部有 evidence） |
 | HEAD 并发变化 | **未触发**（HEAD 只被本 session 自己的 commit 推进，无他人写入） |
+| tag 后 CI 红 | **未触发**（3.12/3.13/3.14 全绿；未 force-push） |
 
 ---
 
@@ -167,7 +175,8 @@ degraded 变化可解释、崩溃 0、examples 零漂移、映射有 evidence、
 
 | 项 | 值 |
 | :--- | :--- |
-| **Session B 起点 HEAD** | `session-b1b2` 的**分支终点 HEAD**（见 §发布 post-tag 回填） |
+| **Session B 起点 HEAD** | `session-b1b2` 分支 HEAD（= 发布终点 `90af605` + 其后**仅文档** commit；以 `git rev-parse HEAD` 为准） |
 | 建议分支名 | `session-c4`（从本 session 终点 HEAD 累积开分支） |
+| 发布基线（可直接引用） | tag `v1.10.0a1` / commit `90af605`（CI 全绿） |
 | 本 session 的输入 | 本报告 §六「可能冲突区域」+ §七「建议」 |
-| 前置设施已就位 | `validate_name_mappings()` / `validate_contracts()`；B3/B4 wine 黄金对照；A1 冻结语义 |
+| 前置设施已就位 | `validate_name_mappings()` / `validate_contracts()`；B3/B4 wine 黄金对照（6/6）；A1 冻结语义 |

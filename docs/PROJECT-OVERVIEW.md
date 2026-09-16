@@ -466,6 +466,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/session-b1b2-rounds.md` | Session B1/B2 逐 commit 指标（B1/B2 框架与首批 + churn 实测） |
 | `docs/session-b1b2-report.md` | Session B1/B2 报告（交付/未完成/指标对比/冲突区域/Session B 起点） |
 | `docs/releases/v1.10.0a1.md` | v1.10.0a1 pre-release 发布说明（B1/B2 子系统 / 口径更正 / 已知限制 / 后续计划） |
+| `docs/releases/v1.10.0a1-verification.md` | v1.10.0a1 本机安装验证日志（版本 + 5 项实跑 + tag 上 CI 时序 + tarball sha256） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
