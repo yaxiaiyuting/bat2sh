@@ -74,3 +74,27 @@ def test_mapping_for_lookup():
     assert mapping_for("regsvr32").confidence == "D"
     assert mapping_for("REGSVR32.EXE").form == "none"
     assert mapping_for("nonexistent-tool") is None
+
+
+def test_v182_new_d_entries_present():
+    for name in (
+        "graftabl", "debug", "defrag", "regini", "mountvol",
+        "cmdow", "csty", "keyprs", "finfo", "cido",
+    ):
+        item = mapping_for(name)
+        assert item is not None, name
+        assert item.confidence == "D" and item.form == "none" and item.linux == "", name
+
+
+def test_v182_partial_entries_have_linux_target():
+    assert mapping_for("nconvert").form == "partial"
+    assert mapping_for("rasdial").linux == "nmcli"
+    assert mapping_for("subst").linux == "mount --bind"
+
+
+def test_new_d_tool_converts_to_honest_todo(convert_bat, bash_check):
+    out, report = convert_bat("@echo off\ngraftabl 936 >nul\n")
+    bash_check(out)
+    assert "# TODO: 手动检查: graftabl 936 >nul" in out
+    assert report.todo_count == 1
+
