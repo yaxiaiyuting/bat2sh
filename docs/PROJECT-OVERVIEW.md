@@ -217,6 +217,11 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
   派发顺序上它位于 `BATCH_HANDLER_MAP` 之后（部分条目仅作文档，见 v1.9.0 rounds B-3）。
 - **丢失检测（v1.9.0）**：`_check_silent_drop` 保证任何源行都落为代码/注释/诊断，不得静默蒸发；
   `cmd_todo_hint` 必须返回 `# TODO` 字符串（返回 `None` 会被派发分支整行丢弃）。
+- **`%VAR%` 块内冻结（v1.9.2）**：块内用户 `%VAR%` 的**解析时冻结**语义经
+  「占位符 + marker + `_compose` 合成期解析」实现（`_a1_*` 私有方法），
+  仅对「同最外层块内被赋值」的变量在块头前发射 `__bat2sh_snap_<v>="${v}"`。
+- **backlog（2.x）**：`call` 会**重新解析**目标文本并再次展开 `%VAR%`，与「块解析时冻结」
+  是不同机制 → 本版不建模，记入路线图 2.x 组；顶层独立 `( … )` group 块冻结亦为 backlog。
 - 报告类型定义在 `core/types.py`：`SourceKind`、`Diagnostic`、`ConvertReport`。
 
 ### 5.2 语法兜底（`core/syntax.py`）
@@ -309,7 +314,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 - 框架：**pytest**（`pyproject.toml` 配置 `testpaths=["tests"]`、`pythonpath=["python"]`、
   `-p no:cacheprovider`）。运行方式：`pip install -e .[test] && pytest`。
-- 规模：`tests/` 下 96 个 `test_*.py`，v1.9.0 报告 **1244 passed**（v1.8.3 基线 1222，新增 22）。
+- 规模：`tests/` 下 98 个 `test_*.py`，v1.9.2 报告 **1262 passed**（v1.9.0 基线 1244）。
 - 主要测试类别（按文件名归组）：
   - 批处理转换：`test_batch*.py`（含 args/arithmetic/call/forf/goto/pipeline/robocopy 等）
   - PowerShell 转换：`test_powershell*.py`（含 advanced_function/block_stack/hashtable/try_dispatch）
@@ -326,6 +331,21 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
   （事故背景见 conftest 注释，2026-09-15）。
 - 另有 `bash_check` / `bash_run` 两个 session fixture 做脚本语法校验与执行验证。
 - 三层语料思路见 `docs/testing-strategy.md`。
+
+### 7.1 运行时语义双 oracle（黄金对照，v1.9.2 新增）
+
+> **定位**：与「沙箱运行」「三层语料」「发布门槛」并列的**基础设施**，用于抓
+> **运行时语义缺陷**——这类缺陷既非语法错误，也未必带 `# TODO`（例：v1.9.2 修复的
+> A1 `%VAR%` 冻结语义丢失：产物无 TODO、`bash -n` 通过、但行为错；TODO 扫描抓不到）。
+
+- **工具**：`tools/oracle/golden_harness.py`（用例 `tools/oracle/cases/g01..g06.bat`）。
+- **方法**：wine `cmd.exe` 执行源 `.bat` vs `bat2sh` 产物经 `bash` 执行，**规范化后逐例比对**。
+- **oracle 权威顺序**：**真机 cmd / 官方文档 > wine**；wine 是重实现，仅作初筛，
+  不一致时不得直接判 bat2sh 有错。ChenPi11/cmd **不可作 oracle**（053 构造上输出错误）。
+- **已知 wine 不可信**：X5（`echo 1.0.1>out.txt` wine 不吞位，真实 cmd 把紧邻 `>` 的数字
+  当文件句柄）、A8（findstr 多词位置参数：wine 自相矛盾）→ 需真机，harness 中标注不断言。
+- **CI/无 wine**：自动 **skip 而非 fail**（`tests/test_oracle_wine.py` 与 CLI 均跳过）。
+- 背景与用例故事见 `tools/oracle/README.md`。
 
 ---
 
@@ -420,3 +440,5 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 - `tools/corpus-analysis/`：对真实 Windows 脚本做"转换 → 静态分析 → bwrap 沙箱运行 →
   结果关联"的批量体检（`analyze.py` / `sb.py` / `results-anonymized.json`），
   不含任何无许可语料原文。说明见该目录 `README.md`。
+- `tools/oracle/`：wine-cmd **黄金行为对照** harness（§7.1），抓运行时语义缺陷；
+  用例 `cases/g01..g06.bat`，无 wine 时 skip。说明见该目录 `README.md`。
