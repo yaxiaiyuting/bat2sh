@@ -3332,9 +3332,10 @@ class BatchConverter:
         return ("pwsh " + args).strip()
 
     def cmd_cmd(self, lineno: int, args: str, original: str) -> str:
-        m = re.match(r"(?i)^/c\s+(.*)$", args)
+        m = re.match(r"(?i)^(?:/[a-z]+\s+)*/c\s+(.*)$", args)
         if m:
-            inner = self._expand_vars(m.group(1), lineno)
+            inner, _quote = strip_outer_quotes(m.group(1).strip())
+            inner = self._expand_vars(inner, lineno)
             self._warn(lineno, "cmd /c 已转换为 bash -c，请检查引号嵌套", original, category="command")
             return f"bash -c {dq(inner)}"
         self._warn(lineno, "cmd /k 交互式命令无法自动转换", original, category="command")
