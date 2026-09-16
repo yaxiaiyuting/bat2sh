@@ -462,6 +462,7 @@ class _Block:
     loop_vars: list[str] = field(default_factory=list)
     guard_close: str = ""
     await_paren_close: bool = False
+    finish_parent: bool = False
 
 
 @dataclass
@@ -1271,6 +1272,21 @@ class BatchConverter:
             if self._stack:
                 self._stack.pop()
             lines.append(self._c(block.guard_close))
+        while block.finish_parent and self._stack:
+            parent = self._stack.pop()
+            pnames = list(parent.loop_vars)
+            if parent.loop_var:
+                pnames.insert(0, parent.loop_var)
+            for name in pnames:
+                if name in self._loop_vars:
+                    self._loop_vars.remove(name)
+            if parent.close_word:
+                lines.append(self._c(parent.close_word))
+            if parent.guard_close:
+                if self._stack:
+                    self._stack.pop()
+                lines.append(self._c(parent.guard_close))
+            block = parent
         return lines
 
     def _close_block_line(self, lineno: int, text: str) -> list[str]:
@@ -1324,7 +1340,10 @@ class BatchConverter:
                 return lines
             self._stack.append(_Block("else", "fi"))
             return [else_line]
-        return self._pop_block(lineno)
+        lines = self._pop_block(lineno)
+        if rest.startswith(")"):
+            lines.extend(self._close_block_line(lineno, rest))
+        return lines
 
     @staticmethod
     def _paren_close_split(text: str) -> tuple[str, str] | None:
@@ -1651,7 +1670,18 @@ class BatchConverter:
                 lines.append(base + "else")
                 if after.startswith("("):
                     close2 = find_matching(after, "(", ")")
-                    inner2 = after[1:close2] if close2 > 0 else after[1:]
+                    if close2 < 0:
+                        # else 体跨行：保留 else 块等后续 ')' 闭合（与 _close_block_line 对称）
+                        if self._stack:
+                            self._stack.pop()
+                        else_block = _Block("else", "fi")
+                        else_block.await_paren_close = True
+                        self._stack.append(else_block)
+                        inner2 = after[1:]
+                        if inner2.strip():
+                            lines.extend(self._convert_line(lineno, inner2))
+                        return lines
+                    inner2 = after[1:close2]
                     if inner2.strip():
                         lines.extend(self._convert_line(lineno, inner2))
                 elif after:
@@ -2012,13 +2042,21 @@ class BatchConverter:
             return [header]
 
         self._loop_vars.append(var)
-        self._stack.append(_Block("for", "done", var))
+        for_block = _Block("for", "done", var)
+        self._stack.append(for_block)
         inner_lines = self._convert_line(lineno, body)
-        self._stack.pop()
-        self._loop_vars.remove(var)
         lines = [header]
         lines.extend(inner_lines)
-        lines.append(self._indent + "done")
+        if self._stack and self._stack[-1] is for_block:
+            self._stack.pop()
+            self._loop_vars.remove(var)
+            lines.append(self._indent + "done")
+        else:
+            # 循环体开了跨行块（如 `else (`）：done 由内层块闭合时补出，循环变量保持活动
+            for i in range(len(self._stack) - 1, -1, -1):
+                if self._stack[i] is for_block:
+                    self._stack[i + 1].finish_parent = True
+                    break
         return lines
 
     # for /f 命令整体被双引号包装（`in ('"cmd|filter"')`）时，cmd 会把外层引号当 cmd /c
@@ -2237,13 +2275,19 @@ class BatchConverter:
             return list(prelude)
         lines = list(prelude)
         lines.extend(self._convert_line(lineno, body))
-        self._stack.pop()
-        for name in loop_vars:
-            self._loop_vars.remove(name)
-        lines.append(self._indent + close_word)
-        if block.guard_close:
+        if self._stack and self._stack[-1] is block:
             self._stack.pop()
-            lines.append(self._c(block.guard_close))
+            for name in loop_vars:
+                self._loop_vars.remove(name)
+            lines.append(self._indent + close_word)
+            if block.guard_close:
+                self._stack.pop()
+                lines.append(self._c(block.guard_close))
+        else:
+            for i in range(len(self._stack) - 1, -1, -1):
+                if self._stack[i] is block:
+                    self._stack[i + 1].finish_parent = True
+                    break
         return lines
 
     @staticmethod

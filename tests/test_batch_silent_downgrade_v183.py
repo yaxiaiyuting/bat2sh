@@ -6,6 +6,10 @@
   （**不触碰** 已有 ``_FINDSTR_CJK_MAP`` 覆盖的 ``findstr "IPv4"`` 等情形。）
 - 053 ``%%i`` **逸出 for 循环**（块结构失同步）→ 原样发射 `cat %i` 坏命令 → 诚实 TODO。
   （**不触碰** 循环内「tokens 未声明」的 warn-only 情形。）
+
+v1.9.0 更新：053 的**根因**（`_convert_if` 行内未配平 `else (` 提前闭合）已修，
+`%%i` 不再逸出，故本文件原「053 降级」断言改为断言**正确嵌套**。
+085 的降级仍有效，断言不变。
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ def test_ipconfig_forf_cjk_mapping_unchanged(convert_bat):
     assert "grep" in out
 
 
-def test_loop_var_leak_outside_loop_becomes_todo(convert_bat):
+def test_nested_else_paren_keeps_loop_var_in_scope(convert_bat):
     out, report = convert_bat(
         "@echo off\n"
         "for /f %%i in ('dir/b *.bat') do if %%i==a (echo x) else (if %%i==b (echo y) else (\n"
@@ -38,8 +42,9 @@ def test_loop_var_leak_outside_loop_becomes_todo(convert_bat):
         "type %%i>>t.txt\n"
         "))\n"
     )
-    assert "# TODO: 手动检查: type %%i>>t.txt" in out
+    assert "cat ${i}" in out
     assert "cat %i" not in out
+    assert "# TODO: 手动检查: type %%i>>t.txt" not in out
 
 
 def test_undeclared_token_still_warns_not_todo(convert_bat):
