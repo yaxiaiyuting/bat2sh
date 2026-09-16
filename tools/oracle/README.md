@@ -49,3 +49,5 @@ pytest tests/test_oracle_wine.py -q        # 无 wine 时 skip
 ```
 
 无 wine / 无 bash 时跳过而非失败，与 CI 语料策略一致。
+`wine_available()` 还要求当前 `HOME` 下存在默认 wine prefix 的 `cmd.exe`
+（这样 `release-preflight.sh` 的空 `HOME` 环境会正确 skip，而非误失败）。

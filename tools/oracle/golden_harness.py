@@ -37,7 +37,10 @@ UNRELIABLE_PROBES: dict[str, str] = {
 
 
 def wine_available() -> bool:
-    return shutil.which("wine") is not None
+    if shutil.which("wine") is None:
+        return False
+    prefix = Path(__import__("os").environ.get("HOME", "")) / ".wine"
+    return (prefix / "drive_c" / "windows" / "system32" / "cmd.exe").is_file()
 
 
 def normalize(text: str) -> str:
