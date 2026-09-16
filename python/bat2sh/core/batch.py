@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from ..mappings import windows_names, windows_tools
+from ..mappings import output_contracts, windows_names, windows_tools
 from . import registry_map, rules
 from .settings import ConvertSettings
 from .suggestions import suggest_pipeline
@@ -2771,6 +2771,18 @@ class BatchConverter:
                     category="command",
                 )
                 line = None
+        elif (
+            (contract := output_contracts.contract_for(first)) is not None
+            and contract.integrated
+            and contract.shape == "none"
+        ):
+            self._todo(
+                lineno,
+                text,
+                f"{first} 在 Linux 无对应物（输出契约：{contract.notes}）",
+                category="command",
+            )
+            line = None
         elif first in rules.BATCH_TODO_COMMANDS:
             hint = rules.BATCH_TODO_COMMANDS[first]
             self._todo(lineno, text, hint, category="command")
