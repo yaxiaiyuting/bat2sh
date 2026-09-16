@@ -623,8 +623,8 @@ class BatchConverter:
                     in_function = False
                 result.append(self._substitute_guarded(line, pattern, assigned_anywhere))
                 continue
-            assigned_main |= self._collect_line_vars(stripped)
             result.append(self._substitute_guarded(line, pattern, assigned_main))
+            assigned_main |= self._collect_line_vars(stripped)
         return "\n".join(result)
 
     def _collect_line_vars(self, stripped: str) -> set[str]:
