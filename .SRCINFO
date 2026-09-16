@@ -12,7 +12,7 @@ pkgbase = bat2sh
 	depends = shared-mime-info
 	depends = desktop-file-utils
 	options = !strip
-	source = bat2sh-1.9.0.tar.gz::https://github.com/yaxiaiyuting/bat2sh/archive/refs/tags/v1.9.0.tar.gz
-	sha256sums = 93b0da08975a610b74fc19407251103c7219258644724bc5ccd28826398e8337
+	source = bat2sh-1.9.2.tar.gz::https://github.com/yaxiaiyuting/bat2sh/archive/refs/tags/v1.9.2.tar.gz
+	sha256sums = b362d2d5e2ea39fd303f1cf23791b368f5ebe85086e222f4a9ba04f0626db99a
 
 pkgname = bat2sh
