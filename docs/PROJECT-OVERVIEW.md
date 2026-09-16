@@ -308,6 +308,10 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 ## 8. 发布流程
 
+0. **tag 前必跑 `./scripts/release-preflight.sh`**（v1.8.1 起）：
+   在**空 `HOME` 的类 CI 环境**下跑 pytest，复现 CI「无外部语料/配置」条件，
+   并要求工作区干净。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
+   本地全绿但 CI 红，tag 打完后才发现。该脚本用于杜绝此类「本地绿、tag 后红」。
 1. **版本号两处同步**：`pyproject.toml` 的 `version` 与 `python/bat2sh/__init__.py` 的
    `__version__`（两者当前均为 `1.8.1`）。
 2. **PKGBUILD 同步**：更新 `pkgver`；tag 生成后同步 `sha256sums`（可用 `updpkgsums`），

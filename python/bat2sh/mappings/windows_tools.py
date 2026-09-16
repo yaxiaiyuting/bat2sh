@@ -58,6 +58,28 @@ def validate_mappings(entries: tuple[ToolMapping, ...] | None = None) -> list[st
 
 WINDOWS_TOOLS: tuple[ToolMapping, ...] = (
     ToolMapping(
+        win="title",
+        linux="printf '\\033]0;%s\\007'",
+        form="partial",
+        confidence="B",
+        output_contract=False,
+        dangerous=False,
+        target_exists="unknown",
+        evidence="corpus/与某人的QQ临时对话.bat:3",
+        notes="可近似为 ANSI 设置终端标题（printf \\033]0;…\\007）；无 TTY 时无效果，需人工确认。",
+    ),
+    ToolMapping(
+        win="msg",
+        linux="wall",
+        form="partial",
+        confidence="B",
+        output_contract=False,
+        dangerous=False,
+        target_exists="unknown",
+        evidence="corpus/瑞星杀毒软件2008批处理版.bat:49",
+        notes="`msg *` 群发消息可近似为 wall；/time 等开关无对应，且需相应权限。",
+    ),
+    ToolMapping(
         win="iexplore",
         linux="xdg-open",
         form="partial",

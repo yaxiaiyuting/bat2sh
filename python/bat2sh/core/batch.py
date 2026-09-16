@@ -68,6 +68,8 @@ _CARET_ESCAPES = {
 }
 _CARET_RESTORES = {placeholder: char for char, placeholder in _CARET_ESCAPES.items()}
 _LITERAL_PERCENT = "\ue200"
+_ADJACENT_VAR_SEP = "\ue201"
+_PERCENT_MODULO = "\ue202"
 
 #: findstr 中文模式识别：CJK 统一表意文字（含扩展 A）
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
@@ -123,9 +125,38 @@ def _protect_carets(text: str) -> str:
     return "".join(out)
 
 
+_ARITH_VAR_RE = re.compile(r"%([^\W\d]\w*)%")
+
+
+def _protect_arith_modulo(text: str) -> str:
+    """`set /a` 中 `%%` 是取模运算符而非转义；逐字符扫描以免吞掉 `%var%` 的收尾百分号。
+
+    `%%` 后紧跟字母时保留原样（那是 for 循环变量 `%%i`，须留给 `_expand_vars` 处理）。
+    """
+    out: list[str] = []
+    index = 0
+    while index < len(text):
+        match = _ARITH_VAR_RE.match(text, index)
+        if match:
+            out.append(match.group(0))
+            index = match.end()
+            continue
+        if text.startswith("%%", index):
+            following = text[index + 2 : index + 3]
+            if not (following.isascii() and following.isalpha()):
+                out.append(_PERCENT_MODULO)
+                index += 2
+                continue
+        out.append(text[index])
+        index += 1
+    return "".join(out)
+
+
 def _restore_placeholders(line: str) -> str:
     for placeholder, char in _CARET_RESTORES.items():
         line = line.replace(placeholder, char)
+    line = line.replace(_ADJACENT_VAR_SEP, "")
+    line = line.replace(_PERCENT_MODULO, "%")
     return line.replace(_LITERAL_PERCENT, "%")
 
 
@@ -795,6 +826,16 @@ class BatchConverter:
                 category="variables",
             )
             return _LITERAL_PERCENT + m.group(1) + _LITERAL_PERCENT
+
+        # %A%%B% 相邻变量：先在中缝插入哨兵，避免 `%%B%%` 被误判为转义百分号
+        previous = None
+        while previous != text:
+            previous = text
+            text = re.sub(
+                r"%([A-Za-z_][A-Za-z0-9_]*)%%([A-Za-z_][A-Za-z0-9_]*)%",
+                lambda m: "%" + m.group(1) + "%" + _ADJACENT_VAR_SEP + "%" + m.group(2) + "%",
+                text,
+            )
 
         # %%%VAR%%% 间接引用 / %%NAME%% 转义百分号（单字母留给 for 循环变量处理）
         text = re.sub(r"%%%([A-Za-z_][A-Za-z0-9_]*)%%%", indirect_repl, text)
@@ -2384,6 +2425,8 @@ class BatchConverter:
             body = "pause"
         if re.match(r"(?i)^@?\s*echo(?:\s|$)", body):
             body = body.replace("$", _DOLLAR_PLACEHOLDER)
+        if re.match(r"(?i)^@?\s*set\s+/a\b", body):
+            body = _protect_arith_modulo(body)
         expanded = self._expand_vars(body, lineno)
         tokens = tokenize_args(expanded)
         if not tokens:
@@ -3113,6 +3156,7 @@ class BatchConverter:
         if m:
             spec, _quote = strip_outer_quotes(m.group(1).strip())
             spec = spec.replace(_LITERAL_PERCENT, "%")
+            spec = spec.replace(_PERCENT_MODULO, "%")
             assign = re.match(r"^([\w.]+)\s*([+\-*/%]?=)\s*(.*)$", spec, re.S)
             if assign:
                 return self._set_arithmetic(lineno, assign, original)
