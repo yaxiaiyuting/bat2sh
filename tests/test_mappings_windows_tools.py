@@ -98,3 +98,52 @@ def test_new_d_tool_converts_to_honest_todo(convert_bat, bash_check):
     assert "# TODO: 手动检查: graftabl 936 >nul" in out
     assert report.todo_count == 1
 
+
+
+def test_v190_new_entries_present_with_evidence():
+    expected = {
+        "tree": ("tree", "B", "partial"),
+        "ipseccmd": ("", "D", "none"),
+        "tskill": ("pkill", "C", "partial"),
+        "netsh": ("", "D", "none"),
+        "at": ("systemd-run", "C", "partial"),
+        "arp": ("ip neigh", "C", "partial"),
+        "explorer": ("", "D", "none"),
+        "beenotice": ("", "D", "none"),
+        "chkntfs": ("", "D", "none"),
+        "help": ("man", "C", "partial"),
+    }
+    for name, (linux, conf, form) in expected.items():
+        item = mapping_for(name)
+        assert item is not None, name
+        assert (item.linux, item.confidence, item.form) == (linux, conf, form), name
+        assert re.match(r"^corpus/.+:\d+$", item.evidence), name
+
+
+def test_v190_help_entry_declares_output_contract():
+    item = mapping_for("help")
+    assert item.output_contract is True
+    assert "输出格式" in item.notes
+
+
+def test_v190_new_entries_convert_to_honest_todo(convert_bat, bash_check):
+    for command in (
+        "tskill logo_1",
+        "netsh winsock reset",
+        "chkntfs /T:0",
+        "BeeNotice.exe /M:hi",
+        "Explorer.exe \"%k%\"",
+    ):
+        out, report = convert_bat("@echo off\n" + command + "\n")
+        bash_check(out)
+        assert "# TODO: 手动检查: " in out, command
+        assert report.todo_count == 1, command
+
+
+def test_v190_tree_mapping_is_inert_but_documented():
+    # tree 已被 BATCH_SIMPLE_MAP 命中（1:1 tree），此处 entry 仅作文档
+    from bat2sh.core import rules
+
+    assert rules.BATCH_SIMPLE_MAP.get("tree") == "tree"
+    assert mapping_for("tree").target_exists == "unknown"
+    assert "tree 包" in mapping_for("tree").notes
