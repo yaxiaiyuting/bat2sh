@@ -500,6 +500,7 @@ class BatchConverter:
         self._renamed_vars: dict[str, str] = {}
         self._assigned_vars: set[str] = set()
         self._assigned_by_upper: dict[str, str] = {}
+        self._loop_var_leak = False
         self._current_command = ""
         self._suppress_filter_fallback = False
 
@@ -818,6 +819,8 @@ class BatchConverter:
             if ch in self._loop_vars:
                 return "${%s}" % ch
             self._warn(lineno, f"循环变量 %%{m.group(1)} 出现在 for 循环之外", text, category="control_flow")
+            if not self._loop_vars:
+                self._loop_var_leak = True
             return "%" + m.group(1)
 
         def indirect_repl(m: re.Match[str]) -> str:
@@ -2039,6 +2042,19 @@ class BatchConverter:
             if not raw:
                 return self._for_todo_lines(lineno, text, body, "for /f 的 '命令' 为空，请手工转换")
             raw = self._unwrap_for_f_command(raw)
+            _tokens = tokenize_args(raw)
+            if (
+                _tokens
+                and _tokens[0].strip("\"'").lower() == "ipconfig"
+                and re.search(r"(?i)\bip\s+address\b", raw)
+            ):
+                return self._for_todo_lines(
+                    lineno,
+                    text,
+                    body,
+                    "for /f 解析 ipconfig 英文标签 “ip address”：Linux ip addr 无该关键词、"
+                    "列位不同（tokens=15 等），静态不可靠，请手工处理",
+                )
             if _ERRORLEVEL_VAR_RE.search(raw) or (
                 self._delayed_expansion and _DELAYED_ERRORLEVEL_RE.search(raw)
             ):
@@ -2450,6 +2466,15 @@ class BatchConverter:
         if re.match(r"(?i)^@?\s*set\s+/a\b", body):
             body = _protect_arith_modulo(body)
         expanded = self._expand_vars(body, lineno)
+        if self._loop_var_leak:
+            self._loop_var_leak = False
+            self._todo(
+                lineno,
+                text,
+                "循环变量 %%x 逸出 for 循环（块结构失同步），原样发射会产生坏命令，请人工核对",
+                category="control_flow",
+            )
+            return [self._c("# TODO: 手动检查: " + text)]
         if _DYNAMIC_DELAYED_RE.search(expanded):
             return [
                 self._c(
