@@ -354,6 +354,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v1.8.3-design.md` | v1.8.3 设计：6 条攻坚评估 + §5 退回条目（085/053/062②）检查 |
 | `docs/v1.8.3-rounds.md` | v1.8.3 逐 commit 指标（含两处过度触发收窄记录） |
 | `docs/releases/v1.8.3.md` | v1.8.3 发布说明（4 修复 / 3 退回 / 2 降级 / 145 分母指标） |
+| `docs/releases/v1.8.3-verification.md` | v1.8.3 本机安装验证日志（版本 + 5 项实跑 + 145 分母门槛 + CI 时序） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
