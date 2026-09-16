@@ -10,10 +10,31 @@ from __future__ import annotations
 
 
 def test_unknown_command_path_backslashes_converted(convert_bat, bash_check):
-    out, _ = convert_bat("@echo off\nc:\\windows\\system32\\rasdial foo bar\n", bash_check=False)
+    out, _ = convert_bat("@echo off\nc:\\windows\\system32\\mytool foo bar\n", bash_check=False)
     bash_check(out)
-    assert "c:/windows/system32/rasdial foo bar" in out
+    assert "c:/windows/system32/mytool foo bar" in out
     assert "\\" not in out.split("源文件:")[1]
+
+
+def test_mapped_path_prefix_command_resolves_to_todo(convert_bat):
+    # v1.9.0 B-1：盘符全路径先取 basename 再查映射表（rasdial 为 C 档 → 建议 + TODO）
+    out, report = convert_bat("@echo off\nc:\\windows\\system32\\rasdial foo bar\n")
+    assert "# TODO: 手动检查:" in out
+    assert not any(line.strip().startswith("c:/windows") for line in out.splitlines())
+    assert report.todo_count >= 1
+
+
+def test_start_inner_windows_only_command_becomes_todo(convert_bat):
+    # v1.9.0 B-2：`start` 的目标若不是路径，应识别 Windows 专有命令并诚实 TODO
+    out, report = convert_bat('@echo off\nSTART /WAIT REGEDIT /S "x.reg"\n')
+    assert "# TODO: 手动检查: START /WAIT REGEDIT" in out
+    assert report.todo_count >= 1
+
+
+def test_start_inner_normal_command_unchanged(convert_bat):
+    out, report = convert_bat("@echo off\nstart /wait notepad\n")
+    assert "notepad" in out
+    assert report.todo_count == 0
 
 
 def test_unknown_command_relative_path_converted(convert_bat):

@@ -453,6 +453,34 @@ def _unescape_for_f_command(text: str) -> str:
     return "".join(out)
 
 
+def _windows_path_command_base(token: str) -> str:
+    norm = token.strip().strip("\"'").replace("\\", "/")
+    if not (re.match(r"(?i)^[a-z]:/", norm) or norm.startswith("//")):
+        return ""
+    return norm.rsplit("/", 1)[-1].lower()
+
+
+def _is_dispatchable_command(name: str) -> bool:
+    if not name:
+        return False
+    if name in rules.BATCH_HANDLER_MAP or name in rules.BATCH_SIMPLE_MAP:
+        return True
+    if name in rules.BATCH_TODO_COMMANDS:
+        return True
+    base = name[:-4] if name.endswith(".exe") else name
+    return windows_tools.mapping_for(base) is not None
+
+
+def _is_windows_only_command(name: str) -> bool:
+    if not name:
+        return False
+    if name in rules.BATCH_TODO_COMMANDS:
+        return True
+    base = name[:-4] if name.endswith(".exe") else name
+    entry = windows_tools.mapping_for(base)
+    return entry is not None and entry.confidence == "D"
+
+
 @dataclass
 class _Block:
     kind: str          # if / else / for / group / comment
@@ -2577,6 +2605,9 @@ class BatchConverter:
         if stuck and stuck.group(1) in rules.BATCH_HANDLER_MAP:
             first = stuck.group(1)
             rest = ("/" + stuck.group(2) + (" " + rest if rest else "")).strip()
+        path_base = _windows_path_command_base(first)
+        if path_base and path_base != first and _is_dispatchable_command(path_base):
+            first = path_base
         self._current_command = first
 
         if first == "exit":
@@ -2988,6 +3019,15 @@ class BatchConverter:
             or target_inner.endswith((".txt", ".pdf", ".html", ".url", ".lnk"))
         )
         self._warn(lineno, "start 的语义与 xdg-open/后台执行不完全一致，请检查", original, category="command")
+        target_cmd = target.strip("\"'").lower().rstrip(".")
+        if not is_path and _is_windows_only_command(target_cmd):
+            self._todo(
+                lineno,
+                original,
+                f"start 的目标 {target_cmd} 在 Linux 无对应物，请手工改写",
+                category="command",
+            )
+            return "# TODO: 手动检查: " + original
         if is_path:
             command = f"xdg-open {dq(target)}"
             if not wait:
