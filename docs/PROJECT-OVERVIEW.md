@@ -3,7 +3,7 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.8.1**（tag `v1.8.1`；打包同步 commit 见 §8 发布流程）。
+> 当前版本为 **v1.8.2**（tag `v1.8.2`；打包同步 commit 见 §8 发布流程）。
 
 ### 指标口径（v1.8.0 起，务必区分）
 
@@ -56,16 +56,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | 1.8.1 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
+| 当前版本 | 1.8.2 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1167 passed** | `docs/releases/v1.8.0.md` §验证 |
+| 测试基线 | pytest **1207 passed** | `docs/releases/v1.8.2.md` §验证 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.8.1（共 18 个） | `git tag` |
+| 已有 tag | v1.0.0 … v1.8.2（共 19 个） | `git tag` |
 
 ---
 
@@ -73,7 +73,7 @@
 
 ```text
 bat2sh/
-├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.8.1）
+├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.8.2）
 ├── PKGBUILD                     # Arch/CachyOS 打包脚本（makepkg -si）
 ├── .SRCINFO                     # PKGBUILD 的机读元数据（pkgver/sha256sums 同步）
 ├── bat2sh.desktop               # 桌面项（MIME 关联 x-bat / x-powershell）
@@ -286,7 +286,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 - 框架：**pytest**（`pyproject.toml` 配置 `testpaths=["tests"]`、`pythonpath=["python"]`、
   `-p no:cacheprovider`）。运行方式：`pip install -e .[test] && pytest`。
-- 规模：`tests/` 下 78 个 `test_*.py`，v1.8.1 报告 **1167 passed**（v1.8.0 基线 1145，新增 22）。
+- 规模：`tests/` 下 84 个 `test_*.py`，v1.8.2 报告 **1207 passed**（v1.8.1 基线 1167，新增 40）。
 - 主要测试类别（按文件名归组）：
   - 批处理转换：`test_batch*.py`（含 args/arithmetic/call/forf/goto/pipeline/robocopy 等）
   - PowerShell 转换：`test_powershell*.py`（含 advanced_function/block_stack/hashtable/try_dispatch）
@@ -313,7 +313,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
    并要求工作区干净。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
    本地全绿但 CI 红，tag 打完后才发现。该脚本用于杜绝此类「本地绿、tag 后红」。
 1. **版本号两处同步**：`pyproject.toml` 的 `version` 与 `python/bat2sh/__init__.py` 的
-   `__version__`（两者当前均为 `1.8.1`）。
+   `__version__`（两者当前均为 `1.8.2`）。
 2. **PKGBUILD 同步**：更新 `pkgver`；tag 生成后同步 `sha256sums`（可用 `updpkgsums`），
    并更新 `.SRCINFO` 使其与 `PKGBUILD` 一致。v1.6.0 的提交序列即为
    `030ab72 chore: bump version to v1.6.0` → `1f68d42 chore(pkg): sync PKGBUILD hashes`
@@ -347,6 +347,8 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v1.8.1-design.md` | v1.8.1 设计：bat 静默错误基准 + 结构化映射表 schema/校验 + Round 0 基线 |
 | `docs/v1.8.1-rounds.md` | v1.8.1 多轮循环记录（5 轮，指标对比与 backlog） |
 | `docs/releases/v1.8.1.md` | v1.8.1 发布说明（版本理由 / 修复 / 新增映射 / 未修原因 / 静默与环境占比） |
+| `docs/v1.8.2-artifact-classification.md` | v1.8.2 转换 artifact 逐条分类（A/B/C/S）+ Batch 2b 词法层评估 + 2c/3 结果 + 验收快照 |
+| `docs/releases/v1.8.2.md` | v1.8.2 发布说明（A/B/C/S 分类 / A-1..A-6 修复 / 映射扩展 13 条 / tag 上 CI 复核） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
