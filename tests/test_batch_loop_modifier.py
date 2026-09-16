@@ -58,4 +58,5 @@ def test_combined_no_interference(convert_bat, tmp_path):
     )
     proc = _run(tmp_path, out)
     assert proc.returncode == 0, proc.stderr
-    assert proc.stdout == "a.txt\nY=1\na\n.txt\n"
+    # cmd 在块解析时冻结 %Y%（此时尚未赋值 ⇒ 空串）；块内 set /a 的赋值对该 %Y% 不可见（wine 实测 Y=）
+    assert proc.stdout == "a.txt\nY=\na\n.txt\n"

@@ -491,6 +491,10 @@ class _Block:
     guard_close: str = ""
     await_paren_close: bool = False
     finish_parent: bool = False
+    # A1（v1.9.2）：%VAR% 块内冻结 —— 该块作为最外层时的引用/赋值集合与 marker id
+    a1_refs: list[str] = field(default_factory=list)
+    a1_assigns: set[str] = field(default_factory=set)
+    a1_marker_id: int | None = None
 
 
 @dataclass
@@ -529,6 +533,8 @@ class BatchConverter:
         self._renamed_vars: dict[str, str] = {}
         self._assigned_vars: set[str] = set()
         self._assigned_by_upper: dict[str, str] = {}
+        self._a1_blocks: dict[int, _Block] = {}
+        self._a1_seq = 0
         self._loop_var_leak = False
         self._current_command = ""
         self._suppress_filter_fallback = False
@@ -737,6 +743,46 @@ class BatchConverter:
     def _c(self, content: str) -> str:
         return self._indent + content if content else ""
 
+    # A1（v1.9.2）：%VAR% 块内冻结 —— marker + 占位符，合成期统一解析
+    _A1_REF_RE = re.compile(r"\x00A1:(\d+):([A-Za-z_][A-Za-z0-9_]*)\x00")
+    _A1_MARKER_RE = re.compile(r"^([ \t]*)\x00B1:(\d+)\x00[ \t]*\n?", re.M)
+
+    def _a1_marker_line(self, block: _Block) -> str:
+        mid = self._a1_seq
+        self._a1_seq += 1
+        block.a1_marker_id = mid
+        self._a1_blocks[mid] = block
+        return self._c("\x00B1:%d\x00" % mid)
+
+    def _a1_snapshot_names(self, block: _Block) -> list[str]:
+        if block.a1_marker_id is None:
+            return []
+        names: list[str] = []
+        for name in block.a1_refs:
+            if name in block.a1_assigns and name not in names:
+                names.append(name)
+        return names
+
+    def _a1_resolve(self, text: str) -> str:
+        def marker_sub(m: re.Match[str]) -> str:
+            block = self._a1_blocks.get(int(m.group(2)))
+            names = self._a1_snapshot_names(block) if block is not None else []
+            if not names:
+                return ""
+            indent = m.group(1)
+            body = "\n".join(f'{indent}__bat2sh_snap_{n}="${{{n}}}"' for n in names)
+            return body + "\n"
+
+        def ref_sub(m: re.Match[str]) -> str:
+            block = self._a1_blocks.get(int(m.group(1)))
+            name = m.group(2)
+            if block is not None and name in self._a1_snapshot_names(block):
+                return "${__bat2sh_snap_%s}" % name
+            return "${%s}" % name
+
+        text = self._A1_MARKER_RE.sub(marker_sub, text)
+        return self._A1_REF_RE.sub(ref_sub, text)
+
     def _warn(
         self, lineno: int, message: str, original: str = "", category: str = ""
     ) -> None:
@@ -871,7 +917,7 @@ class BatchConverter:
         body = "\n".join(self._out).strip("\n")
         if body:
             chunks.append(body)
-        return "\n".join(chunks).rstrip() + "\n"
+        return self._a1_resolve("\n".join(chunks).rstrip() + "\n")
 
     # ------------------------------------------------------------------
     # 变量展开
@@ -1046,7 +1092,14 @@ class BatchConverter:
                 if upper in rules.BATCH_ENV_WARN:
                     self._warn(lineno, f"%{name}% 的转换可能不完全等价", text, category="variables")
                 return rules.BATCH_ENV_MAP[upper]
-            return "${%s}" % sanitize_identifier(name)
+            sanitized = sanitize_identifier(name)
+            if self._stack:
+                block = self._stack[0]
+                if sanitized not in block.a1_refs:
+                    block.a1_refs.append(sanitized)
+                if block.a1_marker_id is not None:
+                    return "\x00A1:%d:%s\x00" % (block.a1_marker_id, sanitized)
+            return "${%s}" % sanitized
 
         text = re.sub(r"%([^\W\d]\w*)%", env_repl, text)
         return text
@@ -1352,8 +1405,10 @@ class BatchConverter:
                     tail = after[close + 1:].strip()
                     if tail:
                         self._warn(lineno, f"else 块后的内容被忽略: {tail}", text, category="misc")
-                    self._stack.append(_Block("else", "fi"))
-                    lines = [else_line]
+                    else_block = _Block("else", "fi")
+                    marker = self._a1_marker_line(else_block)
+                    self._stack.append(else_block)
+                    lines = [marker, else_line]
                     if body.strip():
                         lines.extend(self._convert_line(lineno, body))
                     self._stack.pop()
@@ -1361,13 +1416,16 @@ class BatchConverter:
                     return lines
                 else_block = _Block("else", "fi")
                 else_block.await_paren_close = True
+                marker = self._a1_marker_line(else_block)
                 self._stack.append(else_block)
-                lines = [else_line]
+                lines = [marker, else_line]
                 if inner.strip():
                     lines.extend(self._convert_line(lineno, inner))
                 return lines
-            self._stack.append(_Block("else", "fi"))
-            return [else_line]
+            else_block = _Block("else", "fi")
+            marker = self._a1_marker_line(else_block)
+            self._stack.append(else_block)
+            return [marker, else_line]
         lines = self._pop_block(lineno)
         if rest.startswith(")"):
             lines.extend(self._close_block_line(lineno, rest))
@@ -1676,8 +1734,9 @@ class BatchConverter:
                 header = self._c(f"{keyword} {cond}; then")
                 block = _Block("if", "fi")
                 block.await_paren_close = True
+                marker = self._a1_marker_line(block)
                 self._stack.append(block)
-                lines = [header]
+                lines = [marker, header]
                 if body:
                     lines.extend(self._convert_line(lineno, body))
                 return lines
@@ -1685,8 +1744,10 @@ class BatchConverter:
             tail = remainder[close + 1:].strip()
             base = self._indent
             header = base + f"{keyword} {cond}; then"
-            self._stack.append(_Block("if", "fi"))
-            lines = [header]
+            if_block = _Block("if", "fi")
+            marker = self._a1_marker_line(if_block)
+            self._stack.append(if_block)
+            lines = [marker, header]
             if body.strip():
                 lines.extend(self._convert_line(lineno, body))
             if tail.lower().startswith("else"):
@@ -1729,9 +1790,10 @@ class BatchConverter:
 
         header = self._c(f"{keyword} {cond}; then")
         if_block = _Block("if", "fi")
+        marker = self._a1_marker_line(if_block)
         self._stack.append(if_block)
         inner = self._convert_line(lineno, remainder)
-        lines = [header]
+        lines = [marker, header]
         lines.extend(inner)
         if self._stack and self._stack[-1] is if_block:
             self._stack.pop()
@@ -2047,16 +2109,19 @@ class BatchConverter:
                 self._loop_vars.append(var)
                 for_block = _Block("for", "done", var)
                 for_block.await_paren_close = True
+                marker = self._a1_marker_line(for_block)
                 self._stack.append(for_block)
-                lines = [header]
+                lines = [marker, header]
                 inner = body[1:].strip()
                 if inner:
                     lines.extend(self._convert_line(lineno, inner))
                 return lines
             inner = body[1:close]
             self._loop_vars.append(var)
-            self._stack.append(_Block("for", "done", var))
-            lines = [header]
+            for_block = _Block("for", "done", var)
+            marker = self._a1_marker_line(for_block)
+            self._stack.append(for_block)
+            lines = [marker, header]
             if inner.strip():
                 lines.extend(self._convert_line(lineno, inner))
             self._stack.pop()
@@ -2066,14 +2131,17 @@ class BatchConverter:
 
         if not body:
             self._loop_vars.append(var)
-            self._stack.append(_Block("for", "done", var))
-            return [header]
+            for_block = _Block("for", "done", var)
+            marker = self._a1_marker_line(for_block)
+            self._stack.append(for_block)
+            return [marker, header]
 
         self._loop_vars.append(var)
         for_block = _Block("for", "done", var)
+        marker = self._a1_marker_line(for_block)
         self._stack.append(for_block)
         inner_lines = self._convert_line(lineno, body)
-        lines = [header]
+        lines = [marker, header]
         lines.extend(inner_lines)
         if self._stack and self._stack[-1] is for_block:
             self._stack.pop()
@@ -2243,9 +2311,11 @@ class BatchConverter:
 
         guard_open: list[str] = []
         guard_close = ""
+        guard_block: _Block | None = None
         if file_target is not None:
             guard_open.append(self._indent + f"if [ -r {file_target} ]; then")
-            self._stack.append(_Block("if", ""))
+            guard_block = _Block("if", "")
+            self._stack.append(guard_block)
             guard_close = "fi"
         header = self._indent + f"while {ifs}read -r {' '.join(read_vars)}; do"
         if command is not None:
@@ -2276,7 +2346,8 @@ class BatchConverter:
             guard = self._c(f'[ -z "${first_var}" ] && continue')
         trim_var = loop_vars[-1]
         trim = self._c(f"{trim_var}=\"${{{trim_var}%$'\\r'}}\"")
-        prelude = [*guard_open, header, trim, guard]
+        marker = self._a1_marker_line(guard_block if guard_block is not None else block)
+        prelude = [marker, *guard_open, header, trim, guard]
 
         body = body.strip()
         if body.startswith("("):
@@ -3405,6 +3476,8 @@ class BatchConverter:
     def _register_assigned(self, name: str) -> None:
         self._assigned_vars.add(name)
         self._assigned_by_upper[name.upper()] = name
+        if self._stack:
+            self._stack[0].a1_assigns.add(name)
 
     def _variable_name(self, raw_var: str, lineno: int, original: str) -> str:
         name = sanitize_identifier(raw_var)
