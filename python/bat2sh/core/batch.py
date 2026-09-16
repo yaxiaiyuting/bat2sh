@@ -2523,7 +2523,7 @@ class BatchConverter:
             line = None
         elif first in rules.BATCH_SIMPLE_MAP:
             mapped = rules.BATCH_SIMPLE_MAP[first]
-            line = (mapped + " " + rest).strip()
+            line = (mapped + " " + convert_backslashes(rest)).strip()
         elif first.endswith((".exe", ".com")) or first in rules.BATCH_EXE_MAP:
             mapped = rules.BATCH_EXE_MAP.get(first)
             if mapped:
