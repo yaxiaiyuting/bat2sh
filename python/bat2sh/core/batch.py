@@ -490,6 +490,7 @@ class BatchConverter:
         self._errorlevel_lines: set[int] = set()
         self._renamed_vars: dict[str, str] = {}
         self._assigned_vars: set[str] = set()
+        self._assigned_by_upper: dict[str, str] = {}
         self._current_command = ""
         self._suppress_filter_fallback = False
 
@@ -962,6 +963,9 @@ class BatchConverter:
                     category="variables",
                 )
                 return rules.BATCH_ENV_MAP[upper]
+            if upper in self._assigned_by_upper and upper in rules.BATCH_ENV_MAP:
+                # cmd 变量大小写不敏感：脚本 `set path=…` 后 `%PATH%` 指用户变量而非 Linux $PATH。
+                return "${%s}" % self._assigned_by_upper[upper]
             if upper in rules.BATCH_ENV_MAP:
                 if upper in rules.BATCH_ENV_WARN:
                     self._warn(lineno, f"%{name}% 的转换可能不完全等价", text, category="variables")
@@ -3169,7 +3173,7 @@ class BatchConverter:
             assign = re.match(r"^([\w.]+)\s*([+\-*/%]?=)\s*(.*)$", spec, re.S)
             if assign:
                 result = self._set_arithmetic(lineno, assign, original)
-                self._assigned_vars.add(sanitize_identifier(assign.group(1)))
+                self._register_assigned(sanitize_identifier(assign.group(1)))
                 return result
             # 无赋值：cmd 会显示表达式/变量的当前数值
             return f"echo $(( {spec} ))"
@@ -3178,7 +3182,7 @@ class BatchConverter:
             spec = m.group(1).strip()
             var, _, prompt = spec.partition("=")
             name = sanitize_identifier(var.strip().strip('"'))
-            self._assigned_vars.add(name)
+            self._register_assigned(name)
             prompt_text = convert_backslashes(self._expand_vars(prompt.strip().strip('"'), lineno))
             return guard_read(f"read -rp {dq(prompt_text)} {name}", self.settings.strict_mode)
         quoted_value = False
@@ -3198,13 +3202,17 @@ class BatchConverter:
                 return "env | grep -E " + dq("^" + re.escape(args.strip())) + " || true"
         raw_var = var.strip()
         name = self._variable_name(raw_var, lineno, original)
-        self._assigned_vars.add(name)
+        self._register_assigned(name)
         # 未加引号的 `set x=y   ` 在 cmd 中会截断尾随空白；引号形式则原样保留。
         value = value.rstrip("\r\n") if quoted_value else value.rstrip()
         value = convert_backslashes(self._expand_vars(value, lineno))
         if self.settings.quote_variables or value == "" or re.search(r"[\s$&|()<>]", value):
             return f"{name}={self._dq_preserving_substitutions(value)}"
         return f"{name}={value}"
+
+    def _register_assigned(self, name: str) -> None:
+        self._assigned_vars.add(name)
+        self._assigned_by_upper[name.upper()] = name
 
     def _variable_name(self, raw_var: str, lineno: int, original: str) -> str:
         name = sanitize_identifier(raw_var)
