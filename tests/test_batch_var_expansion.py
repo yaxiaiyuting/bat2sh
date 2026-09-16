@@ -48,3 +48,22 @@ def test_for_variable_in_arithmetic_keeps_loop_var(convert_bat, bash_check, bash
     proc = bash_run(out)
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout.strip() == "9"
+
+
+def test_set_a_reads_unset_variable_as_zero(convert_bat, bash_check, bash_run):
+    out, report = convert_bat("@echo off\nset /a a=%a%+1\necho %a%\n", bash_check=False)
+    assert report.error_count == 0
+    bash_check(out)
+    assert "a=$(( ${a:-0}+1 ))" in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "1"
+
+
+def test_set_a_does_not_guard_loop_variable(convert_bat, bash_check):
+    out, _ = convert_bat(
+        "@echo off\nfor %%i in (2 3) do set /a S=%%i*%%i\necho %S%\n", bash_check=False
+    )
+    bash_check(out)
+    assert "S=$(( ${i}*${i} ))" in out
+    assert "${i:-0}" not in out

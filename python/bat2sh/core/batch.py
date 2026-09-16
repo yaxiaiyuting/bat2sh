@@ -489,6 +489,7 @@ class BatchConverter:
         self._errorlevel_captured = False
         self._errorlevel_lines: set[int] = set()
         self._renamed_vars: dict[str, str] = {}
+        self._assigned_vars: set[str] = set()
         self._current_command = ""
         self._suppress_filter_fallback = False
 
@@ -3159,7 +3160,9 @@ class BatchConverter:
             spec = spec.replace(_PERCENT_MODULO, "%")
             assign = re.match(r"^([\w.]+)\s*([+\-*/%]?=)\s*(.*)$", spec, re.S)
             if assign:
-                return self._set_arithmetic(lineno, assign, original)
+                result = self._set_arithmetic(lineno, assign, original)
+                self._assigned_vars.add(sanitize_identifier(assign.group(1)))
+                return result
             # 无赋值：cmd 会显示表达式/变量的当前数值
             return f"echo $(( {spec} ))"
         m = re.match(r"(?i)^/p\s+(.*)$", args)
@@ -3167,6 +3170,7 @@ class BatchConverter:
             spec = m.group(1).strip()
             var, _, prompt = spec.partition("=")
             name = sanitize_identifier(var.strip().strip('"'))
+            self._assigned_vars.add(name)
             prompt_text = convert_backslashes(self._expand_vars(prompt.strip().strip('"'), lineno))
             return guard_read(f"read -rp {dq(prompt_text)} {name}", self.settings.strict_mode)
         quoted_value = False
@@ -3186,6 +3190,7 @@ class BatchConverter:
                 return "env | grep -E " + dq("^" + re.escape(args.strip())) + " || true"
         raw_var = var.strip()
         name = self._variable_name(raw_var, lineno, original)
+        self._assigned_vars.add(name)
         # 未加引号的 `set x=y   ` 在 cmd 中会截断尾随空白；引号形式则原样保留。
         value = value.rstrip("\r\n") if quoted_value else value.rstrip()
         value = convert_backslashes(self._expand_vars(value, lineno))
@@ -3210,6 +3215,16 @@ class BatchConverter:
         self._warn(lineno, f"变量名 {raw_var!r} 已重命名为 {name}", original, category="variables")
         return name
 
+    def _guard_unset_arith_vars(self, expr: str) -> str:
+        # cmd 把未赋值变量当 0；bash `set -u` 下 `${a}` 会 unbound，故非循环变量加 `:-0`。
+        def repl(m: re.Match[str]) -> str:
+            var = m.group(1)
+            if var in self._loop_vars or var in self._assigned_vars:
+                return m.group(0)
+            return "${%s:-0}" % var
+
+        return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", repl, expr)
+
     def _set_arithmetic(self, lineno: int, m: re.Match[str], original: str) -> str:
         name = sanitize_identifier(m.group(1))
         op = m.group(2)
@@ -3220,6 +3235,7 @@ class BatchConverter:
         if "," in expr:
             self._warn(lineno, "set /a 多表达式（逗号）仅转换了第一部分", original, category="variables")
             expr = expr.split(",")[0]
+        expr = self._guard_unset_arith_vars(expr)
         if op == "=":
             return f"{name}=$(( {expr} ))"
         return f"{name}=$(( {name} {op[0]} ({expr}) ))"
