@@ -3,7 +3,7 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.8.3**（tag `v1.8.3`；打包同步 commit 见 §8 发布流程）。
+> 当前版本为 **v1.9.0**（tag `v1.9.0`；打包同步 commit 见 §8 发布流程）。
 
 ### 指标口径（v1.8.0 起，务必区分）
 
@@ -11,6 +11,22 @@
 | --- | --- | --- |
 | **原始转换口径（默认）** | `ConvertSettings(bash_check=False)` 的产物通过 `bash -n` 的比例 | **v1.8.0 起为发布口径**（门槛三档：≥93% 可发，<93% 暂停） |
 | 降级口径 | 默认设置产物（语法失败时整体降级为注释）通过 `bash -n` 的比例 | 仅历史对照；**易造成「假信心」，勿单独引用** |
+
+#### rc==0 严格口径（**v1.9.0 起**，务必区分）
+
+> **rc==0 = 脚本跑通 且 功能完好。含 `# TODO` 标记的产物不计入 rc==0，单列 `degraded`。**
+
+理由：若 rc==0 只表示「能跑通」，它就退化成 `bash -n`，失去区分度。
+
+| 指标 | 定义 | 分母 |
+| --- | --- | --- |
+| rc==0（原始） | 沙箱运行退出码为 0 | 语法通过数（145–147） |
+| **rc==0（功能完好）** | 跑通 **且** 三产物不含 `# TODO` 标记、`ConvertReport.todo_count == 0` | 语法通过数 |
+| **degraded** | 跑通但含 `# TODO`（功能缺失） | 语法通过数 |
+
+- 判定取「产物含 `# TODO` 标记 **∪** 报告登记 TODO」的并集，与 `--fail-on-todo` 同源。
+- v1.9.0 提供了**丢失检测**（`_check_silent_drop`，category `loss`）：源行未产出、无诊断、
+  且非既定 noop 时告警，保证「不再有命令静默蒸发」。
 
 - v1.7.0 曾宣称「语法通过率 100%」，实为**降级口径**；同口径下 PS 语料原始口径为 75.0%。
   已补 errata（`docs/releases/v1.7.0.md`）。
@@ -56,16 +72,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | 1.8.3 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
+| 当前版本 | 1.9.0 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1222 passed** | `docs/releases/v1.8.3.md` §验证 |
+| 测试基线 | pytest **1244 passed** | `docs/releases/v1.9.0.md` §验证 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.8.3（共 20 个） | `git tag` |
+| 已有 tag | v1.0.0 … v1.9.0（共 21 个） | `git tag` |
 
 ---
 
@@ -112,6 +128,8 @@ bat2sh/
     │       ├── config.py        # 配置加载/合并/校验/原子写
     │       ├── provider.py      # OpenAI 兼容 Provider（stdlib，流式 SSE）
     │       └── fixer.py         # TODO 标记扫描/替换（纯函数）
+    ├── mappings/
+    │   └── windows_tools.py     # Windows 命令结构化映射表（37 条，evidence 必填 + 校验）
     └── gui/                     # 图形界面（PySide6）
         ├── app.py               # QApplication 入口
         ├── main_window.py       # 主窗口与业务编排（1108 行）
@@ -194,6 +212,11 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
   与大量 `cmd_*` 处理方法；两者都返回脚本文本并通过 `self.report` 暴露诊断。
 - `core/rules.py` 集中所有规则表：简单命令映射、需要特判的参数命令到 `cmd_*` 方法的
   分派表、TODO 命令表、环境/自动变量映射。扩展规则通常只改此表或新增处理方法。
+- `mappings/windows_tools.py` 是 Windows 命令结构化映射表（v1.8.1 起）：
+  `evidence` 必填且须指向真实语料（纪律 7），`validate_mappings()` 在测试中守护；
+  派发顺序上它位于 `BATCH_HANDLER_MAP` 之后（部分条目仅作文档，见 v1.9.0 rounds B-3）。
+- **丢失检测（v1.9.0）**：`_check_silent_drop` 保证任何源行都落为代码/注释/诊断，不得静默蒸发；
+  `cmd_todo_hint` 必须返回 `# TODO` 字符串（返回 `None` 会被派发分支整行丢弃）。
 - 报告类型定义在 `core/types.py`：`SourceKind`、`Diagnostic`、`ConvertReport`。
 
 ### 5.2 语法兜底（`core/syntax.py`）
@@ -286,7 +309,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 - 框架：**pytest**（`pyproject.toml` 配置 `testpaths=["tests"]`、`pythonpath=["python"]`、
   `-p no:cacheprovider`）。运行方式：`pip install -e .[test] && pytest`。
-- 规模：`tests/` 下 88 个 `test_*.py`，v1.8.3 报告 **1222 passed**（v1.8.2 基线 1207，新增 15）。
+- 规模：`tests/` 下 96 个 `test_*.py`，v1.9.0 报告 **1244 passed**（v1.8.3 基线 1222，新增 22）。
 - 主要测试类别（按文件名归组）：
   - 批处理转换：`test_batch*.py`（含 args/arithmetic/call/forf/goto/pipeline/robocopy 等）
   - PowerShell 转换：`test_powershell*.py`（含 advanced_function/block_stack/hashtable/try_dispatch）
@@ -355,6 +378,10 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v1.8.3-rounds.md` | v1.8.3 逐 commit 指标（含两处过度触发收窄记录） |
 | `docs/releases/v1.8.3.md` | v1.8.3 发布说明（4 修复 / 3 退回 / 2 降级 / 145 分母指标） |
 | `docs/releases/v1.8.3-verification.md` | v1.8.3 本机安装验证日志（版本 + 5 项实跑 + 145 分母门槛 + CI 时序） |
+| `docs/v1.9.0-design.md` | v1.9.0 设计：新口径基线 + 053 块栈只读评估 + 映射扩展评估 + §0.2 反证核验 |
+| `docs/v1.9.0-rounds.md` | v1.9.0 逐优先级指标 + 053 三条 rc 判定 + B-1/B-2/B-3 判定与理由 |
+| `docs/releases/v1.9.0.md` | v1.9.0 发布说明（口径说明 / 4 修复 / 映射 10 条 / 已知限制 / 退回条目） |
+| `docs/releases/v1.9.0-verification.md` | v1.9.0 本机安装验证日志（版本 + 实跑 + 严格口径门槛 + CI 时序） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
