@@ -124,8 +124,15 @@ def test_call_set_multiple_parts_todo(convert_bat):
     assert "!A!" not in out
 
 
-def test_errorlevel_warn_defaults_to_todo(convert_bat):
+def test_errorlevel_default_uses_rc_capture(convert_bat):
     out, report = convert_bat("@echo off\necho rc=%ERRORLEVEL%\n")
+    assert report.todo_count == 0
+    assert "__bat2sh_rc=$?" in out
+    assert 'echo "rc=${__bat2sh_rc}"' in out
+
+
+def test_errorlevel_warn_opt_in_still_todo(convert_bat):
+    out, report = convert_bat("@echo off\necho rc=%ERRORLEVEL%\n", last_exit_code="warn")
     assert report.todo_count == 1
     assert "# TODO" in out
     assert "${__bat2sh_rc}" not in out
@@ -172,10 +179,10 @@ def test_errorlevel_in_for_f_command_todo(convert_bat):
     assert "# TODO" in out
 
 
-def test_errorlevel_warn_paren_block_stays_balanced(convert_bat):
+def test_errorlevel_default_paren_block_stays_balanced(convert_bat):
     text = "@echo off\nif %ERRORLEVEL% equ 0 (\n    echo ok\n)\necho done\n"
     out, report = convert_bat(text)
-    assert report.todo_count == 1
+    assert report.todo_count == 0
     assert 'echo "done"' in out
     assert not any("多余" in d.message for d in report.warnings)
 
@@ -320,7 +327,7 @@ def test_pipeline_inside_for_f_command_converts(convert_bat):
 
 def test_delayed_errorlevel_warn_is_todo(convert_bat):
     text = "@echo off\nsetlocal enabledelayedexpansion\nif !ERRORLEVEL! neq 0 echo fail\n"
-    out, report = convert_bat(text)
+    out, report = convert_bat(text, last_exit_code="warn")
     assert report.todo_count >= 1
     assert "${ERRORLEVEL}" not in out
     assert "__bat2sh_rc" not in out

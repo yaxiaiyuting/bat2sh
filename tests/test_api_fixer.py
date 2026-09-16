@@ -43,7 +43,7 @@ def test_scan_m4_indented_condition_marker(convert_bat):
 
 
 def test_scan_m3_inline_marker(convert_ps):
-    text, report = convert_ps(M3_PS)
+    text, report = convert_ps(M3_PS, last_exit_code="warn")
     markers = fixer.scan_todo_markers(text, report)
     inline = [m for m in markers if m.kind == "inline"]
     assert len(inline) == 1
@@ -214,7 +214,7 @@ def test_render_diff_shows_change_and_empty_when_same():
 
 
 def test_count_markers(convert_bat, convert_ps):
-    text, report = convert_bat(M1_BAT)
+    text, report = convert_bat(M1_BAT, last_exit_code="warn")
     assert fixer.count_markers(text, report) == 1
-    text2, report2 = convert_ps(M3_PS)
+    text2, report2 = convert_ps(M3_PS, last_exit_code="warn")
     assert fixer.count_markers(text2, report2) == 2

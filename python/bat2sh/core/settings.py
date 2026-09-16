@@ -36,7 +36,7 @@ class ConvertSettings:
     indent: str = "    "
     quote_variables: bool = True
     strict_mode: bool = True
-    last_exit_code: str = "warn"  # 退出码策略（PowerShell $LASTEXITCODE / 批处理 %ERRORLEVEL%）: warn | map
+    last_exit_code: str = "map"  # 退出码策略（PowerShell $LASTEXITCODE / 批处理 %ERRORLEVEL%）: warn | map
     bash_check: bool = True        # 生成脚本 bash -n 后置校验；失败则降级为注释（CLI: --no-bash-check）
 
     # 运行（GUI“转换并运行”）
@@ -56,7 +56,7 @@ class ConvertSettings:
         if data["theme"] not in THEME_CHOICES:
             data["theme"] = "system"
         if data["last_exit_code"] not in ("warn", "map"):
-            data["last_exit_code"] = "warn"
+            data["last_exit_code"] = "map"
         if not isinstance(data["bash_check"], bool):
             data["bash_check"] = True
         timeout = data["run_timeout"]

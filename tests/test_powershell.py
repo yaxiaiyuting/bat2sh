@@ -246,8 +246,8 @@ def test_get_date_plain(convert_ps):
     assert report.warning_count == 0
 
 
-def test_lastexitcode_default_warn_replaces_line(convert_ps, bash_check):
-    out, report = convert_ps("Write-Host $LASTEXITCODE\n")
+def test_lastexitcode_warn_opt_in_replaces_line(convert_ps, bash_check):
+    out, report = convert_ps("Write-Host $LASTEXITCODE\n", last_exit_code="warn")
     assert report.todo_count == 1
     assert report.todos[0].category == "errorlevel"
     assert "LASTEXITCODE" in report.todos[0].message
@@ -257,8 +257,10 @@ def test_lastexitcode_default_warn_replaces_line(convert_ps, bash_check):
     bash_check(out)
 
 
-def test_lastexitcode_in_condition_default_warn(convert_ps, bash_check):
-    out, report = convert_ps("if ($LASTEXITCODE -eq 0) { Write-Host 'ok' }\n")
+def test_lastexitcode_in_condition_warn_opt_in(convert_ps, bash_check):
+    out, report = convert_ps(
+        "if ($LASTEXITCODE -eq 0) { Write-Host 'ok' }\n", last_exit_code="warn"
+    )
     assert report.todo_count == 1
     assert report.todos[0].category == "errorlevel"
     assert "${LASTEXITCODE}" not in out

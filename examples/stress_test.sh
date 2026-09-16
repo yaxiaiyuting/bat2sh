@@ -176,7 +176,9 @@ done
 
 # 子程序调用
 label_SUBROUTINE "参数A" "参数B"
-# TODO: 手动检查: echo 子程序返回后 ERRORLEVEL=%ERRORLEVEL%
+# 注意：$? 只反映紧邻上一条命令的退出码
+__bat2sh_rc=$?
+echo "子程序返回后 ERRORLEVEL=${__bat2sh_rc}"
 
 if ! label_TEST_ERROR; then
     echo "错误处理: 捕获到错误"
@@ -267,7 +269,7 @@ echo "第一行: ${FIRST_LINE:-}"
 echo "等待 1 秒..."
 sleep 1 >/dev/null
 # TODO: 手动检查: choice /c YN /t 1 /d Y >/dev/null
-# TODO: 手动检查: echo 选择完成，ERRORLEVEL=%ERRORLEVEL%
+echo "选择完成，ERRORLEVEL=${__bat2sh_rc}"
 
 # 使用 pushd/popd
 pushd "${SystemRoot:-/}"
@@ -341,7 +343,7 @@ echo "从 :eof 返回"
 
 # 使用 exit /b
 label_EXIT_B
-# TODO: 手动检查: echo 从 exit /b 返回，ERRORLEVEL=%ERRORLEVEL%
+echo "从 exit /b 返回，ERRORLEVEL=${__bat2sh_rc}"
 
 # 使用 shift
 label_SHIFT_TEST a b c d
@@ -384,7 +386,9 @@ else
     echo "NUM1 不小于 NUM2"
 fi
 # TODO: 手动检查: if errorlevel 0 echo ERRORLEVEL >= 0
-# TODO: 手动检查: if %ERRORLEVEL% equ 0 echo ERRORLEVEL 等于 0
+if [ "${__bat2sh_rc}" -eq 0 ]; then
+    echo "ERRORLEVEL 等于 0"
+fi
 # TODO: 手动检查: if cmdextversion 2 echo 命令扩展版本 >= 2
 
 # 使用 assoc 和 ftype
@@ -460,7 +464,7 @@ echo "当前目录扩展: %=C:%"
 
 # 使用 %RANDOM% 和 %ERRORLEVEL%
 echo "随机数: $RANDOM"
-# TODO: 手动检查: echo 错误级别: %ERRORLEVEL%
+echo "错误级别: ${__bat2sh_rc}"
 
 # 使用 %DATE% 和 %TIME% 解析
 # TODO: 手动检查: for /f "tokens=1-3 delims=/- " %%a in ("%DATE%") do (

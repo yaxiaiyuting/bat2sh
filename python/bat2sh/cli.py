@@ -114,10 +114,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--last-exit-code",
         choices=["warn", "map"],
-        default="warn",
-        help="处理 PowerShell $LASTEXITCODE / 批处理 %%ERRORLEVEL%% 的退出码策略（默认 warn）："
-        "warn = 生成 TODO 提示手工复核；"
-        "map = 近似映射为 bash $?（首次捕获到 __bat2sh_rc）",
+        default="map",
+        help="处理 PowerShell $LASTEXITCODE / 批处理 %%ERRORLEVEL%% 的退出码策略（默认 map）："
+        "map = 近似映射为 bash $?（首次捕获到 __bat2sh_rc）；"
+        "warn = 生成 TODO 提示手工复核",
     )
     parser.add_argument("--encoding", help="强制指定输入编码（默认自动检测）")
     parser.add_argument("--no-overwrite", action="store_true", help="输出已存在时拒绝覆盖")

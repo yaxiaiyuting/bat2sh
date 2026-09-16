@@ -22,6 +22,7 @@ FROZEN_WARNINGS = [
     (16, 'variables', 'Windows %TIME% 格式依赖区域设置，已映射为 ISO 格式'),
     (84, 'command', 'findstr 已转换为 grep，正则语法可能存在差异'),
     (114, 'glob', '检测到通配符集合，已在脚本头添加 shopt -s nullglob：无匹配时循环体不执行'),
+    (127, 'errorlevel', 'map 策略：%ERRORLEVEL% 已近似映射为 __bat2sh_rc（首次引用处捕获 $?），请人工复核'),
     (138, 'command', 'ver 已转换为 uname -a'),
     (144, 'variables', '%SystemRoot% 的转换可能不完全等价'),
     (149, 'registry', '系统版本已映射到 /etc/os-release（PRETTY_NAME/VERSION_ID），字段语义与 Windows 版本号不同，请核对'),

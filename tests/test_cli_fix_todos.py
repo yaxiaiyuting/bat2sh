@@ -407,6 +407,7 @@ def test_back_to_front_merge_with_multiline_later_item(tmp_path, monkeypatch, ca
         tmp_path,
         monkeypatch,
         M3_PS,
+        argv=["--last-exit-code", "warn"],
         replies=["\n", "y\n", "y\n"],
         provider=_FakeProvider(reply_for),
         name="demo.ps1",

@@ -536,6 +536,7 @@ class BatchConverter:
         self._a1_blocks: dict[int, _Block] = {}
         self._a1_seq = 0
         self._loop_var_leak = False
+        self._env_substring_todo = False
         self._current_command = ""
         self._suppress_filter_fallback = False
         self._silent_ok = False
@@ -960,10 +961,20 @@ class BatchConverter:
                 lambda m: "%" + m.group(1) + "%" + _ADJACENT_VAR_SEP + "%" + m.group(2) + "%",
                 text,
             )
+        # 相邻完整 %…%%…%（如 %date:~0,4%%date:~5,2%）：中缝插哨兵，
+        # 必须先于转义百分号正则，否则中缝 `%%` 会被误判为 `%%NAME%%` 转义
+        previous = None
+        while previous != text:
+            previous = text
+            text = re.sub(
+                r"(%[A-Za-z_~][\w:~,.*+-]*%)(%[A-Za-z_~][\w:~,.*+-]*%)",
+                lambda m: m.group(1) + _ADJACENT_VAR_SEP + m.group(2),
+                text,
+            )
 
-        # %%%VAR%%% 间接引用 / %%NAME%% 转义百分号（单字母留给 for 循环变量处理）
+        # %%%VAR%%% 间接引用 / %%NAME%% 与 %%NAME:~...%% 转义百分号（单字母留给 for 循环变量处理）
         text = re.sub(r"%%%([A-Za-z_][A-Za-z0-9_]*)%%%", indirect_repl, text)
-        text = re.sub(r"%%([A-Za-z_][A-Za-z0-9_]*)%%", escaped_percent_repl, text)
+        text = re.sub(r"%%([A-Za-z_][A-Za-z0-9_]*(?::~[^%]*)?)%%", escaped_percent_repl, text)
         text = re.sub(r"%%([A-Za-z])", loop_repl, text)
         # %%~ 循环变量修饰符（%%~nxF / %%~nF / %%~xF）：必须先于 %% 占位符替换
         text = re.sub(
@@ -995,6 +1006,7 @@ class BatchConverter:
                     text,
                     category="variables",
                 )
+                self._env_substring_todo = True
                 return m.group(0)
             name = sanitize_identifier(raw_name)
             start = slice_operand(m.group(2))
@@ -2644,7 +2656,17 @@ class BatchConverter:
             body = body.replace("$", _DOLLAR_PLACEHOLDER)
         if re.match(r"(?i)^@?\s*set\s+/a\b", body):
             body = _protect_arith_modulo(body)
+        self._env_substring_todo = False
         expanded = self._expand_vars(body, lineno)
+        if self._env_substring_todo:
+            self._env_substring_todo = False
+            self._todo(
+                lineno,
+                text,
+                "对映射变量（如 %date%/%time%）做子串依赖 Windows 区域格式，静态不等价，请人工处理",
+                category="variables",
+            )
+            return [self._c("# TODO: 手动检查: " + text)]
         if self._loop_var_leak:
             self._loop_var_leak = False
             self._todo(
