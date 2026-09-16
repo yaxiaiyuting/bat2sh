@@ -163,6 +163,8 @@ def _restore_placeholders(line: str) -> str:
 _VARIABLE_MARKER = re.compile(r"[%!]")
 _ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
 _DELAYED_ERRORLEVEL_RE = re.compile(r"!ERRORLEVEL!", re.I)
+#: 未转换的动态延迟展开引用（`!s${_r}!` 这类名字本身含变量）：bash 无静态对应。
+_DYNAMIC_DELAYED_RE = re.compile(r"![^!\s]*[%$][^!\s]*!")
 _UNSUPPORTED_MODIFIER_RE = re.compile(r"%~([a-zA-Z$]+)([0-9*A-Za-z])")
 _DATE_TIME_VAR_RE = re.compile(r"(?<!%)%(?:DATE|TIME)%(?!%)", re.I)
 # robocopy 输出类开关（仅影响控制台/日志显示，不影响复制结果）：rsync -a 下无对应物，安全忽略
@@ -2433,6 +2435,17 @@ class BatchConverter:
         if re.match(r"(?i)^@?\s*set\s+/a\b", body):
             body = _protect_arith_modulo(body)
         expanded = self._expand_vars(body, lineno)
+        if _DYNAMIC_DELAYED_RE.search(expanded):
+            return [
+                self._c(
+                    self._todo(
+                        lineno,
+                        text,
+                        "延迟展开的动态变量名（!name! 内含变量）在 bash 无静态对应，请人工重写（建议用数组）",
+                        category="variables",
+                    )
+                )
+            ]
         tokens = tokenize_args(expanded)
         if not tokens:
             return []
@@ -3201,6 +3214,15 @@ class BatchConverter:
                     return "env"
                 return "env | grep -E " + dq("^" + re.escape(args.strip())) + " || true"
         raw_var = var.strip()
+        if "$" in raw_var or "!" in raw_var:
+            return self._c(
+                self._todo(
+                    lineno,
+                    original,
+                    "变量名含变量（动态名，如 set s!w!=）在 bash 无静态对应，请人工重写（建议用数组）",
+                    category="variables",
+                )
+            )
         name = self._variable_name(raw_var, lineno, original)
         self._register_assigned(name)
         # 未加引号的 `set x=y   ` 在 cmd 中会截断尾随空白；引号形式则原样保留。
