@@ -165,6 +165,13 @@ _ERRORLEVEL_VAR_RE = re.compile(r"(?<!%)%ERRORLEVEL%(?!%)", re.I)
 _DELAYED_ERRORLEVEL_RE = re.compile(r"!ERRORLEVEL!", re.I)
 #: 未转换的动态延迟展开引用（`!s${_r}!` 这类名字本身含变量）：bash 无静态对应。
 _DYNAMIC_DELAYED_RE = re.compile(r"![^!\s]*[%$][^!\s]*!")
+#: 重定向目标里引用的变量（`>"${FILENAME}"`）：是否为「运行期才知目标」由赋值跟踪判定。
+_REDIR_TARGET_VAR_RE = re.compile(r'[<>]>?\s*"?\$\{([A-Za-z_]\w*)\}')
+#: 转换器自身会发射、且视为非空的 shell 变量：重定向目标判定时不算「未知」。
+_ASSUMED_SET_SHELL_VARS = frozenset({
+    "HOME", "USER", "PWD", "OLDPWD", "SHELL", "TERM", "LANG", "LC_ALL",
+    "PATH", "TMPDIR", "HOSTNAME", "RANDOM", "SystemRoot",
+})
 _UNSUPPORTED_MODIFIER_RE = re.compile(r"%~([a-zA-Z$]+)([0-9*A-Za-z])")
 _DATE_TIME_VAR_RE = re.compile(r"(?<!%)%(?:DATE|TIME)%(?!%)", re.I)
 # robocopy 输出类开关（仅影响控制台/日志显示，不影响复制结果）：rsync -a 下无对应物，安全忽略
@@ -2403,6 +2410,14 @@ class BatchConverter:
         text = _normalize_echo_blank(text)
         body, redirs = split_redirects(text)
         redir_text = self._render_redirs(redirs, lineno)
+        if redir_text and self._redir_target_unknown(redir_text):
+            self._todo(
+                lineno,
+                text,
+                "重定向目标依赖未赋值变量（运行期可能为空），静态不可知，已保守标记",
+                category="path",
+            )
+            return [self._c("# TODO: 手动检查: " + text)]
         if not body.strip():
             return [self._c(redir_text)] if redir_text else []
         spaced_set = re.sub(r"(?i)^(@?\s*)set\s*/([ap])(?=\s|$)", r"\1set /\2", body)
@@ -2583,6 +2598,15 @@ class BatchConverter:
             base = stripped[: -len(guard)].rstrip()
             return f"{base} {redir_text} {guard}"
         return f"{stripped} {redir_text}".strip()
+
+    def _redir_target_unknown(self, redir_text: str) -> bool:
+        for m in _REDIR_TARGET_VAR_RE.finditer(redir_text):
+            name = m.group(1)
+            if name in _ASSUMED_SET_SHELL_VARS:
+                continue
+            if name not in self._assigned_vars and name not in self._loop_vars:
+                return True
+        return False
 
     def _render_redirs(self, redirs: list[tuple[str, str]], lineno: int) -> str:
         parts: list[str] = []
