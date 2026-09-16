@@ -31,7 +31,9 @@ def test_dir_stuck_switch_split_inside_for_f(convert_bat, bash_check):
 
 def test_date_stuck_switch_is_not_invalid_command(convert_bat):
     out, report = convert_bat("@echo off\ndate/t >>out.txt\n")
-    assert "date/t" not in out
+    # v1.9.0：不再整行丢弃，而是落为显式 TODO；`date/t` 只允许出现在注释里
+    assert not any(line.strip().startswith("date/t") for line in out.splitlines())
+    assert "# TODO: 手动检查: date/t" in out
     assert report.todo_count == 1
 
 

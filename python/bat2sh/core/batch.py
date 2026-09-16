@@ -503,6 +503,7 @@ class BatchConverter:
         self._loop_var_leak = False
         self._current_command = ""
         self._suppress_filter_fallback = False
+        self._silent_ok = False
 
     # ------------------------------------------------------------------
     # 对外入口
@@ -557,6 +558,7 @@ class BatchConverter:
             bucket = self._func_out if (self._function_mode and self._current_func) else self._out
             bucket.extend(produced)
             self._update_status_validity(line, produced)
+            self._check_silent_drop(start, line, produced)
             if not line.strip():
                 continue
             if produced and any(
@@ -565,6 +567,39 @@ class BatchConverter:
                 self.report.converted_lines += 1
             else:
                 self.report.unchanged_lines += 1
+
+    def _check_silent_drop(self, lineno: int, line: str, produced: list[str]) -> None:
+        """丢失检测：任何源行都必须落为代码、注释或诊断，不得静默蒸发。"""
+        if self._silent_ok:
+            self._silent_ok = False
+            return
+        if any(part.strip() for part in produced):
+            return
+        stripped = line.strip()
+        if not stripped or self._is_intentional_drop(stripped):
+            return
+        self._warn(
+            lineno,
+            "该行未产生任何输出且无诊断，疑似静默丢弃（丢失检测）",
+            line,
+            category="loss",
+        )
+
+    @staticmethod
+    def _is_intentional_drop(stripped: str) -> bool:
+        for clause in re.split(r"&&|\|\||&", stripped):
+            body = clause.strip().lstrip("@").strip()
+            if not body:
+                continue
+            low = body.lower()
+            if re.fullmatch(r"echo\s+off", low) or low == "echo on" or body.startswith("::"):
+                continue
+            first = re.split(r"[\s/]", body, maxsplit=1)[0].strip("\"'").lower()
+            if not first:
+                continue
+            if rules.BATCH_HANDLER_MAP.get(first) not in ("cmd_noop", "cmd_if_unsupported"):
+                return False
+        return True
 
     def _ensure_block_bodies(self, output: str) -> str:
         """bash 不允许空/仅注释的 then/do/函数/组块体；为这类块补一行 ``:``。"""
@@ -1049,6 +1084,7 @@ class BatchConverter:
                     block.paren_depth -= 1
                     if block.paren_depth <= 0:
                         self._stack.pop()
+                    self._silent_ok = True
                     return []
                 if raw.strip().endswith("("):
                     block.paren_depth += 1
@@ -2686,7 +2722,8 @@ class BatchConverter:
             return self._reg_todo_comment(lineno, original, op, key, value)
         hint = rules.BATCH_TODO_COMMANDS.get(self._current_command, "")
         self._todo(lineno, original, hint, category="command")
-        return None
+        # 必须返回字符串：调用方对 None 走 `return []`，会把整行丢弃
+        return "# TODO: 手动检查: " + original
 
     def _parse_reg_invocation(self, args: str) -> tuple[str, str, str]:
         if self._current_command == "regedit":
