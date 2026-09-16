@@ -41,9 +41,8 @@ def make(**kwargs) -> NameMapping:
 # --------------------------------------------------------------------------
 
 
-def test_empty_table_passes_validation():
-    assert validate_name_mappings() == []
-    assert WINDOWS_NAMES == ()
+def test_empty_entries_passes_validation():
+    assert validate_name_mappings(()) == []
 
 
 def test_validate_accepts_wellformed_entry():
@@ -133,8 +132,13 @@ def test_duplicate_kind_win_is_rejected():
 
 
 def test_same_win_different_kind_is_allowed():
-    entries = (make(), make(kind="path_root", win="X"))
+    entries = (make(), make(kind="path_root", win="drive"))
     assert validate_name_mappings(entries) == []
+
+
+def test_path_root_requires_subtype_pseudo_name():
+    bad = validate_name_mappings((make(kind="path_root", win="C:\\"),))
+    assert any("子类伪名" in e for e in bad)
 
 
 # --------------------------------------------------------------------------
@@ -211,3 +215,54 @@ def test_unmappable_env_names_in_empty_table_is_noop():
 def test_evidence_regex_matches_corpus_quirk_paths():
     # 语料名含中文/空格/斜杠；validator 只要求 corpus/<任意>:<行号>
     assert re.match(r"^corpus/.+:\d+$", "corpus/第三方工具/devcon/i386/删除U盘.bat:1")
+
+
+# --------------------------------------------------------------------------
+# 首批条目（C3 路径/环境，v1.10.0a1）
+# --------------------------------------------------------------------------
+
+
+def test_first_batch_passes_validation():
+    assert validate_name_mappings() == []
+
+
+def test_first_batch_evidence_points_to_real_corpus_lines():
+    assert WINDOWS_NAMES
+    for item in WINDOWS_NAMES:
+        assert re.match(r"^corpus/.+:\d+$", item.evidence), item.win
+
+
+def test_first_batch_is_path_env_only():
+    assert {item.kind for item in WINDOWS_NAMES} <= {"env_var", "path_root"}
+
+
+def test_path_roots_are_registered_but_not_integrated():
+    roots = [item for item in WINDOWS_NAMES if item.kind == "path_root"]
+    assert {item.win for item in roots} == {"drive", "unc"}
+    assert all(not item.integrated for item in roots)
+
+
+def test_program_files_is_honest_todo():
+    entry = env_mapping_for("%ProgramFiles%")
+    assert entry is not None
+    assert (entry.form, entry.linux, entry.integrated) == ("none", "", True)
+
+
+def test_all_users_profile_follows_projectdata_convention():
+    from bat2sh.core import rules
+
+    entry = env_mapping_for("%AllUsersProfile%")
+    assert entry is not None
+    assert entry.linux == rules.BATCH_ENV_MAP["PROGRAMDATA"]
+
+
+def test_env_entries_never_shadow_existing_env_map():
+    from bat2sh.core import rules
+
+    for item in WINDOWS_NAMES:
+        if item.kind == "env_var":
+            assert item.win.upper() not in rules.BATCH_ENV_MAP, item.win
+
+
+def test_service_kind_not_populated_without_c7():
+    assert [item for item in WINDOWS_NAMES if item.kind == "service"] == []

@@ -71,6 +71,7 @@ def validate_name_mappings(entries: tuple[NameMapping, ...] | None = None) -> li
     * ``target_exists == "no"`` ⇒ ``notes`` 含「目标物不存在」；
     * ``integrated is False`` ⇒ ``notes`` 含「backlog」（登记与集成必须可区分）；
     * ``kind == "service"`` 且 ``form != "none"`` ⇒ ``notes`` 含「systemd」（服务名必须落到 unit）；
+    * ``kind == "path_root"`` ⇒ ``win`` 必须是 ``drive``/``unc`` 子类伪名（约定可机检）；
     * ``(kind, win.lower())`` 不得重复。
     """
     items = WINDOWS_NAMES if entries is None else entries
@@ -98,6 +99,10 @@ def validate_name_mappings(entries: tuple[NameMapping, ...] | None = None) -> li
             errors.append(f"{tag}: integrated=False 必须在 notes 标注 backlog（登记未生效）")
         if item.kind == "service" and item.form != "none" and "systemd" not in item.notes:
             errors.append(f"{tag}: service 映射必须在 notes 指明 systemd unit")
+        if item.kind == "path_root" and item.win.lower() not in PATH_ROOT_SUBTYPES:
+            errors.append(
+                f"{tag}: path_root 的 win 必须是子类伪名 {'/'.join(PATH_ROOT_SUBTYPES)}"
+            )
         key = (item.kind, item.win.lower())
         if key in seen:
             errors.append(f"{tag}: (kind, win) 重复")
@@ -105,8 +110,67 @@ def validate_name_mappings(entries: tuple[NameMapping, ...] | None = None) -> li
     return errors
 
 
-#: 首批映射条目（Commit 2 落盘；框架提交时为空表）。
-WINDOWS_NAMES: tuple[NameMapping, ...] = ()
+#: 首批映射条目（B1，v1.10.0a1）。
+#:
+#: 范围 = C3 路径/环境（不含 sc→systemctl；C7 已后移 v2.0）。
+#: * ``env_var``：新增**未在** ``rules.BATCH_ENV_MAP`` 中的 Windows 专有变量，
+#:   避免与既有映射双源冲突（``test_env_map_consistency`` 守护）。
+#: * ``path_root``：``drive``/``unc`` 使用子类**伪名**；本版 ``integrated=False``
+#:   （仅登记，不驱动转换）——churn 实测见 docs/session-b1b2-review.md §2.2。
+WINDOWS_NAMES: tuple[NameMapping, ...] = (
+    NameMapping(
+        win="ProgramFiles",
+        kind="env_var",
+        linux="",
+        form="none",
+        confidence="C",
+        target_exists="no",
+        evidence="corpus/史上最牛X批处理工具包09年7月11日更新版.bat:9933",
+        integrated=True,
+        notes="Windows 程序安装根目录（%ProgramFiles%）在 Linux 无对应物——"
+        "发行版布局并存（/usr、/opt、/usr/local 语义不同），硬映射会产出"
+        "「看似对、实际错」的路径；目标物不存在。",
+    ),
+    NameMapping(
+        win="AllUsersProfile",
+        kind="env_var",
+        linux="/usr/share",
+        form="partial",
+        confidence="C",
+        target_exists="unknown",
+        evidence="corpus/快速清理垃圾文件安装修改版/快速清理垃圾文件.bat:15",
+        integrated=True,
+        notes="%AllUsersProfile% 即 C:\\ProgramData，与既有规则表 "
+        'BATCH_ENV_MAP["PROGRAMDATA"]="/usr/share" 保持一致（非发明）；'
+        "共享数据目录的子布局不同，需人工核对。",
+    ),
+    NameMapping(
+        win="drive",
+        kind="path_root",
+        linux="",
+        form="none",
+        confidence="C",
+        target_exists="no",
+        evidence="corpus/注册表/导出注册表的键值2.bat:1",
+        integrated=False,
+        notes="Windows 盘符根（C:\\、D:\\…）在 Linux 无对应物（挂载点由 fstab/systemd 决定）；"
+        "本版仅登记（backlog）：诚实 TODO 化会触及 35 个语料文件、其中 6 个当前功能完好，"
+        "超出 B1 首批边界（docs/session-b1b2-review.md §2.2）；目标物不存在。",
+    ),
+    NameMapping(
+        win="unc",
+        kind="path_root",
+        linux="",
+        form="none",
+        confidence="C",
+        target_exists="no",
+        evidence="corpus/注册表/设注册表某个键的键值为变量2.bat:3",
+        integrated=False,
+        notes="UNC 共享路径（\\\\host\\share）在 Linux 无对应物（需先 mount/SMB）；"
+        "本版仅登记（backlog）：语料证据为同族 \\\\ 前缀路径（WMI namespace），"
+        "当前产物会拼坏（\\\\/host/share）；目标物不存在。",
+    ),
+)
 
 
 def name_mapping_for(
