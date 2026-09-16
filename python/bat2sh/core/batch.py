@@ -2588,6 +2588,9 @@ class BatchConverter:
         for token in tokenize_args(args):
             if re.fullmatch(r"/[a-z]{1,3}(?:[-:][a-z0-9]+)*", token, re.I):
                 flags.add(token.lower())
+            # cmd 允许 `/q/s`、`/b/s/adh` 合并写；首段限单字母，避免误吞 POSIX 路径 `/usr/bin`。
+            elif re.fullmatch(r"/[a-z](?:/[a-z]{1,3})+", token, re.I):
+                flags.update("/" + part.lower() for part in token[1:].split("/"))
             else:
                 rest.append(token)
         return flags, rest
