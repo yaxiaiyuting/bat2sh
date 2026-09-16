@@ -2519,7 +2519,7 @@ class BatchConverter:
                 )
                 line = None
             else:
-                line = expanded
+                line = convert_backslashes(expanded)
         else:
             self._warn(lineno, f"未知命令 {raw_first!r}，请确认 Linux 下可用", text, category="command")
             if self._passthrough_unsafe(expanded):
@@ -2531,7 +2531,7 @@ class BatchConverter:
                 )
                 line = None
             else:
-                line = expanded
+                line = convert_backslashes(expanded)
 
         if line is None:
             result = [self._c("# TODO: 手动检查: " + text)]
