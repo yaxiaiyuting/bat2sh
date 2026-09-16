@@ -739,7 +739,7 @@ class BatchConverter:
             stripped = line.strip()
             if not stripped:
                 continue
-            if re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", stripped):
+            if re.match(r"^:([A-Za-z0-9_][\w.\-]*)\s*$", stripped):
                 self._labels.add(stripped[1:].lower())
             call = re.match(r"(?i)^call\s*:\s*([\w.\-]+)", stripped)
             if call:
@@ -1071,7 +1071,7 @@ class BatchConverter:
             if split is not None:
                 return self._close_group_inline(lineno, split, text)
 
-        m = re.match(r"^:([A-Za-z_][\w.\-]*)\s*$", text)
+        m = re.match(r"^:([A-Za-z0-9_][\w.\-]*)\s*$", text)
         if m:
             return self._label_line(lineno, m.group(1))
         if text.startswith("::"):
@@ -3169,9 +3169,13 @@ class BatchConverter:
             name = sanitize_identifier(var.strip().strip('"'))
             prompt_text = convert_backslashes(self._expand_vars(prompt.strip().strip('"'), lineno))
             return guard_read(f"read -rp {dq(prompt_text)} {name}", self.settings.strict_mode)
+        quoted_value = False
         m = re.match(r'^"([^"=]+)=(.*)"\s*$', args)
         if m:
             var, value = m.group(1), m.group(2)
+            # cmd 的 `set "x=y "` 会保留引号内的尾随空格（仅去掉包裹引号），
+            # 不能 rstrip；否则 `set "t=title "` 变成 `t="title"` 使 `%t%x` 粘连。
+            quoted_value = True
         else:
             m = re.match(r"^([^=]+)=(.*)$", args, re.S)
             if m:
@@ -3182,7 +3186,9 @@ class BatchConverter:
                 return "env | grep -E " + dq("^" + re.escape(args.strip())) + " || true"
         raw_var = var.strip()
         name = self._variable_name(raw_var, lineno, original)
-        value = convert_backslashes(self._expand_vars(value.rstrip(), lineno))
+        # 未加引号的 `set x=y   ` 在 cmd 中会截断尾随空白；引号形式则原样保留。
+        value = value.rstrip("\r\n") if quoted_value else value.rstrip()
+        value = convert_backslashes(self._expand_vars(value, lineno))
         if self.settings.quote_variables or value == "" or re.search(r"[\s$&|()<>]", value):
             return f"{name}={self._dq_preserving_substitutions(value)}"
         return f"{name}={value}"
