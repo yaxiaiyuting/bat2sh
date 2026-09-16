@@ -2435,6 +2435,11 @@ class BatchConverter:
         raw_first = tokens[0]
         first = raw_first.strip("\"'").lower()
         rest = expanded[len(raw_first):].strip()
+        # cmd 允许命令与开关粘连（`dir/b`、`cd/d`、`date/t`）：仅当斜杠前是可识别命令时拆分。
+        stuck = re.fullmatch(r"@?([A-Za-z_][\w.]*)/([a-z][a-z0-9:/]*)", first)
+        if stuck and stuck.group(1) in rules.BATCH_HANDLER_MAP:
+            first = stuck.group(1)
+            rest = ("/" + stuck.group(2) + (" " + rest if rest else "")).strip()
         self._current_command = first
 
         if first == "exit":
@@ -3241,7 +3246,8 @@ class BatchConverter:
         expr = self._guard_unset_arith_vars(expr)
         if op == "=":
             return f"{name}=$(( {expr} ))"
-        return f"{name}=$(( {name} {op[0]} ({expr}) ))"
+        lhs = name if name in self._loop_vars or name in self._assigned_vars else "${%s:-0}" % name
+        return f"{name}=$(( {lhs} {op[0]} ({expr}) ))"
 
     def cmd_setx(self, lineno: int, args: str, original: str) -> str:
         m = re.match(r'^"?([^"\s]+)"?\s+(.*)$', args.strip())

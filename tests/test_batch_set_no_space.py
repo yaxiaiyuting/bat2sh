@@ -21,8 +21,9 @@ def test_set_a_without_space_is_arithmetic(convert_bat, bash_check, bash_run):
 def test_set_a_compound_operator_without_space(convert_bat, bash_check):
     out, _ = convert_bat("@echo off\nset/a Ye-=1\nset/a Gu+=1\n")
     bash_check(out)
-    assert "Ye=$(( Ye - (1) ))" in out
-    assert "Gu=$(( Gu + (1) ))" in out
+    # Ye/Gu 未先赋值：`set -u` 下裸名会 unbound（cmd 视为 0），故加 `:-0`。
+    assert "Ye=$(( ${Ye:-0} - (1) ))" in out
+    assert "Gu=$(( ${Gu:-0} + (1) ))" in out
 
 
 def test_set_p_with_variable_without_space(convert_bat, bash_check):

@@ -67,3 +67,21 @@ def test_set_a_does_not_guard_loop_variable(convert_bat, bash_check):
     bash_check(out)
     assert "S=$(( ${i}*${i} ))" in out
     assert "${i:-0}" not in out
+
+
+def test_set_a_compound_assign_unset_lhs_guarded(convert_bat, bash_check, bash_run):
+    out, report = convert_bat("@echo off\nset /a a+=1\necho %a%\n", bash_check=False)
+    assert report.error_count == 0
+    bash_check(out)
+    assert "a=$(( ${a:-0} + (1) ))" in out
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "1"
+
+
+def test_set_a_compound_assign_assigned_lhs_unchanged(convert_bat, bash_check):
+    out, _ = convert_bat(
+        '@echo off\nset "COUNTER=0"\nset /a COUNTER+=1\necho %COUNTER%\n', bash_check=False
+    )
+    bash_check(out)
+    assert "COUNTER=$(( COUNTER + (1) ))" in out
