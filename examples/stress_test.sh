@@ -126,6 +126,7 @@ cp "test1.txt" "test2.txt" >/dev/null
 grep -E "[0-9][0-9]*" "test1.txt" >numbers.txt || true
 sort -r test1.txt >sorted.txt
 diff test1.txt test2.txt >/dev/null && echo "文件相同" || echo "文件不同"
+# TODO: 手动检查: attrib test1.txt
 ls -1
 
 # for 循环
@@ -207,6 +208,9 @@ fi
 
 # WMIC 查询
 echo "WMIC 查询:"
+# TODO: 手动检查: wmic os get Caption,Version /value 2>/dev/null
+# TODO: 手动检查: wmic cpu get Name /value 2>/dev/null
+# TODO: 手动检查: wmic logicaldisk get DeviceID,Size,FreeSpace /value 2>/dev/null
 
 # 网络查询
 echo "网络查询:"
@@ -307,6 +311,7 @@ fi
 
 # 使用 wmic 进程查询
 echo "进程查询:"
+# TODO: 手动检查: wmic process where "name='explorer.exe'" get ProcessId,CommandLine /value 2>/dev/null
 
 # 使用 PowerShell 复杂管道
 echo "PowerShell 复杂管道:"
@@ -433,6 +438,7 @@ query user 2>/dev/null
 
 # 使用 icacls
 echo "文件权限:"
+# TODO: 手动检查: icacls test1.txt 2>/dev/null
 
 # 使用 %~dp0 和 %~nx0
 echo "脚本完整路径: $(readlink -f "$0")"
