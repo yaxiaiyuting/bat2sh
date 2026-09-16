@@ -3,7 +3,7 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.9.0**（tag `v1.9.0`；打包同步 commit 见 §8 发布流程）。
+> 当前版本为 **v1.9.2**（tag `v1.9.2`；`v1.9.1` 为未发布的研究代号，见 `docs/v1.9.1-attribution.md`）。
 
 ### 指标口径（v1.8.0 起，务必区分）
 
@@ -72,16 +72,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | 1.9.0 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
+| 当前版本 | 1.9.2 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1244 passed** | `docs/releases/v1.9.0.md` §验证 |
+| 测试基线 | pytest **1262 passed** | `docs/releases/v1.9.2.md` §验证 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.9.0（共 21 个） | `git tag` |
+| 已有 tag | v1.0.0 … v1.9.2（v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -89,7 +89,7 @@
 
 ```text
 bat2sh/
-├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.8.3）
+├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.9.2）
 ├── PKGBUILD                     # Arch/CachyOS 打包脚本（makepkg -si）
 ├── .SRCINFO                     # PKGBUILD 的机读元数据（pkgver/sha256sums 同步）
 ├── bat2sh.desktop               # 桌面项（MIME 关联 x-bat / x-powershell）
@@ -356,7 +356,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
    并要求工作区干净。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
    本地全绿但 CI 红，tag 打完后才发现。该脚本用于杜绝此类「本地绿、tag 后红」。
 1. **版本号两处同步**：`pyproject.toml` 的 `version` 与 `python/bat2sh/__init__.py` 的
-   `__version__`（两者当前均为 `1.8.3`）。
+   `__version__`（两者当前均为 `1.9.2`）。
 2. **PKGBUILD 同步**：更新 `pkgver`；tag 生成后同步 `sha256sums`（可用 `updpkgsums`），
    并更新 `.SRCINFO` 使其与 `PKGBUILD` 一致。v1.6.0 的提交序列即为
    `030ab72 chore: bump version to v1.6.0` → `1f68d42 chore(pkg): sync PKGBUILD hashes`
@@ -421,6 +421,10 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v1.9.0-rounds.md` | v1.9.0 逐优先级指标 + 053 三条 rc 判定 + B-1/B-2/B-3 判定与理由 |
 | `docs/releases/v1.9.0.md` | v1.9.0 发布说明（口径说明 / 4 修复 / 映射 10 条 / 已知限制 / 退回条目） |
 | `docs/releases/v1.9.0-verification.md` | v1.9.0 本机安装验证日志（版本 + 实跑 + 严格口径门槛 + CI 时序） |
+| `docs/v1.9.1-attribution.md` | v1.9.1（未发布代号）86 条 degraded 归因与 L1–L5 分层（只读） |
+| `docs/v1.x-roadmap-research.md` | 1.x 全量可行性研究 + 路线图（r2：文件翻转口径 + 1.x 理论下界） |
+| `docs/v1.9.2-design.md` | v1.9.2 设计：A1 `%VAR%` 冻结 S2 方案 + churn 计量 + 风险处理 |
+| `docs/v1.9.2-rounds.md` | v1.9.2 逐 commit 指标（A1 / C1 / B3 / B4 + 语义默认变更披露） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
