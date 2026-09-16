@@ -3,7 +3,8 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.9.2**（tag `v1.9.2`；`v1.9.1` 为未发布的研究代号，见 `docs/v1.9.1-attribution.md`）。
+> 当前版本为 **v1.10.0a1**（pre-release；tag `v1.10.0a1`；`v1.9.1` 为未发布的研究代号，
+> 见 `docs/v1.9.1-attribution.md`）。
 
 ### 指标口径（v1.8.0 起，务必区分）
 
@@ -20,7 +21,7 @@
 
 | 指标 | 定义 | 分母 |
 | --- | --- | --- |
-| rc==0（原始） | 沙箱运行退出码为 0 | 语法通过数（145–147） |
+| rc==0（原始） | 沙箱运行退出码为 0 | 语法通过数（147） |
 | **rc==0（功能完好）** | 跑通 **且** 三产物不含 `# TODO` 标记、`ConvertReport.todo_count == 0` | 语法通过数 |
 | **degraded** | 跑通但含 `# TODO`（功能缺失） | 语法通过数 |
 
@@ -72,16 +73,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | 1.9.2 | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD` |
+| 当前版本 | 1.10.0a1（pre-release） | `pyproject.toml`、`python/bat2sh/__init__.py`（**PKGBUILD 停留 1.9.2**：pre-release 不进 AUR，见 §8） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1262 passed** | `docs/releases/v1.9.2.md` §验证 |
+| 测试基线 | pytest **1344 passed** | `docs/releases/v1.10.0a1.md` §验证 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.9.2（v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | v1.0.0 … v1.9.2，v1.10.0a1（pre-release；v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -89,7 +90,7 @@
 
 ```text
 bat2sh/
-├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.9.2）
+├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.10.0a1）
 ├── PKGBUILD                     # Arch/CachyOS 打包脚本（makepkg -si）
 ├── .SRCINFO                     # PKGBUILD 的机读元数据（pkgver/sha256sums 同步）
 ├── bat2sh.desktop               # 桌面项（MIME 关联 x-bat / x-powershell）
@@ -124,12 +125,14 @@ bat2sh/
     │   ├── registry_map.py      # 注册表只读键映射规则表
     │   ├── suggestions.py       # 复杂管道的参考改写建议（只生成注释）
     │   ├── recent.py            # 最近打开文件记录（XDG，JSON）
-    │   └── api/                 # API 修复 TODO 子系统（见 §5.4）
+    │   └── api/                 # API 修复 TODO 子系统（见 §5.6）
     │       ├── config.py        # 配置加载/合并/校验/原子写
     │       ├── provider.py      # OpenAI 兼容 Provider（stdlib，流式 SSE）
     │       └── fixer.py         # TODO 标记扫描/替换（纯函数）
     ├── mappings/
-    │   └── windows_tools.py     # Windows 命令结构化映射表（37 条，evidence 必填 + 校验）
+    │   ├── windows_tools.py     # Windows 命令结构化映射表（37 条，evidence 必填 + 校验）
+    │   ├── windows_names.py     # Windows **名称**映射表（B1：环境变量/路径根/服务名）
+    │   └── output_contracts.py  # 输出契约子系统（B2：命令输出形态差异 + 交叉强制）
     └── gui/                     # 图形界面（PySide6）
         ├── app.py               # QApplication 入口
         ├── main_window.py       # 主窗口与业务编排（1108 行）
@@ -245,7 +248,34 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
 - 拒绝发明：服务名 → systemd unit、`.reg` 生成/导入、PSProvider、动态/变量键路径。
   依据与计数见 `docs/research/b2-registry-mapping.md`。
 
-### 5.4 API 修复 TODO（`core/api/*`）
+### 5.4 名称映射（`mappings/windows_names.py`，B1 / v1.10.0a1）
+
+- 与命令表、注册表键表并列的**第三张结构化表**：同一个东西在另一边的**名字**
+  （环境变量 / 路径根 / 服务名）。`NameMapping` 含 `kind`、`form`、`confidence`、
+  `target_exists`、`evidence`、`integrated`、`notes`；`validate_name_mappings()` 在测试中守护。
+- **降级策略**：无依据的 Linux 名 → **行级诚实 TODO**（`form=none`），绝不硬凑（纪律 7）；
+  `integrated=False` = 仅登记不驱动转换（`notes` 必须写明 backlog）。
+- 集成点（`core/batch.py` 两处）：`_convert_simple_no_pipe` 的 `unmappable_env_names_in`
+  预扫（整行 TODO，与 `_expand_vars` 同序先掩 `%%`）、`env_repl` 的映射值 + 警告。
+- **首批**：`%ProgramFiles%`（→ 诚实 TODO）、`%AllUsersProfile%`（→ `/usr/share`）、
+  盘符/UNC（仅登记）。**不含** `sc→systemctl`（C7/v2.0）。
+- **已知限制**：`if`/`for` **头部条件**中的 Windows 专有 env_var 不转为 TODO
+  （改头部会触碰块栈配平）；`%ProgramFiles(x86)%` 等无 corpus evidence 的别名未登记。
+
+### 5.5 输出契约（`mappings/output_contracts.py`，B2 / v1.10.0a1）
+
+- **问题**：命令翻译对了但**输出形态**不同（`ipconfig→ip addr`）；`ToolMapping.output_contract`
+  此前只是「`notes` 含『输出格式』」的装饰性标记。
+- **本版**升级为结构化契约 `OutputContract(command, linux_command, shape, keywords,
+  evidence, integrated, notes)`，并**交叉强制**：`output_contract=true` 的命令必须有契约记录。
+- **1.x 红线**：**不做解析级输出适配**（路线图 §1.B；v1.8.3 流程感知改法 26/151 churn 被否）；
+  本版只做「登记 + 校验 + 诚实化」。
+- **首批**：`ipconfig`（`shape=differs`，中文关键词与 `_FINDSTR_CJK_MAP` 由测试锁定）、
+  `dxdiag`/`perfmon`（`shape=none`）、`ping`/`help`（仅登记）。
+- **消费**：裸 `dxdiag`/`perfmon`（无 `.exe`）由静默透传改为结构化诚实 TODO；
+  `.exe` 形态与 `ipconfig`/`ping`/`help`/`for /f` 行为不变。
+
+### 5.6 API 修复 TODO（`core/api/*`）
 
 - **触发方式**：CLI `--fix-todos`（需交互终端，与 `--run` 互斥）或 GUI"API 修复 TODO"。
   实验性、默认不触发。
@@ -314,11 +344,14 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 - 框架：**pytest**（`pyproject.toml` 配置 `testpaths=["tests"]`、`pythonpath=["python"]`、
   `-p no:cacheprovider`）。运行方式：`pip install -e .[test] && pytest`。
-- 规模：`tests/` 下 98 个 `test_*.py`，v1.9.2 报告 **1262 passed**（v1.9.0 基线 1244）。
+- 规模：`tests/` 下 102 个 `test_*.py`，v1.10.0a1 报告 **1344 passed**（v1.9.2 基线 1262）。
 - 主要测试类别（按文件名归组）：
   - 批处理转换：`test_batch*.py`（含 args/arithmetic/call/forf/goto/pipeline/robocopy 等）
   - PowerShell 转换：`test_powershell*.py`（含 advanced_function/block_stack/hashtable/try_dispatch）
   - 注册表映射：`test_registry_*.py`（batch/p0-p5/ps/writes）
+  - 映射表：`test_mappings_windows_tools.py`（命令）、`test_mappings_windows_names.py`（B1 名称）、
+    `test_mappings_output_contracts.py`（B2 契约）、`test_batch_windows_names.py` /
+    `test_batch_output_contracts.py`（B1/B2 集成）
   - API 修复：`test_api_config.py`、`test_api_fixer.py`、`test_api_provider.py`、`test_api_parallel.py`
   - CLI：`test_cli*.py`（colors/run/stdout/fix_todos）
   - GUI：`test_gui_*.py`（api_test/fix/run/startup/pure/logging）
@@ -356,7 +389,10 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
    并要求工作区干净。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
    本地全绿但 CI 红，tag 打完后才发现。该脚本用于杜绝此类「本地绿、tag 后红」。
 1. **版本号两处同步**：`pyproject.toml` 的 `version` 与 `python/bat2sh/__init__.py` 的
-   `__version__`（两者当前均为 `1.9.2`）。
+   `__version__`（两者当前均为 `1.10.0a1`）。
+   **pre-release 纪律**：alpha/beta 同样是发布——tag 打在 bump commit、CI 全绿、release notes 完整；
+   且**不进 AUR 主分支**（`pkgver=1.10.0a1` 会被 pacman 视为比 `1.10.0` 旧）——
+   故 pre-release 的 `PKGBUILD`/`.SRCINFO` **不同步**，停留上一正式版（v1.10.0a1 为 1.9.2）。
 2. **PKGBUILD 同步**：更新 `pkgver`；tag 生成后同步 `sha256sums`（可用 `updpkgsums`），
    并更新 `.SRCINFO` 使其与 `PKGBUILD` 一致。v1.6.0 的提交序列即为
    `030ab72 chore: bump version to v1.6.0` → `1f68d42 chore(pkg): sync PKGBUILD hashes`
@@ -425,6 +461,11 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v1.x-roadmap-research.md` | 1.x 全量可行性研究 + 路线图（r2：文件翻转口径 + 1.x 理论下界） |
 | `docs/v1.9.2-design.md` | v1.9.2 设计：A1 `%VAR%` 冻结 S2 方案 + churn 计量 + 风险处理 |
 | `docs/v1.9.2-rounds.md` | v1.9.2 逐 commit 指标（A1 / C1 / B3 / B4 + 语义默认变更披露） |
+| `docs/session-b1b2-coldstart.md` | Session B1/B2 冷启动自检（前置核对 / 前提核对 / 仪器修复 / 口径更正） |
+| `docs/session-b1b2-review.md` | Session B1/B2 自我审阅与裁定（范围/风险/churn/止损/退路/客观验收；裁定=收窄后实现） |
+| `docs/session-b1b2-rounds.md` | Session B1/B2 逐 commit 指标（B1/B2 框架与首批 + churn 实测） |
+| `docs/session-b1b2-report.md` | Session B1/B2 报告（交付/未完成/指标对比/冲突区域/Session B 起点） |
+| `docs/releases/v1.10.0a1.md` | v1.10.0a1 pre-release 发布说明（B1/B2 子系统 / 口径更正 / 已知限制 / 后续计划） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
