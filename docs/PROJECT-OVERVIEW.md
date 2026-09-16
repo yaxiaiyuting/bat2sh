@@ -349,6 +349,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/releases/v1.8.1.md` | v1.8.1 发布说明（版本理由 / 修复 / 新增映射 / 未修原因 / 静默与环境占比） |
 | `docs/v1.8.2-artifact-classification.md` | v1.8.2 转换 artifact 逐条分类（A/B/C/S）+ Batch 2b 词法层评估 + 2c/3 结果 + 验收快照 |
 | `docs/releases/v1.8.2.md` | v1.8.2 发布说明（A/B/C/S 分类 / A-1..A-6 修复 / 映射扩展 13 条 / tag 上 CI 复核） |
+| `docs/releases/v1.8.2-verification.md` | v1.8.2 本机安装验证日志（版本 + 八项修复实跑 + 门槛数据 + CI 时序） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
