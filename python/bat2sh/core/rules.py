@@ -76,7 +76,7 @@ BATCH_HANDLER_MAP: dict[str, str] = {
     "icacls": "cmd_todo_hint",
     "cacls": "cmd_todo_hint",
     "net": "cmd_net",
-    "sc": "cmd_todo_hint",
+    "sc": "cmd_sc",
     "schtasks": "cmd_todo_hint",
     "reg": "cmd_todo_hint",
     "regedit": "cmd_todo_hint",

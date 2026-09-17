@@ -3055,6 +3055,73 @@ class BatchConverter:
     def cmd_noop(self, lineno: int, args: str, original: str) -> None:
         return None
 
+    _SC_PARAM_KEY_RE = re.compile(r"^[A-Za-z_][\w.-]*=$")
+
+    def cmd_sc(self, lineno: int, args: str, original: str) -> str:
+        """``sc`` → 结构化诚实 TODO（``# TODO[SC]``，v2.2.0）。
+
+        纪律 7：只解析动作/服务名/参数，**绝不**把 Windows 服务名映射为 systemd unit
+        （94 个服务名几乎全为 Windows 专有，无同名 unit）。解析失败回退通用诚实 TODO。
+        """
+        fields = self._parse_sc_invocation(args)
+        if fields is None:
+            return self.cmd_todo_hint(lineno, args, original)
+        self._todo(
+            lineno,
+            original,
+            "Windows 服务名在 Linux 无同名 systemd unit，请手工确认等价服务后再用 systemctl",
+            category="service",
+        )
+        return "# TODO[SC] " + " ".join(fields) + ": 手动检查: " + original
+
+    def _parse_sc_invocation(self, args: str) -> list[str] | None:
+        tokens = tokenize_args(args)
+        if not tokens:
+            return None
+        index = 0
+        host = ""
+        if tokens[0].startswith("\\\\"):
+            host = tokens[0].strip('"')
+            index = 1
+        if index >= len(tokens):
+            return None
+        action = tokens[index].strip('"').lower()
+        if not action or action.startswith(("/", "-")):
+            return None
+        index += 1
+        service = ""
+        if index < len(tokens):
+            candidate = tokens[index].strip('"')
+            if (
+                candidate
+                and not self._SC_PARAM_KEY_RE.match(candidate)
+                and not candidate.startswith(("/", "-"))
+            ):
+                service = candidate
+                index += 1
+        fields = [f"op={action}"]
+        if host:
+            fields.append(f'host="{host}"')
+        if service:
+            fields.append(f'service="{service}"')
+        if index < len(tokens):
+            fields.append('params="' + self._join_sc_params(tokens[index:]) + '"')
+        return fields
+
+    @staticmethod
+    def _join_sc_params(tokens: list[str]) -> str:
+        joined: list[str] = []
+        index = 0
+        while index < len(tokens):
+            token = tokens[index]
+            if token.endswith("=") and index + 1 < len(tokens):
+                joined.append(token + tokens[index + 1])
+                index += 2
+                continue
+            joined.append(token)
+            index += 1
+        return " ".join(joined).replace('"', '\\"')
+
     def cmd_todo_hint(self, lineno: int, args: str, original: str) -> str | None:
         if self._current_command in _REG_COMMANDS:
             op, key, value = self._parse_reg_invocation(args)
