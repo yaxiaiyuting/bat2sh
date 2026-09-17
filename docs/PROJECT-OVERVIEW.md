@@ -3,7 +3,7 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.10.0a1**（pre-release；tag `v1.10.0a1`；`v1.9.1` 为未发布的研究代号，
+> 当前版本为 **v1.10.0b1**（pre-release；tag `v1.10.0b1`；`v1.9.1` 为未发布的研究代号，
 > 见 `docs/v1.9.1-attribution.md`）。
 
 ### 指标口径（v1.8.0 起，务必区分）
@@ -73,16 +73,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | 1.10.0a1（pre-release） | `pyproject.toml`、`python/bat2sh/__init__.py`（**PKGBUILD 停留 1.9.2**：pre-release 不进 AUR，见 §8） |
+| 当前版本 | 1.10.0b1（pre-release） | `pyproject.toml`、`python/bat2sh/__init__.py`（**PKGBUILD 停留 1.9.2**：pre-release 不进 AUR，见 §8） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1344 passed** | `docs/releases/v1.10.0a1.md` §验证 |
+| 测试基线 | pytest **1360 passed** | `docs/releases/v1.10.0b1.md` §验证 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.9.2，v1.10.0a1（pre-release；v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | v1.0.0 … v1.9.2，v1.10.0a1、v1.10.0b1（pre-release；v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -122,8 +122,9 @@ bat2sh/
     │   ├── batch.py             # 批处理转换器（3224 行）
     │   ├── powershell.py        # PowerShell 转换器（3531 行）
     │   ├── syntax.py            # bash -n 后置校验 + 整体降级
-    │   ├── registry_map.py      # 注册表只读键映射规则表
-    │   ├── suggestions.py       # 复杂管道的参考改写建议（只生成注释）
+│   ├── registry_map.py      # 注册表只读键映射规则表
+│   ├── control_flow.py      # C4 goto 控制流形态台账（v1.10.0b1；只读，不驱动转换）
+│   ├── suggestions.py       # 复杂管道的参考改写建议（只生成注释）
     │   ├── recent.py            # 最近打开文件记录（XDG，JSON）
     │   └── api/                 # API 修复 TODO 子系统（见 §5.6）
     │       ├── config.py        # 配置加载/合并/校验/原子写
@@ -288,6 +289,24 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
 - **应用门槛**：建议必须通过整脚本 `bash -n` 校验 + unified diff 确认后才应用；
   失败保留原 TODO；全部结束一次性写盘，中断则丢弃。
 
+### 5.7 goto 控制流形态台账（`core/control_flow.py`，C4 / v1.10.0b1）
+
+- **问题**：cmd 的 `goto` 是**任意跳转**（前跳/回跳/跳出/跳入控制块/动态目标），bash 无对应物；
+  静态翻译必须先做**控制流图（CFG）**分析。路线图把 C4 评为 1.x 单点最大（~250 TODO）、
+  **风险最高**，明确归 **v2.0**（`docs/v1.x-roadmap-research.md` §1.C4/F1）。
+- **本版定位**：**不做任何语义转换**（`integrated=False`），把 goto 形态固化为与
+  「命令表 / 名称表 / 输出契约表」并列的**第四张表**（`ControlFlowPattern`，7 主形态 + 1 辅形态），
+  带 `evidence`（纪律 7）、置信度光谱（A–D）、`plan`（v2.0 转换方案）与 `convertible` 标记。
+- **接口**：`classify_goto()`（纯函数、互斥分类）、`summarize_goto_lines()`（`echo`/`rem`
+  与 CJK 标签感知）、`validate_control_flow_patterns()`（测试守护）、
+  `tools/c4/control_flow_report.py`（只读报告，复现计数）。
+- **实测（151 语料）**：goto 语句 1583；转换器口径 goto TODO 1362/39 文件（degraded 内 252/22）；
+  唯一已实现形态 = `goto :eof`（→ `exit 0`/`return`）。
+- **为何不实现**：唯一阻塞=goto 的 degraded 文件仅 3，翻转收益 ≈ 2/86；
+  形态数十种 → 撞库不可行 → 需状态机（15–25 人日，最高风险）。
+- **测试**：`tests/test_control_flow_taxonomy.py`（16 条，不依赖外部语料）。
+  设计与分阶段方案见 `docs/session-c4-design.md`。
+
 ---
 
 ## 6. 构建 / 安装 / 运行
@@ -344,7 +363,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 - 框架：**pytest**（`pyproject.toml` 配置 `testpaths=["tests"]`、`pythonpath=["python"]`、
   `-p no:cacheprovider`）。运行方式：`pip install -e .[test] && pytest`。
-- 规模：`tests/` 下 102 个 `test_*.py`，v1.10.0a1 报告 **1344 passed**（v1.9.2 基线 1262）。
+- 规模：`tests/` 下 103 个 `test_*.py`，v1.10.0b1 报告 **1360 passed**（v1.9.2 基线 1262）。
 - 主要测试类别（按文件名归组）：
   - 批处理转换：`test_batch*.py`（含 args/arithmetic/call/forf/goto/pipeline/robocopy 等）
   - PowerShell 转换：`test_powershell*.py`（含 advanced_function/block_stack/hashtable/try_dispatch）
@@ -392,7 +411,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
    `__version__`（两者当前均为 `1.10.0a1`）。
    **pre-release 纪律**：alpha/beta 同样是发布——tag 打在 bump commit、CI 全绿、release notes 完整；
    且**不进 AUR 主分支**（`pkgver=1.10.0a1` 会被 pacman 视为比 `1.10.0` 旧）——
-   故 pre-release 的 `PKGBUILD`/`.SRCINFO` **不同步**，停留上一正式版（v1.10.0a1 为 1.9.2）。
+   故 pre-release 的 `PKGBUILD`/`.SRCINFO` **不同步**，停留上一正式版（v1.10.0b1 为 1.9.2）。
 2. **PKGBUILD 同步**：更新 `pkgver`；tag 生成后同步 `sha256sums`（可用 `updpkgsums`），
    并更新 `.SRCINFO` 使其与 `PKGBUILD` 一致。v1.6.0 的提交序列即为
    `030ab72 chore: bump version to v1.6.0` → `1f68d42 chore(pkg): sync PKGBUILD hashes`
@@ -465,8 +484,14 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/session-b1b2-review.md` | Session B1/B2 自我审阅与裁定（范围/风险/churn/止损/退路/客观验收；裁定=收窄后实现） |
 | `docs/session-b1b2-rounds.md` | Session B1/B2 逐 commit 指标（B1/B2 框架与首批 + churn 实测） |
 | `docs/session-b1b2-report.md` | Session B1/B2 报告（交付/未完成/指标对比/冲突区域/Session B 起点） |
+| `docs/session-c4-coldstart.md` | Session C4 冷启动自检（前置核对 / 前提核对 / goto 形态实测） |
+| `docs/session-c4-review.md` | Session C4 自我审阅与裁定（范围/风险/止损/退路/客观验收；裁定=收窄后实现） |
+| `docs/session-c4-design.md` | C4 goto 控制流设计契约（形态分布 + v2.0 分阶段 CFG 方案 + 闸门） |
+| `docs/session-c4-report.md` | Session C4 报告（交付/未完成/指标对比/wine/冲突区域/Session C 起点） |
 | `docs/releases/v1.10.0a1.md` | v1.10.0a1 pre-release 发布说明（B1/B2 子系统 / 口径更正 / 已知限制 / 后续计划） |
 | `docs/releases/v1.10.0a1-verification.md` | v1.10.0a1 本机安装验证日志（版本 + 5 项实跑 + tag 上 CI 时序 + tarball sha256） |
+| `docs/releases/v1.10.0b1.md` | v1.10.0b1 pre-release 发布说明（C4 控制流台账 / CI 修正 / 已知限制 / 后续计划） |
+| `docs/releases/v1.10.0b1-verification.md` | v1.10.0b1 本机安装验证日志（版本 + 实跑 + tag 上 CI 时序 + tarball sha256） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
 | `docs/releases/v1.4.0.md` | v1.4.0 发布说明（API 修复 TODO，CLI + GUI） |
 | `docs/releases/v1.4.1.md` | v1.4.1 发布说明（GUI"测试连接"按钮） |
@@ -488,3 +513,5 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
   不含任何无许可语料原文。说明见该目录 `README.md`。
 - `tools/oracle/`：wine-cmd **黄金行为对照** harness（§7.1），抓运行时语义缺陷；
   用例 `cases/g01..g06.bat`，无 wine 时 skip。说明见该目录 `README.md`。
+- `tools/c4/`：**goto 控制流只读报告**（§5.7），复现形态台账计数并给转换器口径统计；
+  只读、不跑沙箱，语料缺失时退出码 2。说明见该目录 `README.md`。
