@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from ..mappings import windows_tools
+from ..mappings import output_contracts, windows_names, windows_tools
 from . import registry_map, rules
 from .settings import ConvertSettings
 from .suggestions import suggest_pipeline
@@ -1104,6 +1104,16 @@ class BatchConverter:
                 if upper in rules.BATCH_ENV_WARN:
                     self._warn(lineno, f"%{name}% 的转换可能不完全等价", text, category="variables")
                 return rules.BATCH_ENV_MAP[upper]
+            name_entry = windows_names.env_mapping_for(name)
+            if name_entry is not None and name_entry.form != "none" and name_entry.linux:
+                self._warn(
+                    lineno,
+                    f"%{name}% → {name_entry.linux}"
+                    f"（{name_entry.confidence} 档近似映射，需人工核对）",
+                    text,
+                    category="variables",
+                )
+                return name_entry.linux
             sanitized = sanitize_identifier(name)
             if self._stack:
                 block = self._stack[0]
@@ -2627,6 +2637,21 @@ class BatchConverter:
             return [self._c("# TODO: 手动检查: " + text)]
         if not body.strip():
             return [self._c(redir_text)] if redir_text else []
+        unmappable = [
+            name
+            for name in windows_names.unmappable_env_names_in(text)
+            if name.upper() not in self._assigned_by_upper
+        ]
+        if unmappable:
+            entry = windows_names.env_mapping_for(unmappable[0])
+            hint = f"（{entry.notes}）" if entry is not None and entry.notes else ""
+            self._todo(
+                lineno,
+                text,
+                f"%{unmappable[0]}% 为 Windows 专有环境变量，Linux 无对应物，请人工处理{hint}",
+                category="variables",
+            )
+            return [self._c("# TODO: 手动检查: " + text)]
         spaced_set = re.sub(r"(?i)^(@?\s*)set\s*/([ap])(?=\s|$)", r"\1set /\2", body)
         if spaced_set != body:
             body = spaced_set
@@ -2746,6 +2771,18 @@ class BatchConverter:
                     category="command",
                 )
                 line = None
+        elif (
+            (contract := output_contracts.contract_for(first)) is not None
+            and contract.integrated
+            and contract.shape == "none"
+        ):
+            self._todo(
+                lineno,
+                text,
+                f"{first} 在 Linux 无对应物（输出契约：{contract.notes}）",
+                category="command",
+            )
+            line = None
         elif first in rules.BATCH_TODO_COMMANDS:
             hint = rules.BATCH_TODO_COMMANDS[first]
             self._todo(lineno, text, hint, category="command")
