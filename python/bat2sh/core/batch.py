@@ -3053,6 +3053,34 @@ class BatchConverter:
             return f"if id -u {name} >/dev/null 2>&1; then userdel {name}; fi"
         return self.cmd_todo_hint(lineno, args, original)
 
+    def cmd_attrib(self, lineno: int, args: str, original: str) -> str | None:
+        """``attrib ±r <path…>`` -> 带存在性守卫的 ``chmod ∓w``；其余属性位保持诚实 TODO。
+
+        cmd 的 ``+r`` = 只读（bash: ``chmod -w``）；``-r`` = 清除只读（``chmod +w``）。
+        ``+s``（系统）/``+h``（隐藏）/``+a``（归档）在 Linux 无属性位对应，整行降级为 TODO。
+        """
+        tokens = tokenize_args(args)
+        flag_tokens = [t for t in tokens if re.fullmatch(r"[+-][A-Za-z]+", t)]
+        targets = [t for t in tokens if not re.fullmatch(r"[+-][A-Za-z]+", t)]
+        ops: list[str] = []
+        for token in flag_tokens:
+            sign = token[0]
+            ops.extend(sign + char.lower() for char in token[1:])
+        if not targets or not ops or any(op not in ("+r", "-r") for op in ops):
+            return self.cmd_todo_hint(lineno, args, original)
+        mode = "-w" if ops[-1] == "+r" else "+w"
+        self._warn(
+            lineno,
+            f"attrib {' '.join(ops)} → chmod {mode}（仅只读位；+s/+h/+a 无对应）",
+            original,
+            category="command",
+        )
+        parts = []
+        for target in targets:
+            path = self._convert_path_token(target, lineno)
+            parts.append(f"if [ -e {path} ]; then chmod {mode} {path}; fi")
+        return " ; ".join(parts)
+
     def _parse_reg_invocation(self, args: str) -> tuple[str, str, str]:
         if self._current_command == "regedit":
             return "import", "", ""

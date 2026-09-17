@@ -72,7 +72,7 @@ BATCH_HANDLER_MAP: dict[str, str] = {
     "setx": "cmd_setx",
     "if": "cmd_if_unsupported",  # 不应到达（dispatcher 已处理）
     "shutdown": "cmd_shutdown",
-    "attrib": "cmd_todo_hint",
+    "attrib": "cmd_attrib",
     "icacls": "cmd_todo_hint",
     "cacls": "cmd_todo_hint",
     "net": "cmd_net",
