@@ -2285,6 +2285,7 @@ class BatchConverter:
 
         command: str | None = None
         file_target: str | None = None
+        string_source: str | None = None
         source = set_text.strip()
         if _DATE_TIME_VAR_RE.search(set_text):
             return self._for_todo_lines(
@@ -2350,6 +2351,17 @@ class BatchConverter:
                     )
                 command = command_lines[0].strip()
         elif (
+            not options.usebackq
+            and len(source) >= 2
+            and source.startswith('"')
+            and source.endswith('"')
+        ):
+            string_source = self._for_f_string_source(lineno, source)
+            if string_source is None:
+                return self._for_todo_lines(
+                    lineno, text, body, "for /f 的字符串形式含 $/`/\\ 或转义引号，无法安全引用"
+                )
+        elif (
             options.usebackq
             and len(source) >= 2
             and source.startswith('"')
@@ -2414,6 +2426,12 @@ class BatchConverter:
                 f"{command} | tail -n +{options.skip + 1}" if options.skip else command
             )
             close_word = f"done < <({body_source})"
+        elif string_source is not None:
+            close_word = (
+                f"done < <(tail -n +{options.skip + 1} <<< {string_source})"
+                if options.skip
+                else f"done <<< {string_source}"
+            )
         elif options.skip:
             close_word = f"done < <(tail -n +{options.skip + 1} < {file_target})"
         else:
@@ -2479,6 +2497,18 @@ class BatchConverter:
                     self._stack[i + 1].finish_parent = True
                     break
         return lines
+
+    def _for_f_string_source(self, lineno: int, source: str) -> str | None:
+        """``in ("<字符串>")`` -> bash 双引号字面量（cmd 语义：``""`` 表示一个字面引号）。
+
+        含字面 ``$``/反引号/转义引号时返回 ``None``：这些在 bash 双引号内会被再次解释，
+        无法安全引用（保守降级为诚实 TODO）。``%VAR%`` / ``!VAR!`` 照常展开为 ``${VAR}``。
+        """
+        inner = source[1:-1].replace('""', '"')
+        if "$" in inner or "`" in inner or re.search(r'\\["\\$`]', inner):
+            return None
+        expanded = self._expand_vars(inner, lineno)
+        return '"%s"' % expanded.replace('"', '\\"')
 
     @staticmethod
     def _parse_for_f_options(opts: str) -> _ForFOptions | None:

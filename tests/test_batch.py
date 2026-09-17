@@ -656,12 +656,21 @@ def test_for_f_complex_options_todo(convert_bat, line):
     assert report.todo_count == 1
 
 
-def test_for_f_string_source_todo(convert_bat):
+def test_for_f_string_source_converts(convert_bat, bash_check):
     out, report = convert_bat(
         "@echo off\nfor /f \"tokens=*\" %%i in (\"a b c\") do echo %%i\n"
     )
+    assert report.todo_count == 0
+    assert 'done <<< "a b c"' in out
+    bash_check(out)
+
+
+def test_for_f_string_source_with_dollar_stays_todo(convert_bat):
+    out, report = convert_bat(
+        "@echo off\nfor /f \"tokens=*\" %%i in (\"price $5\") do echo %%i\n"
+    )
     assert report.todo_count == 1
-    assert "字符串/反引号" in report.todos[0].message
+    assert "字符串形式" in report.todos[0].message
 
 
 def test_for_f_inner_command_todo_falls_back(convert_bat):
