@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bat2sh"
-version = "2.1.0"
+version = "2.2.0"
 description = "将 Windows 批处理与 PowerShell 脚本转换为 Bash 脚本（PySide6 图形界面 + CLI）"
 readme = "README.md"
 requires-python = ">=3.12"
