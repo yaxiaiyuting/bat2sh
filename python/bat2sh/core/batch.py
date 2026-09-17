@@ -813,6 +813,33 @@ class BatchConverter:
         self.report.errors.append(Diagnostic(lineno, message, original, category))
         return "# TODO: 手动检查: " + original
 
+    @staticmethod
+    def _scan_parens(text: str, depth: int = 0) -> tuple[int, int]:
+        """引号感知扫描括号：返回 (净深度, 深度首次归零处的下标或 -1)。"""
+        quote = ""
+        zero_at = -1
+        for index, char in enumerate(text):
+            if quote:
+                if char == quote:
+                    quote = ""
+                continue
+            if char in "\"'":
+                quote = char
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth <= 0 and zero_at < 0:
+                    zero_at = index
+        return depth, zero_at
+
+    def _register_pipeline_comment_block(self, text: str) -> None:
+        depth, _ = self._scan_parens(text)
+        if depth > 0:
+            block = _Block("pcomment", "")
+            block.paren_depth = depth
+            self._stack.append(block)
+
     def _manual_block_line(self, comment: str, text: str) -> list[str]:
         lines = [self._c(comment)]
         if "(" in text and find_matching(text, "(", ")") == -1:
@@ -832,6 +859,7 @@ class BatchConverter:
         suggestion = suggest_pipeline(text)
         if not suggestion:
             return [self._c("# TODO: 手动检查: " + text)]
+        self._register_pipeline_comment_block(text)
         lines = ["# TODO: 复杂管道需手动重写"]
         lines.extend("#" + line for line in suggestion)
         return [self._c(line) for line in lines]
@@ -1183,6 +1211,20 @@ class BatchConverter:
     def _convert_line(self, lineno: int, raw: str) -> list[str]:
         # 注释块内：原样注释直到括号配平
         for block in reversed(self._stack):
+            if block.kind == "pcomment":
+                depth, cut = self._scan_parens(raw, block.paren_depth)
+                block.paren_depth = depth
+                if cut < 0:
+                    return [self._c("# " + raw.strip())]
+                if depth <= 0:
+                    self._stack.pop()
+                self._silent_ok = True
+                head = raw[:cut].strip()
+                tail = raw[cut + 1:].strip()
+                lines = [self._c("# " + head)] if head else []
+                if tail:
+                    lines.extend(self._convert_line(lineno, tail))
+                return lines
             if block.kind == "comment":
                 if raw.strip().startswith(")"):
                     block.paren_depth -= 1
