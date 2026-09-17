@@ -2,7 +2,8 @@ name: 测试
 
 on:
   push:
-    branches: [main]
+    branches: [main, "session-*"]
+    tags: ["v*"]
   pull_request:
     branches: [main]
 
