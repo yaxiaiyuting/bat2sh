@@ -3,8 +3,8 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.11.0**（tag `v1.11.0`；**1.x 收尾版本**；`v1.9.1` 为未发布的研究代号，
-> 见 `docs/v1.9.1-attribution.md`）。
+> 当前版本为 **v2.1.0**（tag `v2.1.0`；2.x 第二版：**CFG 只读数据模型**；v2.0.0 为解析层/词法层硬化）。
+> 1.x 已于 v1.11.0 收尾为维护模式；`v1.9.1` 为未发布研究代号，见 `docs/v1.9.1-attribution.md`。
 > ✅ **1.x 收尾成立（2026-09-17）**：路线图 §4 六标准（修订后）全 ✓ + 收尾三条件 (a)(b)(c) 全 ✓，
 > 1.x 冻结为**维护模式**；2.x 范围与启动条件见 **`docs/v1.11.0-1x-closure-final.md`**（收尾声明）。
 
@@ -96,16 +96,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **1.11.0**（**1.x 收尾版本**；1.x 已收尾→维护模式，见 §0.1） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 1.11.0） |
+| 当前版本 | **2.1.0**（**CFG 只读数据模型**；v2.0.0 为解析层/词法层硬化；见 §5.9） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.1.0） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1405 passed** | `docs/releases/v1.11.0.md` §2 |
+| 测试基线 | pytest **1436 passed** | `docs/releases/v2.1.0.md` §3 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.9.2，**v1.10.0**，**v1.11.0**（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -148,6 +148,7 @@ bat2sh/
 │   ├── registry_map.py      # 注册表只读键映射规则表
 │   ├── control_flow.py      # C4 goto 控制流形态台账（v1.10.0b1；只读，不驱动转换）
 │   ├── lexical_residuals.py # C(lex) 词法层残余额账（v1.10.0rc1；只读，不驱动转换）
+│   ├── cfg.py                # CFG 只读数据模型（v2.1.0 P4：标签表 + goto→标签边；只读，不驱动转换）
 │   ├── suggestions.py       # 复杂管道的参考改写建议（只生成注释）
     │   ├── recent.py            # 最近打开文件记录（XDG，JSON）
     │   └── api/                 # API 修复 TODO 子系统（见 §5.6）
@@ -352,6 +353,25 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
   `summarize_residuals()`；`tools/lex/lexical_report.py`（只读，台账校验 + trigger 漂移检测 + 语料复现）。
 - **测试**：`tests/test_lexical_residuals.py`（11 条，断言台账语义与 cmd 语义，不编码转换器现况）。
 
+### 5.9 CFG 只读数据模型（`core/cfg.py`，P4 / v2.1.0）
+
+- **问题**：C4 台账（§5.7）给出了 goto 的**形态分布**，但 goto 语义转换还需要**位置与边**：
+  目标标签在何处、方向（前跳/回跳）、是否块内、被几处跳入、被跳过的区间。这是 v2.2
+  goto 高级形态（回跳→循环 / 块内 goto）的**前置基础设施**（`session-c4-design.md` §2 Phase 1）。
+- **定位**：**纯只读**（`integrated=False`）——**不 import `core.batch`、不被转换器调用**；
+  在「命令表 / 名称表 / 输出契约表 / 控制流表 / 词法层表」之外的**第六张只读表**（但为**数据模型**而非台账）。
+- **数据结构**：`LabelPosition`（标签 → 行号/下标/块内/入边计数）、`GotoEdge`
+  （源、目标、目标类型、方向、块内、条件、冗余、C4 形态键）、`Cfg`（标签表 + 边集）。
+- **接口**：`logical_lines()`（与 `batch._logical_lines` 同口径）、`build_cfg()` /
+  `build_cfg_from_text()`、`summarize_cfg()`、`validate_cfg()`（每条 goto 必须落入 C4 互斥主形态；
+  方向/目标/冗余/入边自洽）、`tools/cfg/cfg_report.py`（只读报告）。
+- **实测（151 语料）**：标签位置 **781**；goto 边 **1583**；形态分布 **7/7 与 C4 台账一致**；
+  逐文件 `validate_cfg` **0 问题**。
+- **为何 P5 未落地**：`redundant_goto` / 顶层 `forward_skip` 经实测**翻转 0**（路线图估算 ≈3–4 为估算错）；
+  可证安全子集零产物/零指标影响，`forward_skip` 另需块结构发射（053 同域）→ 显式归 **v2.2.0**
+  （见 `docs/v2.1.0-review.md` §8）。本版为**零转换改动**。
+- **测试**：`tests/test_cfg.py`（24 条，断言 CFG 语义，不依赖外部语料）。
+
 ---
 
 ## 6. 构建 / 安装 / 运行
@@ -554,6 +574,15 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v1.11.0-1x-closure-final.md` | **1.x 收尾声明**（六标准修订后全 ✓ + 三条件全 ✓ → 收尾成立）+ 2.x 范围与需求驱动启动条件 |
 | `docs/v1.11.0-standards-revision.md` | **六标准来源核查**（2 条估算 / 4 条仪器）+ 标准 1 修订（原则性表述）+ 纪律 9 强化 |
 | `docs/v1.11.0-report.md` | v1.11.0 发布报告（交付/归属重判/标准修订/指标/收尾判定） |
+| `docs/v2.0.0-coldstart.md` / `v2.0.0-review.md` / `v2.0.0-breaking-changes.md` / `v2.0.0-report.md` | v2.0.0 解析层/词法层硬化（coldstart / 审阅裁定 / 破坏性声明 / 报告） |
+| `docs/v2.1.0-coldstart.md` | v2.1.0 冷启动自检（前置核对 / 仪器复现 / 证伪「翻转 ≈3–4」/ 偏离披露） |
+| `docs/v2.1.0-review.md` | v2.1.0 自我审阅与裁定（范围/风险/最小复现/止损/退路；裁定 = 只交 P4，P5/B5 归 v2.2.0） |
+| `docs/v2.1.0-breaking-changes.md` | v2.1.0 破坏性变更声明（实测：无破坏性变更） |
+| `docs/v2.1.0-report.md` | v2.1.0 发布报告（交付/未完成/指标/053-A1/下一版起点） |
+| `docs/releases/v2.0.0.md` | v2.0.0 发布说明（解析层/词法层硬化；2.x 定位声明） |
+| `docs/releases/v2.1.0.md` | v2.1.0 发布说明（CFG 只读数据模型；P5 显式归 v2.2.0；无障碍声明） |
+| `docs/releases/v2.1.0-verification.md` | v2.1.0 本机安装验证日志（版本 + 实跑 + tag 上 CI 时序） |
+| `docs/2.x-roadmap-research.md` | 2.x 路线图研究（goto/CFG、名称映射、版本序列 v2.0/v2.1/v2.2） |
 | `docs/releases/v1.11.0.md` | v1.11.0 发布说明（C2 收窄执行 / 归属重判 / 标准 3 修订 / 已知限制） |
 | `docs/releases/v1.10.0.md` | v1.10.0 正式版发布说明（1.x 功能冻结 / 四个并行子系统 / 诚实披露） |
 | `docs/releases/v1.10.0-verification.md` | v1.10.0 本机安装验证日志（版本 + 实跑 + tag 上 CI 时序 + tarball sha256） |
@@ -585,3 +614,5 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
   只读、不跑沙箱，语料缺失时退出码 2。说明见该目录 `README.md`。
 - `tools/lex/`：**词法层残余额账只读报告**（§5.8），台账校验 + trigger 漂移检测 + 语料复现；
   只读、不跑沙箱、不改转换器。
+- `tools/cfg/`：**CFG 只读数据模型报告**（§5.9），构建标签表 + goto 边并与 C4 台账交叉核对；
+  只读、不跑沙箱、不改转换器。语料缺失时退出码 2。说明见该目录 `README.md`。
