@@ -145,7 +145,7 @@ BATCH_NOOP_MAP: dict[str, str | None] = {
 
 #: Windows 专有命令 -> 转换建议（生成 TODO）
 BATCH_TODO_COMMANDS: dict[str, str] = {
-    "attrib": "请改用 chmod 调整文件属性",
+    "attrib": "只读位请改用 chmod ∓w；隐藏文件改用 . 前缀（+s/+a 无对应属性位）",
     "icacls": "请改用 chmod/chown 设置权限",
     "cacls": "请改用 chmod/chown 设置权限",
     "net": "网络请改用 ip/ss；用户请改用 useradd/userdel；服务请改用 systemctl；共享请手工配置",
@@ -164,7 +164,7 @@ BATCH_TODO_COMMANDS: dict[str, str] = {
     "bcdedit": "引导配置请改用 grub/systemd-boot",
     "compact": "NTFS 压缩无对应物",
     "cipher": "EFS 加密无对应物",
-    "fsutil": "文件系统工具无对应物",
+    "fsutil": "文件系统信息请改用 lsblk/df/blkid",
     "takeown": "所有权请改用 chown",
     "bcdboot": "引导配置请改用 grub/systemd-boot",
 }

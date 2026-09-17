@@ -68,3 +68,10 @@ def test_attrib_without_target_stays_todo(convert_bat):
     out, report = convert_bat("@echo off\nattrib\n")
     assert report.todo_count == 1
     assert "chmod" not in out
+
+
+def test_attrib_todo_hint_is_actionable(convert_bat):
+    _, report = convert_bat('@echo off\nattrib +h "f.txt"\n')
+    message = report.todos[0].message
+    assert "chmod" in message
+    assert ". 前缀" in message
