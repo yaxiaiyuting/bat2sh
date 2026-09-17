@@ -13,9 +13,16 @@ import pytest
 TODO_HINT_COMMANDS = (
     "Wmic ComputerSystem Where \"Name='Administrator'\" Call ReName \"X\"",
     "subst q: F:\\桌面\\RaySource",
-    "net user 123 /delete",
+    "net start spooler",
     "attrib +h foo.txt",
 )
+
+
+def test_net_user_delete_accounted_as_code(convert_bat):
+    out, report = convert_bat("@echo off\nnet user 123 /delete\n")
+    assert "userdel 123" in out
+    assert report.todo_count == 0
+    assert [w for w in report.warnings if w.category == "loss"] == []
 
 
 @pytest.mark.parametrize("command", TODO_HINT_COMMANDS)

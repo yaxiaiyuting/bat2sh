@@ -3029,6 +3029,30 @@ class BatchConverter:
         # 必须返回字符串：调用方对 None 走 `return []`，会把整行丢弃
         return "# TODO: 手动检查: " + original
 
+    def cmd_net(self, lineno: int, args: str, original: str) -> str | None:
+        """``net user <name> /delete`` -> 幂等 ``userdel``；其余 ``net`` 形态保持诚实 TODO。
+
+        幂等语义（与 ``cmd_del`` 的 ``rm -f`` 同精神）：用户不存在时视为已完成，避免
+        「目标物不存在」把 rc==0 变成失败（ENV 类 artifact）。缺权限时 ``userdel`` 仍会
+        以非零退出，错误不被吞掉。
+        """
+        tokens = tokenize_args(args)
+        if (
+            len(tokens) == 3
+            and tokens[0].strip("\"'").lower() == "user"
+            and tokens[2].strip("\"'").lower() == "/delete"
+            and re.fullmatch(r"[A-Za-z0-9._-]+", tokens[1].strip("\"'"))
+        ):
+            name = tokens[1].strip("\"'")
+            self._warn(
+                lineno,
+                f"net user /delete → userdel（用户不存在时视为已完成）",
+                original,
+                category="command",
+            )
+            return f"if id -u {name} >/dev/null 2>&1; then userdel {name}; fi"
+        return self.cmd_todo_hint(lineno, args, original)
+
     def _parse_reg_invocation(self, args: str) -> tuple[str, str, str]:
         if self._current_command == "regedit":
             return "import", "", ""
