@@ -2107,6 +2107,9 @@ class BatchConverter:
             return self._emit_for_f(lineno, text, opts, set_text, var, body)
 
         if "/r" in opts_lower:
+            converted_r = self._emit_for_r(lineno, text, opts, set_text, var, body)
+            if converted_r is not None:
+                return converted_r
             return self._for_todo_lines(lineno, text, body, "for /r 请改用 find")
 
         items = self._convert_for_set(set_text, lineno)
@@ -2173,6 +2176,72 @@ class BatchConverter:
             # 循环体开了跨行块（如 `else (`）：done 由内层块闭合时补出，循环变量保持活动
             for i in range(len(self._stack) - 1, -1, -1):
                 if self._stack[i] is for_block:
+                    self._stack[i + 1].finish_parent = True
+                    break
+        return lines
+
+    def _emit_for_r(
+        self, lineno: int, text: str, opts: str, set_text: str, var: str, body: str
+    ) -> list[str] | None:
+        """``for /r [root] %%v in (.) do C`` -> ``find`` 驱动的 while-read 循环。
+
+        cmd 语义：``for /r`` 递归枚举目录树，``in (.)`` 时集合 = 根目录自身及其所有子目录。
+        bash 等价：``while read`` + ``done < <(find <root> -type d)``（复用 for /f 的块机制）。
+
+        **仅覆盖可静态确定的安全窄形态**，其余返回 ``None`` 由调用方降级为诚实 TODO（纪律 1）：
+        - ``set`` 必须恰为 ``.``（文件模式如 ``*.jpg`` 需 tokens 切分，不在本版范围）；
+        - 根路径不得含空白/通配/引号/反引号（含空格路径交给人工）；
+        - 循环体不得含 ``goto``（无法保证跳出语义）。
+        """
+        if set_text.strip() != ".":
+            return None
+        if re.search(r"(?i)(^|[^a-z])goto([^a-z]|$)", body):
+            self._warn(lineno, "for /r 循环体含 goto，无法保证跳出语义", text, category="control_flow")
+            return None
+        raw_root = re.sub(r"(?i)^/r\b", "", opts).strip()
+        if raw_root and re.search(r"[\s*?\[\]\"'`]", raw_root):
+            return None
+        root = convert_backslashes(self._expand_vars(raw_root, lineno)).strip() if raw_root else ""
+        if '"' in root:
+            return None
+        # cmd 语义：根为空（含变量展开为空）= 当前目录；对纯变量引用补 `:-.` 兜底。
+        simple_var = re.fullmatch(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-)?\}", root)
+        if simple_var:
+            target = '"${%s:-.}"' % simple_var.group(1)
+        else:
+            target = f'"{root}"' if root else "."
+        close_word = f"done < <(find {target} -type d)"
+        header = self._indent + f"while IFS= read -r {var}; do"
+        self._loop_vars.append(var)
+        block = _Block("for", close_word, var)
+        marker = self._a1_marker_line(block)
+        self._stack.append(block)
+        lines = [marker, header]
+        if body.startswith("("):
+            close = find_matching(body, "(", ")")
+            if close < 0:
+                block.await_paren_close = True
+                inner = body[1:].strip()
+                if inner:
+                    lines.extend(self._convert_line(lineno, inner))
+                return lines
+            inner = body[1:close]
+            if inner.strip():
+                lines.extend(self._convert_line(lineno, inner))
+            self._stack.pop()
+            self._loop_vars.remove(var)
+            lines.append(self._indent + close_word)
+            return lines
+        if not body:
+            return lines
+        lines.extend(self._convert_line(lineno, body))
+        if self._stack and self._stack[-1] is block:
+            self._stack.pop()
+            self._loop_vars.remove(var)
+            lines.append(self._indent + close_word)
+        else:
+            for i in range(len(self._stack) - 1, -1, -1):
+                if self._stack[i] is block:
                     self._stack[i + 1].finish_parent = True
                     break
         return lines
