@@ -3,7 +3,7 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.10.0b1**（pre-release；tag `v1.10.0b1`；`v1.9.1` 为未发布的研究代号，
+> 当前版本为 **v1.10.0rc1**（pre-release；tag `v1.10.0rc1`；`v1.9.1` 为未发布的研究代号，
 > 见 `docs/v1.9.1-attribution.md`）。
 
 ### 指标口径（v1.8.0 起，务必区分）
@@ -79,7 +79,7 @@
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1360 passed** | `docs/releases/v1.10.0b1.md` §验证 |
+| 测试基线 | pytest **1371 passed** | `docs/releases/v1.10.0rc1.md` §验证 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
 | 已有 tag | v1.0.0 … v1.9.2，v1.10.0a1、v1.10.0b1（pre-release；v1.9.1 未打 tag） | `git tag` |
@@ -124,6 +124,7 @@ bat2sh/
     │   ├── syntax.py            # bash -n 后置校验 + 整体降级
 │   ├── registry_map.py      # 注册表只读键映射规则表
 │   ├── control_flow.py      # C4 goto 控制流形态台账（v1.10.0b1；只读，不驱动转换）
+│   ├── lexical_residuals.py # C(lex) 词法层残余额账（v1.10.0rc1；只读，不驱动转换）
 │   ├── suggestions.py       # 复杂管道的参考改写建议（只生成注释）
     │   ├── recent.py            # 最近打开文件记录（XDG，JSON）
     │   └── api/                 # API 修复 TODO 子系统（见 §5.6）
@@ -307,6 +308,27 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
 - **测试**：`tests/test_control_flow_taxonomy.py`（16 条，不依赖外部语料）。
   设计与分阶段方案见 `docs/session-c4-design.md`。
 
+### 5.8 词法层残余额账（`core/lexical_residuals.py`，C(lex) / v1.10.0rc1）
+
+- **问题**：053 块栈失同步（v1.9.0）与 A1 `%VAR%` 冻结（v1.9.2）修复后，语料仍有
+  **4 个 degraded 文件**触发转换器的「循环变量逸出（块结构失同步）」守卫。
+- **本版定位**：**不做任何转换改动**（`integrated=False`），把它固化为与
+  「命令表 / 名称表 / 输出契约表 / 控制流表」并列的**第五张只读表**（`LexicalResidual`）。
+- **实测证伪任务书标签（4 条 / 3 机制）**：
+  - `LF-1`（044 `备份文件/备份服务.bat`、135 `系统优化.bat`）：`_convert_for` 头部正则
+    `\((.*)\)` **贪婪**，外层 `for` 的 `in (…)` 被切到内层 `for` 的 `)` → 真失同步（for 头核心）；
+  - `LF-2`（059 `打开快捷方式指向的目录.bat`）：leak 守卫**误报**——引号内 / nested-`cmd`
+    字符串里的字面 `%%X`（cmd 语义 = 字面 `%X`，wine 实测）；
+  - `LF-3`（138 `获取U盘盘符和可用容量.bat`）：`_protect_arith_modulo` **不识别** `%VAR:~n,m%`
+    子串式，其收尾 `%` 与后随 `%` 配成取模 → 伪 `%%m` → 守卫误报。
+- **为何不实现**：三条机制**均无文件翻转收益**（044/059/135/138 修掉任一条 LF 项仍有其他 TODO），
+  且分别落在 **块栈核心**（LF-1）与 **A1 变量展开热路径**（LF-2）→ 纪律 1/10 止损，
+  修复草案与 churn 界见 `docs/session-lex-design.md`。
+- **接口**：`validate_lexical_residuals()`（纪律 7 evidence 必填）、
+  `classify_percent_token()` / `expected_percent_expansion()`（cmd `%%X` 语义参考实现）、
+  `summarize_residuals()`；`tools/lex/lexical_report.py`（只读，台账校验 + trigger 漂移检测 + 语料复现）。
+- **测试**：`tests/test_lexical_residuals.py`（11 条，断言台账语义与 cmd 语义，不编码转换器现况）。
+
 ---
 
 ## 6. 构建 / 安装 / 运行
@@ -363,7 +385,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 - 框架：**pytest**（`pyproject.toml` 配置 `testpaths=["tests"]`、`pythonpath=["python"]`、
   `-p no:cacheprovider`）。运行方式：`pip install -e .[test] && pytest`。
-- 规模：`tests/` 下 103 个 `test_*.py`，v1.10.0b1 报告 **1360 passed**（v1.9.2 基线 1262）。
+- 规模：`tests/` 下 104 个 `test_*.py`，v1.10.0rc1 报告 **1371 passed**（v1.9.2 基线 1262）。
 - 主要测试类别（按文件名归组）：
   - 批处理转换：`test_batch*.py`（含 args/arithmetic/call/forf/goto/pipeline/robocopy 等）
   - PowerShell 转换：`test_powershell*.py`（含 advanced_function/block_stack/hashtable/try_dispatch）
@@ -488,6 +510,11 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/session-c4-review.md` | Session C4 自我审阅与裁定（范围/风险/止损/退路/客观验收；裁定=收窄后实现） |
 | `docs/session-c4-design.md` | C4 goto 控制流设计契约（形态分布 + v2.0 分阶段 CFG 方案 + 闸门） |
 | `docs/session-c4-report.md` | Session C4 报告（交付/未完成/指标对比/wine/冲突区域/Session C 起点） |
+| `docs/session-lex-coldstart.md` | Session C(lex) 冷启动自检（前置核对 / 前提核对 / 4 条残余实测机制） |
+| `docs/session-lex-review.md` | Session C(lex) 自我审阅与裁定（范围/风险/止损/退路/验收；裁定=退回设计文档） |
+| `docs/session-lex-design.md` | C(lex) 词法层残余额账 + LF-1/2/3 修复草案（v1.10.0rc1） |
+| `docs/session-lex-report.md` | Session C(lex) 报告（交付/未完成/指标对比/wine/合并建议） |
+| `docs/releases/v1.10.0rc1.md` | v1.10.0rc1 pre-release 发布说明（词法层残余台账 / 已知限制 / 后续计划） |
 | `docs/releases/v1.10.0a1.md` | v1.10.0a1 pre-release 发布说明（B1/B2 子系统 / 口径更正 / 已知限制 / 后续计划） |
 | `docs/releases/v1.10.0a1-verification.md` | v1.10.0a1 本机安装验证日志（版本 + 5 项实跑 + tag 上 CI 时序 + tarball sha256） |
 | `docs/releases/v1.10.0b1.md` | v1.10.0b1 pre-release 发布说明（C4 控制流台账 / CI 修正 / 已知限制 / 后续计划） |
@@ -515,3 +542,5 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
   用例 `cases/g01..g06.bat`，无 wine 时 skip。说明见该目录 `README.md`。
 - `tools/c4/`：**goto 控制流只读报告**（§5.7），复现形态台账计数并给转换器口径统计；
   只读、不跑沙箱，语料缺失时退出码 2。说明见该目录 `README.md`。
+- `tools/lex/`：**词法层残余额账只读报告**（§5.8），台账校验 + trigger 漂移检测 + 语料复现；
+  只读、不跑沙箱、不改转换器。
