@@ -1,6 +1,6 @@
 pkgbase = bat2sh
 	pkgdesc = 将 Windows 批处理 (.bat/.cmd) 与 PowerShell (.ps1) 脚本转换为 Bash 脚本的图形化工具
-	pkgver = 2.1.0
+	pkgver = 2.2.0
 	pkgrel = 1
 	url = https://github.com/yaxiaiyuting/bat2sh
 	install = bat2sh.install
@@ -12,7 +12,7 @@ pkgbase = bat2sh
 	depends = shared-mime-info
 	depends = desktop-file-utils
 	options = !strip
-	source = bat2sh-2.1.0.tar.gz::https://github.com/yaxiaiyuting/bat2sh/archive/refs/tags/v2.1.0.tar.gz
-	sha256sums = 474972c03979e016fbea25ec64796b6e12c890779594ed05be888c49c9971253
+	source = bat2sh-2.2.0.tar.gz::https://github.com/yaxiaiyuting/bat2sh/archive/refs/tags/v2.2.0.tar.gz
+	sha256sums = bb9e62d5286fdd08f50a25a9a21719dd8e8ee611349bfab2d2ed59c3bd52a69e
 
 pkgname = bat2sh
