@@ -515,6 +515,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/session-lex-design.md` | C(lex) 词法层残余额账 + LF-1/2/3 修复草案（v1.10.0rc1） |
 | `docs/session-lex-report.md` | Session C(lex) 报告（交付/未完成/指标对比/wine/合并建议） |
 | `docs/releases/v1.10.0rc1.md` | v1.10.0rc1 pre-release 发布说明（词法层残余台账 / 已知限制 / 后续计划） |
+| `docs/releases/v1.10.0rc1-verification.md` | v1.10.0rc1 本机安装验证日志（版本 + 6 项实跑 + tag 上 CI 时序 + 指标快照） |
 | `docs/releases/v1.10.0a1.md` | v1.10.0a1 pre-release 发布说明（B1/B2 子系统 / 口径更正 / 已知限制 / 后续计划） |
 | `docs/releases/v1.10.0a1-verification.md` | v1.10.0a1 本机安装验证日志（版本 + 5 项实跑 + tag 上 CI 时序 + tarball sha256） |
 | `docs/releases/v1.10.0b1.md` | v1.10.0b1 pre-release 发布说明（C4 控制流台账 / CI 修正 / 已知限制 / 后续计划） |

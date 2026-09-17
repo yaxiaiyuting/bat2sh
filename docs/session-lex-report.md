@@ -9,11 +9,12 @@
 | **分支名** | `session-lex`（基于 `session-c4`；**已 push**；**未合并 main**） |
 | **起点 HEAD** | `68dfbdd325bb93e0c5d7c9222a3d62fb6c2079fb`（= `session-c4` 终点） |
 | **代码终点 HEAD** | `bb97f08`（词法层残余额账子系统 + 只读报告） |
-| **发布终点 HEAD**（= tag 目标，bump commit） | **（见 §回填）** |
+| **发布终点 HEAD**（= tag 目标，bump commit） | **`20b1585f58f6daa533270e2f7403101a76a67df9`**（`20b1585`，`chore: bump version to v1.10.0rc1`） |
 | **分支终点 HEAD** | `session-lex` 分支 HEAD（bump commit + 其后仅文档 commit；以 `git rev-parse HEAD` 为准） |
-| **tag** | `v1.10.0rc1`（PEP 440 pre-release） |
-| **GitHub Release** | v1.10.0rc1，**pre-release**（`Latest` 仍为 v1.9.2） |
-| **CI（tag 上）** | （见 §回填） |
+| **tag** | `v1.10.0rc1`（PEP 440 pre-release，annotated，打在 `20b1585`） |
+| **GitHub Release** | v1.10.0rc1，**pre-release**（`isPrerelease:true`；`Latest` 仍为 v1.9.2） |
+| **CI（tag 上）** | ✅ 3.12 / 3.13 / 3.14 **全绿**（`push` run `35225646708`，head = tag commit `20b1585`）；分支 run `35225642925` 亦绿 |
+| **本机安装验证** | ✅ 6 项（见 `docs/releases/v1.10.0rc1-verification.md`） |
 
 ---
 
@@ -177,7 +178,7 @@ examples 3/3 零漂移；wine 6/6。
 | wine harness 下降 | **未触发**（6/6） |
 | examples 漂移 | **未触发**（3/3 零字节） |
 | HEAD 并发变化 | **未触发**（仅本会话 commit 推进） |
-| tag 后 CI 红 | **（见 §回填）** |
+| tag 后 CI 红 | **未触发**（`35225646708` 3.12/3.13/3.14 全绿；未 force-push） |
 
 ---
 
