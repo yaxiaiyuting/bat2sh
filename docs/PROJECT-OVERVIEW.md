@@ -3,7 +3,8 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v2.1.0**（tag `v2.1.0`；2.x 第二版：**CFG 只读数据模型**；v2.0.0 为解析层/词法层硬化）。
+> 当前版本为 **v2.2.0**（tag `v2.2.0`；2.x 第三版：**sc 结构化诚实 TODO + 实测优先评估**
+> （`# TODO[SC]`）；v2.1.0 为 CFG 只读数据模型；v2.0.0 为解析层/词法层硬化）。
 > 1.x 已于 v1.11.0 收尾为维护模式；`v1.9.1` 为未发布研究代号，见 `docs/v1.9.1-attribution.md`。
 > ✅ **1.x 收尾成立（2026-09-17）**：路线图 §4 六标准（修订后）全 ✓ + 收尾三条件 (a)(b)(c) 全 ✓，
 > 1.x 冻结为**维护模式**；2.x 范围与启动条件见 **`docs/v1.11.0-1x-closure-final.md`**（收尾声明）。
@@ -96,16 +97,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **2.1.0**（**CFG 只读数据模型**；v2.0.0 为解析层/词法层硬化；见 §5.9） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.1.0） |
+| 当前版本 | **2.2.0**（**sc 结构化诚实 TODO**；v2.1.0=CFG 只读模型；v2.0.0=解析层硬化；见 §5.9/§5.10） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.2.0） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1436 passed** | `docs/releases/v2.1.0.md` §3 |
+| 测试基线 | pytest **1448 passed** | `docs/releases/v2.2.0.md` §4 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -372,6 +373,19 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
   （见 `docs/v2.1.0-review.md` §8）。本版为**零转换改动**。
 - **测试**：`tests/test_cfg.py`（24 条，断言 CFG 语义，不依赖外部语料）。
 
+### 5.10 `sc` 结构化诚实 TODO（`cmd_sc` / v2.2.0，**实测优先**）
+
+- **背景**：v2.2.0 采用**实测优先协议（纪律 18）**——roadmap 提议的 goto 高级 / P5 / 注册表写
+  **全部实测翻转 0**（见 `docs/v2.2.0-reality-check.md`）；唯一可做项 = `sc` 诚实 TODO 结构化。
+- **实现**：`core/batch.py` 的 `cmd_sc` 解析 `sc <action> [service] [params]`，输出
+  `# TODO[SC] op=… service="…" params="…": 手动检查: <原命令>`；category=`service`。
+- **纪律 7（零映射）**：**只解析、不映射**——绝不把 Windows 服务名（`AeLookupSvc`/`Alerter`…
+  94 个，几无 Linux 同名 unit）硬凑为 `systemctl enable …`。
+- **回退**：未知/畸形形态（`sc`、`sc /?`）→ 回退通用诚实 TODO（不崩、不丢行）。
+- **兼容**：`# TODO[SC]` 与既有 `# TODO[REG]` 同等可被 `core/api/fixer.py` 扫描（`--fix-todos`）。
+- **实测 churn**：仅 `系统优化.bat` 1 文件 / 169 行（纯 tag 插入，原命令逐字未变）；指标全部持平。
+- **测试**：`tests/test_batch_sc.py`（12 条，不依赖外部语料）。
+
 ---
 
 ## 6. 构建 / 安装 / 运行
@@ -582,6 +596,11 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/releases/v2.0.0.md` | v2.0.0 发布说明（解析层/词法层硬化；2.x 定位声明） |
 | `docs/releases/v2.1.0.md` | v2.1.0 发布说明（CFG 只读数据模型；P5 显式归 v2.2.0；无障碍声明） |
 | `docs/releases/v2.1.0-verification.md` | v2.1.0 本机安装验证日志（版本 + 实跑 + tag 上 CI 时序） |
+| `docs/v2.2.0-coldstart.md` | v2.2.0 冷启动自检（前置核对 / 仪器复现 / 实测优先协议 / 前提核对） |
+| `docs/v2.2.0-reality-check.md` | **v2.2.0 逐项实测（核心产出）**：goto 高级/P5/sc/注册表写/B5 全部翻转 0 + 裁定 + 六次估算错误统计 |
+| `docs/v2.2.0-review.md` | v2.2.0 自我审阅与裁定（范围/风险/止损/退路/原则性验收；裁定 = sc 结构化诚实 TODO） |
+| `docs/v2.2.0-report.md` | v2.2.0 发布报告（逐项实测/翻转 0/指标/053-A1/下一版起点） |
+| `docs/releases/v2.2.0.md` | v2.2.0 发布说明（实测优先协议 / 逐项实测 / 六次估算错误 / sc 诚实 TODO 结构化） |
 | `docs/2.x-roadmap-research.md` | 2.x 路线图研究（goto/CFG、名称映射、版本序列 v2.0/v2.1/v2.2） |
 | `docs/releases/v1.11.0.md` | v1.11.0 发布说明（C2 收窄执行 / 归属重判 / 标准 3 修订 / 已知限制） |
 | `docs/releases/v1.10.0.md` | v1.10.0 正式版发布说明（1.x 功能冻结 / 四个并行子系统 / 诚实披露） |
