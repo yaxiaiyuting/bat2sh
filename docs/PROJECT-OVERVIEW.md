@@ -3,10 +3,10 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v1.10.0**（正式版，**1.x 功能冻结**；tag `v1.10.0`；`v1.9.1` 为未发布的研究代号，
+> 当前版本为 **v1.11.0**（minor；tag `v1.11.0`；`v1.9.1` 为未发布的研究代号，
 > 见 `docs/v1.9.1-attribution.md`）。
-> ⚠️ **1.x 收尾判定 = 未达成**：C2 小设施批（for/registry/other 等）为「可修而未修」，
-> 详见 **`docs/v1.10.0-1x-closure.md`**（核心交付）。
+> ⚠️ **1.x 收尾判定 = 条件达成、六标准未全绿**：C2 可做项已做尽（3 翻转）、剩余项逐条有归属，
+> 但路线图 §4 标准 1（语法 ≥150/151）仍差（147）；详见 **`docs/v1.11.0-1x-closure-final.md`**（核心交付）。
 
 ### 指标口径（v1.8.0 起，务必区分）
 
@@ -44,20 +44,21 @@
 - v1.8.0 的 ROI / 静默错误复检依赖 `bwrap` + 便携 pwsh 7.4.6（沙箱实跑）；
   CI 中无 pwsh 时相关测量跳过（工具见 `tools/corpus-analysis/ps_silent_check.py`）。
 
-### 0.1 1.x 收尾判定（v1.10.0，**未达成**）
+### 0.1 1.x 收尾判定（v1.11.0，**条件达成 / 六标准未全绿**）
 
-> 完整论证、剩余项清点与 2.x 启动条件见 **`docs/v1.10.0-1x-closure.md`**（v1.10.0 核心交付）。
+> 完整论证、逐条归属与 2.x 启动条件见 **`docs/v1.11.0-1x-closure-final.md`**（v1.11.0 核心交付）。
 
-- v1.10.0 合并 `session-b1b2`/`session-c4`/`session-lex` 三支，交付四个**只读子系统**
-  （B1 名称映射 / B2 输出契约 / C4 控制流台账 / 词法层残余额账），**零转换改动**。
-- 合并后基线：`151` 语料 / 语法 `147` / 功能完好（严格）`16` / degraded `86` / rc≠0 `45` /
-  崩溃·超时 `0` / pytest `1371` / wine `6/6`。**自 v1.9.0 起 16/86/894 从未变化。**
-- **不满足路线图 §4「接近完美」6 条验收**（标准 1 语法 ≥150 vs 147；标准 3 degraded ≤41 vs 86），
-  差距即路线图 §2.1 归 **v1.9.4** 的 **C2 小设施批**（`for`/`registry`/`other` 等，~77 TODO、
-  **36 单设施翻转**）——**从未执行**，属「可修而未修」，故**不宣布「1.x 完成」**。
-- 归属明确的其余项：goto/`sc`→**v2.0**；`regsvr32`/COM、第三方 exe、L4 对象、B 类源畸形、
-  ENV/S 类→**终态**；LF-1/2/3、B2 解析级、062/A9→**2.x**。
-- v1.10.0 的准确定性：**1.x 功能冻结版**，而非「1.x 完成」。
+- v1.10.0 合并三支，交付四个**只读子系统**（B1 名称映射 / B2 输出契约 / C4 控制流台账 / 词法层残余额账），**零转换改动**。
+- v1.11.0 执行 **C2 收窄子集**（`for /r`→`find`、`for /f` 字符串形式、`net user /delete`→幂等 `userdel`、
+  `attrib ±r`→`chmod`、3 条 hint 纠错）+ **C2 归属重判** + **标准 3 修订**。
+- v1.11.0 基线：`151` 语料 / 语法 `147` / 功能完好（严格）`19` / degraded `83` / degraded TODO `886` /
+  rc≠0 `45` / 崩溃·超时 `0` / pytest `1405` / wine `6/6`。**（v1.10.0 为 16/86/894/1371。）**
+- **三条件达成**：(a) 剩余失败全部有归属（逐条 60 行）；(b) 无可修未修（可做 3 项已执行）；
+  (c) degraded `83` = 修订标准 3（原 `≤41` 基于不可复现的「46 文件」估算 → 已修订为 `≤83`）。
+- **仍然未全绿**：路线图 §4 标准 1（语法 ≥150/151）实测 `147`，4 例逐条归因为
+  **1 B 类源畸形（终态）+ 3 解析层（2.x）**；修订标准 1 超出 v1.11.0 授权 → **不单方面宣布「1.x 完成」**，提请裁定。
+- 归属明确的其余项：goto（~255）/`sc`（171）→**v2.0**；`regsvr32`/COM、第三方 exe、L4 对象、B 类源畸形、
+  `subst`/`debug` 等→**终态**；注册表写（29）、解析层 3 项、LF-1/2/3、B2 解析级、062/A9→**2.x**。
 
 ---
 
@@ -90,16 +91,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **1.10.0**（正式版 · 1.x 功能冻结；**收尾判定=未达成**，见 §0.1） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 1.10.0） |
+| 当前版本 | **1.11.0**（minor；**收尾条件达成 / 六标准未全绿**，见 §0.1） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 1.11.0） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1371 passed** | `docs/releases/v1.10.0.md` §2 |
+| 测试基线 | pytest **1405 passed** | `docs/releases/v1.11.0.md` §2 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.9.2，**v1.10.0**（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | v1.0.0 … v1.9.2，**v1.10.0**，**v1.11.0**（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -540,6 +541,14 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v1.10.0-merge-plan.md` | v1.10.0 三分支合并计划（累积拓扑 / 冲突预判=0 / 合并顺序 / 验证清单） |
 | `docs/v1.10.0-1x-closure.md` | **1.x 收尾判定（未达成）** + 剩余项清点 + 2.x 范围与可证伪启动条件（v1.10.0 核心交付） |
 | `docs/v1.10.0-report.md` | v1.10.0 发布报告（合并 / 全量验证 / tag / CI / AUR / 收尾结论） |
+| `docs/v1.11.0-coldstart.md` | v1.11.0 冷启动自检（前提核对：46/36/≤41 三项不可复现） |
+| `docs/v1.11.0-review.md` | v1.11.0 自我审阅与裁定（三类设施范围/风险/最小复现/止损/退路） |
+| `docs/v1.11.0-instrument-verify.md` | v1.11.0 仪器验证（三轮复跑逐字段一致）+ 前提再核 |
+| `docs/v1.11.0-reclassification.md` | **C2 归属重判**（registry 29/29→2.x；other 17 单设施逐条；可做 3+1） |
+| `docs/v1.11.0-standard-3-revision.md` | 路线图 §4 标准 3 修订（≤41 → ≤83 实测）+ 纪律 9 强化 |
+| `docs/v1.11.0-1x-closure-final.md` | **1.x 收尾最终裁定**（三条件达成；标准 1 未达 → 提请裁定） |
+| `docs/v1.11.0-report.md` | v1.11.0 发布报告（交付/归属重判/标准修订/指标/收尾判定） |
+| `docs/releases/v1.11.0.md` | v1.11.0 发布说明（C2 收窄执行 / 归属重判 / 标准 3 修订 / 已知限制） |
 | `docs/releases/v1.10.0.md` | v1.10.0 正式版发布说明（1.x 功能冻结 / 四个并行子系统 / 诚实披露） |
 | `docs/releases/v1.10.0-verification.md` | v1.10.0 本机安装验证日志（版本 + 实跑 + tag 上 CI 时序 + tarball sha256） |
 | `docs/releases/v1.3.0.md` | v1.3.0 发布说明（errors 层、findstr 中文模式、for/f 两段管道） |
@@ -561,6 +570,9 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 - `tools/corpus-analysis/`：对真实 Windows 脚本做"转换 → 静态分析 → bwrap 沙箱运行 →
   结果关联"的批量体检（`analyze.py` / `sb.py` / `results-anonymized.json`），
   不含任何无许可语料原文。说明见该目录 `README.md`。
+- `tools/corpus-analysis/measure.py`：**可复现语料测量仪器**（v1.11.0 固化，纪律 9 强化）
+  —— 原始转换口径 + rc==0 严格口径，输出 `measure.json`（summary + 逐文件 rc/todo）。
+  用法：`python3 tools/corpus-analysis/measure.py --corpus <DIR> --out <DIR>`。
 - `tools/oracle/`：wine-cmd **黄金行为对照** harness（§7.1），抓运行时语义缺陷；
   用例 `cases/g01..g06.bat`，无 wine 时 skip。说明见该目录 `README.md`。
 - `tools/c4/`：**goto 控制流只读报告**（§5.7），复现形态台账计数并给转换器口径统计；
