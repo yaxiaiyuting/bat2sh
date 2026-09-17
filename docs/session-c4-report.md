@@ -8,11 +8,11 @@
 | **分支名** | `session-c4`（基于 `session-b1b2`；已 push；未合并 main） |
 | **起点 HEAD** | `7e645dbe016af780d1789f05692d410e90358b16`（`7e645db`） |
 | **代码终点 HEAD** | `55e622b`（C4 台账子系统 + 只读报告） |
-| **发布终点 HEAD**（= tag 目标，bump commit） | 待回填（`chore: bump version to v1.10.0b1`） |
-| **分支终点 HEAD**（Session C 起点） | 待回填（`git rev-parse HEAD` 为准） |
-| **tag** | `v1.10.0b1`（PEP 440 pre-release，annotated；打在 bump commit） |
-| **GitHub Release** | v1.10.0b1，**pre-release**（待发布） |
-| **CI（tag 上）** | 待回填 |
+| **发布终点 HEAD**（= tag 目标，bump commit） | **`8fdae5f`**（`chore: bump version to v1.10.0b1`） |
+| **分支终点 HEAD**（Session C 起点） | `session-c4` 分支 HEAD = 发布终点 `8fdae5f` + 其后**仅文档** commit（本文件所在）；以 `git rev-parse HEAD` 为准 |
+| **tag** | `v1.10.0b1`（PEP 440 pre-release，annotated；打在 `8fdae5f`） |
+| **GitHub Release** | v1.10.0b1，**pre-release**（`isPrerelease:true`；`Latest` 仍为 v1.9.2） |
+| **CI（tag 上）** | ✅ 3.12 / 3.13 / 3.14 **全绿**（`push` run `35167135787`，head = tag commit `8fdae5f`）；分支 push run `35167132968` 亦绿（**CI 修正生效**） |
 
 ---
 
@@ -116,7 +116,7 @@
 | 触及块栈核心 | **未触发**（硬红线，未碰） |
 | 台账缺 evidence | **未触发**（`validate()==[]`） |
 | HEAD 并发变化 | **未触发**（HEAD 仅由本会话 commit 推进） |
-| tag 后 CI 红 | 待回填 |
+| tag 后 CI 红 | **未触发**（3.12/3.13/3.14 全绿；未 force-push） |
 
 ---
 
