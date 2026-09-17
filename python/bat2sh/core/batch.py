@@ -1833,7 +1833,8 @@ class BatchConverter:
         if ignore_case and compare is None:
             self._warn(lineno, "if /i 仅对字符串比较有效，此处已忽略", expr, category="control_flow")
             ignore_case = False
-        m = re.match(r'(?i)^exist\s+(".*?"|\S+)\s*(.*)$', expr)
+        # P2：`%…%` 内的 `"`（如 `%VAR:"=%`）不是引号定界符（旧 `".*?"` 会提前截断）
+        m = re.match(r'(?i)^exist\s+("(?:[^"%]|%[^%]*%)*"|\S+)\s*(.*)$', expr)
         if m:
             token = m.group(1)
             quoted = token.startswith(('"', "'"))
