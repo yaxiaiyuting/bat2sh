@@ -1924,7 +1924,7 @@ class BatchConverter:
             line = bucket[index].strip()
             if not line or line.startswith("#"):
                 continue
-            if line in ("fi", "else", "done", "esac", "}") or line.endswith(
+            if self._is_structural_line(line) or line.endswith(
                 ("{", "(", "|", "&", "&&", "||", ";")
             ):
                 return None
