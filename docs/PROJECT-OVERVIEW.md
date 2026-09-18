@@ -3,18 +3,19 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v2.4.0**（tag `v2.4.0`；**goto CFG 高级 · 硬做授权版**，minor）。
+> 当前版本为 **v2.5.0**（tag `v2.5.0`；**块栈重构 + 完整 CFG 状态机（默认开启）**，minor）。
 > ✅ **2.x 收尾成立（2026-09-18）**：三条件 (a)(b)(c) 全 ✓ → 冻结为**维护模式**；
 > B5 / 注册表写 / 名称映射归**终态**；`goto CFG 高级` 的**可证安全子集**已于 **v2.4.0** 落地
 > （冗余 goto → no-op；前向跳转不可达区间 → 注释化），其余 goto 形态维持终态（仅 T1 重评）——
 > 见 **`docs/v2.3.0-2x-closure.md`**（收尾声明）与 **`docs/v2.4.0-report.md`**。
-> **块栈重构 / 完整 CFG 状态机（v2.5.0，分支 `v2.5.0-blockstack`，未发布）**：交付**只读 CFG 图结构**
-> （`core/cfg_blocks.py`）+ **门控标签分派状态机**（`core/cfg_state.py`：`while/case $__bat2sh_pc`）。
-> 形态 `backward_loop` / `in_block_goto` / 一般 `forward_skip` 已实现，**默认开启**
-> （`settings.cfg_state_machine`；置 `False` 可整体回退到 v2.4.0 行为）。
-> 代表性形态经 wine 黄金对照 **12/12 MATCH**（`tools/oracle` g07–g12，用户裁定方案 B）。
-> **发布前停下待审阅**：激活后 `rc0` 有 4 文件**定义性位移**（交互/无限循环忠实化，见
-> `docs/v2.5.0-breaking-changes.md` §三.1）；见 `docs/v2.5.0-blockstack-design.md`、`docs/v2.5.0-report.md`。
+> **块栈重构 / 完整 CFG 状态机（v2.5.0，已发布）**：交付**只读 CFG 图结构**
+> （`core/cfg_blocks.py`）+ **标签分派状态机**（`core/cfg_state.py`：`while/case $__bat2sh_pc`）。
+> 形态 `backward_loop` / `in_block_goto` / 一般 `forward_skip` 已实现并**默认开启**
+> （逃生通道：`--no-cfg-state` / `BAT2SH_CFG_STATE=0` / `settings.cfg_state_machine=false`）。
+> 代表性形态经 wine 黄金对照 **12/12 MATCH**（`tools/oracle` g07–g12）。
+> 激活后 `rc0` 有 4 文件**定义性位移**（交互/无限循环忠实化，非倒退）——见
+> `docs/v2.5.0-breaking-changes.md` §三.1；`docs/v2.5.0-blockstack-design.md`、`docs/v2.5.0-report.md`。
+> **下一版 = v2.6.0（新语料验证）。**
 > 其余大方向 = **PS 解冻**（需求驱动，未触发）。
 > v2.3.0 = 逐项实测 + 2.x 收尾；v2.2.0 = sc 结构化诚实 TODO；v2.1.0 = CFG 只读数据模型；v2.0.0 = 解析层/词法层硬化。
 > 1.x 已于 v1.11.0 收尾为维护模式；`v1.9.1` 为未发布研究代号，见 `docs/v1.9.1-attribution.md`。
