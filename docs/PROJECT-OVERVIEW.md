@@ -3,8 +3,13 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v2.6.0**（tag `v2.6.0`；**新语料验证**，minor）。
-> v2.6.0 用 79 个**新语料**（与老 151 零重叠）验证 CFG 状态机默认开启后的行为：
+> 当前版本为 **v2.7.0**（tag `v2.7.0`；**CLI 输出美化**，minor）。
+> v2.7.0 补齐 CLI 色彩开关（`--color` / `--no-color`，遵循 `NO_COLOR`）、
+> 诊断消息分级着色（错误红/警告黄/成功绿）、`--report` 追加「结论」摘要行、
+> 多文件批量进度前缀 `[i/N]`；**仅标准库 / 零新依赖 / 零转换逻辑改动**，
+> 非 TTY/CI 输出逐字节不变。pytest **1546**；151 语料 **151/149/101/19/82/851/崩溃 0** 零回归。
+> 详见 `docs/v2.7.0-report.md`、`docs/v2.7.0-cli-audit.md`。
+> v2.6.0（tag `v2.6.0`）用 79 个**新语料**（与老 151 零重叠）验证 CFG 状态机默认开启后的行为：
 > 新语料 78/79 语法 / strict 27 / **0 崩溃**；**发现并修复 A-1**（状态机丢失子报告 →
 > `--fail-on-todo` 静默失效；`degraded_todos` 少计，151 语料由 814 **校正**为 851）；
 > **CFG 未引入新静默错**。详见 `docs/v2.6.0-report.md`。
@@ -20,7 +25,7 @@
 > 代表性形态经 wine 黄金对照 **12/12 MATCH**（`tools/oracle` g07–g12）。
 > 激活后 `rc0` 有 4 文件**定义性位移**（交互/无限循环忠实化，非倒退）——见
 > `docs/v2.5.0-breaking-changes.md` §三.1；`docs/v2.5.0-blockstack-design.md`、`docs/v2.5.0-report.md`。
-> **下一版 = v2.6.0（新语料验证）。**
+> **下一版 = v2.8.0（GUI 视觉优化，保守：仅配色/间距/图标/主题，不重做布局）。**
 > 其余大方向 = **PS 解冻**（需求驱动，未触发）。
 > v2.3.0 = 逐项实测 + 2.x 收尾；v2.2.0 = sc 结构化诚实 TODO；v2.1.0 = CFG 只读数据模型；v2.0.0 = 解析层/词法层硬化。
 > 1.x 已于 v1.11.0 收尾为维护模式；`v1.9.1` 为未发布研究代号，见 `docs/v1.9.1-attribution.md`。
@@ -134,7 +139,7 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **2.4.0**（**goto CFG 高级 · 硬做授权版**；minor；见 `docs/v2.4.0-report.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.4.0） |
+| 当前版本 | **2.7.0**（**CLI 输出美化**；minor；见 `docs/v2.7.0-report.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.7.0） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
