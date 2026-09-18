@@ -200,6 +200,27 @@ def test_non_interactive_loop_no_warning(convert_bat):
     assert not any("交互式" in w.message for w in report.warnings)
 
 
+# --- 报告保真（v2.6.0 缺陷修复） ------------------------------------------
+
+
+def test_state_machine_preserves_report(convert_bat):
+    """状态机文件必须保留子转换器报告：total_lines/todo_count 不得恒为 0。
+
+    v2.5.0 缺陷：子报告被丢弃 → `--fail-on-todo` 静默失效。
+    """
+    text = "@echo off\n:Top\nreg add HKCU\\X /v Y\nif 1==0 goto Top\n"
+    out, report = convert_bat(text)
+    assert "__bat2sh_pc" in out
+    assert report.total_lines == 5
+    assert report.todo_count >= 1
+
+
+def test_state_machine_fail_on_todo_predicate(convert_bat):
+    text = "@echo off\n:Top\nreg add HKCU\\X /v Y\nif 1==0 goto Top\n"
+    _out, report = convert_bat(text)
+    assert bool(report.todo_count or report.error_count) is True
+
+
 # --- 运行时语义（cmd 语义） -----------------------------------------------
 
 

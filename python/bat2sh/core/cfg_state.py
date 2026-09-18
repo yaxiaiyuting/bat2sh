@@ -204,6 +204,19 @@ def _structural_self_check(output: str) -> bool:
     return referenced <= defined
 
 
+def _merge_report(target: ConvertReport, source: ConvertReport) -> None:
+    """把状态机子转换器的报告合并回父报告（v2.6.0 缺陷修复）。
+
+    否则状态机文件的 ``todo_count``/``total_lines`` 恒为 0 → ``--fail-on-todo`` 静默失效。
+    """
+    target.total_lines = source.total_lines
+    target.converted_lines += source.converted_lines
+    target.unchanged_lines += source.unchanged_lines
+    target.warnings.extend(source.warnings)
+    target.todos.extend(source.todos)
+    target.errors.extend(source.errors)
+
+
 def _warn_interactive_loops(text: str, report: ConvertReport) -> None:
     """对「含运行时输入语句的循环」发**非阻断**告警（无 stdin 环境会挂起）。"""
     logical = logical_lines(text)
@@ -259,4 +272,6 @@ def emit(
         return None
     if bash_syntax_error(output) is not None:  # pragma: no cover - 契约兜底
         return None
+    if report is not None:
+        _merge_report(report, converter.report)
     return output
