@@ -374,7 +374,13 @@ def run_one(
     settings: ConvertSettings,
     encoding: str | None,
     args: argparse.Namespace,
+    *,
+    progress: tuple[int, int] | None = None,
 ) -> tuple[int, ConversionResult | None]:
+    # 多文件时给状态行加轻量进度前缀 [i/N]；单文件不显示（保持既有输出契约）。
+    prefix = (
+        f"[{progress[0]}/{progress[1]}] " if progress and progress[1] > 1 else ""
+    )
     if args.print_only:
         code = _print_only(path, settings, encoding, args)
         return code, None
@@ -408,7 +414,7 @@ def run_one(
                 if out_path.exists() and settings.backup_existing
                 else ""
             )
-            print(f"[dry-run] 将写出: {out_path}{suffix}", file=sys.stderr)
+            print(f"{prefix}[dry-run] 将写出: {out_path}{suffix}", file=sys.stderr)
     elif not args.quiet:
         status = "已写出" if result.written else "未写出"
         report = result.report
@@ -419,7 +425,7 @@ def run_one(
         else:
             level = "ok"
         status_line = (
-            f"[{status}] {result.source_path} -> {result.output_path}"
+            f"{prefix}[{status}] {result.source_path} -> {result.output_path}"
             f" | 转换 {report.converted_lines} 行"
             f" | 错误 {report.error_count}"
             f" | 警告 {report.warning_count}"
@@ -946,13 +952,16 @@ def main(argv: list[str] | None = None) -> int:
         return _run_flow(path, settings, args)
     blocking_total = 0
     has_error = False
-    for raw_path in args.inputs:
+    total_inputs = len(args.inputs)
+    for number, raw_path in enumerate(args.inputs, start=1):
         path = Path(raw_path)
         if not path.is_file():
             _diag(f"bat2sh: 文件不存在: {path}", "error", color)
             has_error = True
             continue
-        code, result = run_one(path, settings, args.encoding, args)
+        code, result = run_one(
+            path, settings, args.encoding, args, progress=(number, total_inputs)
+        )
         if code == 2:
             has_error = True
         if result is not None:
