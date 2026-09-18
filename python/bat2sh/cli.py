@@ -91,6 +91,23 @@ def _paint(text: str, level: str) -> str:
     return f"{color}{text}{_ANSI_RESET}"
 
 
+def _color_for(args: argparse.Namespace) -> bool:
+    """按 ``args.color``（``--color`` / ``--no-color`` / auto）解析 stderr 是否着色。
+
+    无 ``color`` 属性时按 auto 处理（兼容旧调用/测试构造的 Namespace）。
+    """
+    return color_enabled(sys.stderr, getattr(args, "color", "auto"))
+
+
+def _diag(message: str, level: str, color: bool) -> None:
+    """把一行 ``bat2sh: …`` 诊断按级别着色后写 stderr。
+
+    ``color=False`` 时与既有 ``print(..., file=sys.stderr)`` **逐字节相同**，保证非 TTY/CI
+    输出零漂移（向后兼容优先于视觉美观）。
+    """
+    sys.stderr.write((_paint(message, level) if color else message) + "\n")
+
+
 def render_report_text(report: ConvertReport, color: bool) -> str:
     """渲染报告文本；color=True 时按错误红/警告黄/TODO 灰着色（与 GUI 共用 report_blocks）。"""
     blocks = report_blocks(report)
@@ -305,7 +322,7 @@ def _print_only(
 ) -> int:
     kind = detect_kind(path)
     if kind is SourceKind.UNKNOWN:
-        print(f"bat2sh: 不支持的源文件类型: {path}", file=sys.stderr)
+        _diag(f"bat2sh: 不支持的源文件类型: {path}", "error", _color_for(args))
         return 2
     decoded = decode_bytes(path.read_bytes(), encoding)
     text, convert_report = convert_text(decoded.text, kind, settings, path.name)
@@ -341,7 +358,7 @@ def run_one(
         write=not args.dry_run,
     )
     if result.error:
-        print(f"bat2sh: {result.error}", file=sys.stderr)
+        _diag(f"bat2sh: {result.error}", "error", _color_for(args))
         return 2, result
     if args.dry_run:
         if not args.quiet:
@@ -351,9 +368,10 @@ def run_one(
                 and not settings.overwrite
                 and not settings.backup_existing
             ):
-                print(
+                _diag(
                     f"bat2sh: 输出文件已存在且未允许覆盖: {out_path}",
-                    file=sys.stderr,
+                    "error",
+                    _color_for(args),
                 )
                 return 2, result
             suffix = (
@@ -408,17 +426,19 @@ def _confirm(prompt: str) -> bool:
     return reply.strip().lower() in {"y", "yes"}
 
 
-def _emit_run_todos(convert_report: ConvertReport) -> None:
-    sys.stderr.write(
+def _emit_run_todos(convert_report: ConvertReport, color: bool) -> None:
+    _diag(
         f"bat2sh: 转换结果包含 {convert_report.error_count} 处错误、"
-        f"{convert_report.todo_count} 处无法自动转换（TODO），已拒绝执行。\n"
+        f"{convert_report.todo_count} 处无法自动转换（TODO），已拒绝执行。",
+        "error",
+        color,
     )
-    sys.stderr.write("bat2sh: 请人工检查以下位置，或使用 --force 强制执行：\n")
+    _diag("bat2sh: 请人工检查以下位置，或使用 --force 强制执行：", "error", color)
     for diagnostic in (*convert_report.errors, *convert_report.todos):
         sys.stderr.write("  " + diagnostic.format() + "\n")
 
 
-def _execute_converted(text: str, cwd: Path, timeout: float) -> int:
+def _execute_converted(text: str, cwd: Path, timeout: float, color: bool = False) -> int:
     try:
         with NamedTemporaryFile(
             "w", suffix=".sh", delete=False, encoding="utf-8"
@@ -426,17 +446,17 @@ def _execute_converted(text: str, cwd: Path, timeout: float) -> int:
             handle.write(text)
             tmp_path = Path(handle.name)
     except OSError as exc:
-        print(f"bat2sh: 无法创建临时脚本: {exc}", file=sys.stderr)
+        _diag(f"bat2sh: 无法创建临时脚本: {exc}", "error", color)
         return RUN_EXIT_FAILED
     try:
         completed = subprocess.run(
             ["bash", str(tmp_path)], cwd=str(cwd), timeout=timeout, check=False
         )
     except subprocess.TimeoutExpired:
-        print(f"bat2sh: 执行超时（超过 {timeout:g} 秒），已终止", file=sys.stderr)
+        _diag(f"bat2sh: 执行超时（超过 {timeout:g} 秒），已终止", "error", color)
         return RUN_EXIT_FAILED
     except OSError as exc:
-        print(f"bat2sh: 无法启动 bash: {exc}", file=sys.stderr)
+        _diag(f"bat2sh: 无法启动 bash: {exc}", "error", color)
         return RUN_EXIT_FAILED
     finally:
         try:
@@ -444,29 +464,31 @@ def _execute_converted(text: str, cwd: Path, timeout: float) -> int:
         except OSError:
             pass
     if completed.returncode < 0:
-        print(
+        _diag(
             f"bat2sh: 脚本被信号终止（信号 {-completed.returncode}）",
-            file=sys.stderr,
+            "error",
+            color,
         )
         return RUN_EXIT_FAILED
     return completed.returncode
 
 
 def _run_flow(path: Path, settings: ConvertSettings, args: argparse.Namespace) -> int:
+    color = _color_for(args)
     kind = detect_kind(path)
     if kind is SourceKind.UNKNOWN:
-        print(f"bat2sh: 不支持的源文件类型: {path}", file=sys.stderr)
+        _diag(f"bat2sh: 不支持的源文件类型: {path}", "error", color)
         return 2
     try:
         decoded = decode_bytes(path.read_bytes(), args.encoding)
     except OSError as exc:
-        print(f"bat2sh: 读取失败: {exc}", file=sys.stderr)
+        _diag(f"bat2sh: 读取失败: {exc}", "error", color)
         return 2
     text, convert_report = convert_text(decoded.text, kind, settings, path.name)
     convert_report.encoding = decoded.encoding
 
     if (convert_report.todo_count or convert_report.error_count) and not args.force:
-        _emit_run_todos(convert_report)
+        _emit_run_todos(convert_report, color)
         return RUN_EXIT_TODO
 
     if not args.quiet:
@@ -477,21 +499,22 @@ def _run_flow(path: Path, settings: ConvertSettings, args: argparse.Namespace) -
 
     if not args.force and not args.yes:
         if not sys.stdin.isatty():
-            print(
+            _diag(
                 "bat2sh: 非交互环境执行需显式 --yes（或 --force），已拒绝执行",
-                file=sys.stderr,
+                "warning",
+                color,
             )
             return 1
         if not _confirm("将执行以上脚本，继续？[y/N]"):
-            print("bat2sh: 已取消执行", file=sys.stderr)
+            _diag("bat2sh: 已取消执行", "warning", color)
             return 1
 
     cwd = Path(args.run_cwd).expanduser() if args.run_cwd else path.parent
     if not cwd.is_dir():
-        print(f"bat2sh: 工作目录不存在: {cwd}", file=sys.stderr)
+        _diag(f"bat2sh: 工作目录不存在: {cwd}", "error", color)
         return 2
 
-    return _execute_converted(text, cwd, args.run_timeout)
+    return _execute_converted(text, cwd, args.run_timeout, color)
 
 
 def _api_cli_values(args: argparse.Namespace) -> dict[str, object]:
@@ -621,23 +644,20 @@ def _fix_counts(selected) -> tuple[int, int, list]:
     return fixed, skipped, failed
 
 
-def _emit_fix_summary(selected, secret: str) -> None:
+def _emit_fix_summary(selected, secret: str, color: bool = False) -> None:
     fixed, skipped, failed = _fix_counts(selected)
-    print(
+    _diag(
         f"bat2sh: TODO 处理完成：修复 {fixed} / 跳过 {skipped} / 失败 {len(failed)}"
         f"（共 {len(selected)} 条选中）",
-        file=sys.stderr,
+        "warning" if failed else "ok",
+        color,
     )
-    print(
-        "bat2sh: 注意：API 建议仍需人工复核，不保证语义正确。",
-        file=sys.stderr,
-    )
+    _diag("bat2sh: 注意：API 建议仍需人工复核，不保证语义正确。", "warning", color)
     if failed:
-        print("bat2sh: 以下条目未修复：", file=sys.stderr)
+        _diag("bat2sh: 以下条目未修复：", "error", color)
         for task in failed:
-            print(
-                "  " + redact(parallel.format_status_line(task), secret),
-                file=sys.stderr,
+            sys.stderr.write(
+                "  " + redact(parallel.format_status_line(task), secret) + "\n"
             )
 
 
@@ -647,53 +667,58 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
     退出码（§10）：0 全部处理（含无可修复）；1 非交互拒绝 / 用户 q / Ctrl+C；
     2 转换或写盘错误；3 仍有未修复项（跳过 + 失败）或取消应用；6 API 配置错误。
     """
+    color = _color_for(args)
     kind = detect_kind(path)
     if kind is SourceKind.UNKNOWN:
-        print(f"bat2sh: 不支持的源文件类型: {path}", file=sys.stderr)
+        _diag(f"bat2sh: 不支持的源文件类型: {path}", "error", color)
         return 2
     try:
         decoded = decode_bytes(path.read_bytes(), args.encoding)
     except OSError as exc:
-        print(f"bat2sh: 读取失败: {exc}", file=sys.stderr)
+        _diag(f"bat2sh: 读取失败: {exc}", "error", color)
         return 2
     text, convert_report = convert_text(decoded.text, kind, settings, path.name)
     convert_report.encoding = decoded.encoding
 
     if fixer.is_degraded(convert_report):
-        print(
+        _diag(
             "bat2sh: 生成脚本未通过 bash -n，已整体降级为注释；无可修复 TODO（请人工转换）",
-            file=sys.stderr,
+            "warning",
+            color,
         )
         return 3
 
     markers = fixer.scan_todo_markers(text, convert_report)
     if not markers:
-        print(
+        _diag(
             "bat2sh: 未发现可修复 TODO（管道整块标记与降级头不参与 API 修复）",
-            file=sys.stderr,
+            "ok",
+            color,
         )
         return 0
 
     if not sys.stdin.isatty():
-        print(
+        _diag(
             "bat2sh: --fix-todos 需要交互终端（每次发送前必须确认，不可绕过），已拒绝",
-            file=sys.stderr,
+            "error",
+            color,
         )
         return 1
 
     api_config = resolve_api_config(_api_cli_values(args), os.environ, load_api_config())
     missing = missing_requirements(api_config)
     if missing:
-        print("bat2sh: API 配置不完整: " + "；".join(missing), file=sys.stderr)
-        print(
+        _diag("bat2sh: API 配置不完整: " + "；".join(missing), "error", color)
+        _diag(
             "bat2sh: 请用 --api-base/--api-model、环境变量或 ~/.config/bat2sh/api.json 配置",
-            file=sys.stderr,
+            "error",
+            color,
         )
         return FIX_EXIT_CONFIG
     try:
         provider = create_provider(api_config)
     except ProviderConfigError as exc:
-        print(f"bat2sh: API 配置错误: {exc}", file=sys.stderr)
+        _diag(f"bat2sh: API 配置错误: {exc}", "error", color)
         return FIX_EXIT_CONFIG
 
     all_tasks = parallel.plan_tasks(
@@ -716,13 +741,13 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
             choice = ""
         lowered = choice.strip().lower()
         if lowered in ("q", "quit"):
-            print("bat2sh: 已取消", file=sys.stderr)
+            _diag("bat2sh: 已取消", "warning", color)
             return 1
         if lowered not in ("", "all"):
             try:
                 indices = _parse_selection(choice.strip(), len(all_tasks))
             except ValueError as exc:
-                print(f"bat2sh: 未识别的选择: {exc}", file=sys.stderr)
+                _diag(f"bat2sh: 未识别的选择: {exc}", "error", color)
                 return 3
             if not indices:
                 return 3
@@ -741,10 +766,9 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
         )
     sys.stderr.write("───────────────────────────\n")
     if not _confirm(f"bat2sh: 发送 {len(selected)} 条到 {api_config.base_url}？[y/N]"):
-        print("bat2sh: 已取消发送，未写盘", file=sys.stderr)
+        _diag("bat2sh: 已取消发送，未写盘", "warning", color)
         return 3
 
-    color = color_enabled(sys.stderr, args.color)
     panel = _FixPanel(
         selected,
         sys.stderr,
@@ -786,15 +810,16 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
                 task.retries = 0
             pending = failures
     except KeyboardInterrupt:
-        print("\nbat2sh: 已中断，未写盘（本次会话修改已丢弃）", file=sys.stderr)
+        _diag("\nbat2sh: 已中断，未写盘（本次会话修改已丢弃）", "warning", color)
         return 1
 
     merged, dropped = parallel.merge_replacements(text, selected)
     for task in dropped:
-        print(
+        _diag(
             "bat2sh: 合并丢弃："
             + redact(parallel.format_status_line(task), api_config.api_key),
-            file=sys.stderr,
+            "warning",
+            color,
         )
     fixed, skipped, failed = _fix_counts(selected)
 
@@ -805,7 +830,7 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
             sys.stderr.write(diff_text + "\n")
         apply_confirmed = _confirm(f"bat2sh: 应用全部 {fixed} 处修改？[y/N]")
         if not apply_confirmed:
-            print("bat2sh: 已取消应用，未写盘", file=sys.stderr)
+            _diag("bat2sh: 已取消应用，未写盘", "warning", color)
 
     write_code = 0
     if merged != text and apply_confirmed:
@@ -832,15 +857,16 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
             )
             write_output(result, settings)
             if result.error:
-                print(f"bat2sh: {result.error}", file=sys.stderr)
+                _diag(f"bat2sh: {result.error}", "error", color)
                 write_code = 2
             elif not args.quiet:
-                print(
+                _diag(
                     f"[已写出] {result.output_path}（API 修复 {fixed} 处，请复核后再使用）",
-                    file=sys.stderr,
+                    "ok",
+                    color,
                 )
 
-    _emit_fix_summary(selected, api_config.api_key)
+    _emit_fix_summary(selected, api_config.api_key, color)
     if write_code:
         return write_code
     if not apply_confirmed or skipped or failed:
@@ -850,37 +876,43 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    color = _color_for(args)
     if not args.inputs:
         build_parser().print_help()
         return 1
     if args.output and len(args.inputs) > 1:
-        print("bat2sh: -o/--output 仅适用于单个输入文件，多文件请使用 --outdir", file=sys.stderr)
+        _diag(
+            "bat2sh: -o/--output 仅适用于单个输入文件，多文件请使用 --outdir",
+            "error",
+            color,
+        )
         return 1
     if args.run and len(args.inputs) > 1:
-        print("bat2sh: --run 仅支持单个输入文件", file=sys.stderr)
+        _diag("bat2sh: --run 仅支持单个输入文件", "error", color)
         return 1
     if args.fix_todos and args.run:
-        print(
+        _diag(
             "bat2sh: --fix-todos 与 --run 互斥（请先修复并确认，再自行运行脚本）",
-            file=sys.stderr,
+            "error",
+            color,
         )
         return 1
     if args.fix_todos and len(args.inputs) > 1:
-        print("bat2sh: --fix-todos 仅支持单个输入文件", file=sys.stderr)
+        _diag("bat2sh: --fix-todos 仅支持单个输入文件", "error", color)
         return 1
     if args.print_only and args.dry_run and not args.quiet:
-        print("bat2sh: --print 模式下不写文件，--dry-run 已忽略", file=sys.stderr)
+        _diag("bat2sh: --print 模式下不写文件，--dry-run 已忽略", "warning", color)
     settings = settings_from_args(args)
     if args.fix_todos:
         path = Path(args.inputs[0])
         if not path.is_file():
-            print(f"bat2sh: 文件不存在: {path}", file=sys.stderr)
+            _diag(f"bat2sh: 文件不存在: {path}", "error", color)
             return 2
         return _fix_todos_flow(path, settings, args)
     if args.run:
         path = Path(args.inputs[0])
         if not path.is_file():
-            print(f"bat2sh: 文件不存在: {path}", file=sys.stderr)
+            _diag(f"bat2sh: 文件不存在: {path}", "error", color)
             return 2
         return _run_flow(path, settings, args)
     blocking_total = 0
@@ -888,7 +920,7 @@ def main(argv: list[str] | None = None) -> int:
     for raw_path in args.inputs:
         path = Path(raw_path)
         if not path.is_file():
-            print(f"bat2sh: 文件不存在: {path}", file=sys.stderr)
+            _diag(f"bat2sh: 文件不存在: {path}", "error", color)
             has_error = True
             continue
         code, result = run_one(path, settings, args.encoding, args)
