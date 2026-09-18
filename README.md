@@ -231,14 +231,19 @@ bat2sh --cli a.bat --fix-todos --max-concurrency 5   # 并发数（默认 3，�
 | `--api-timeout N` | API 空闲超时秒数（默认 30；流式响应中两次数据到达的最大间隔） |
 | `--api-context-lines N` | 发送的源文件上下文行数（默认 3，上限 10） |
 | `--enable-thinking` / `--no-thinking` | 思维链开关（默认关；更准但更慢，对 Qwen3 等混合思考模型生效） |
+| `--color` / `--no-color` | 强制启用 / 禁用 ANSI 色彩（默认 `auto`：按 `NO_COLOR`、`TERM`、TTY 自动判断；显式开关优先级最高） |
 | `-q, --quiet` | 静默 |
 
 退出码：`0` 成功；`2` 读取/写入/转换错误；`3` 使用 `--fail-on-todo` 且存在错误或 TODO；
 `4` 使用 `--run` 且存在错误或 TODO（未加 `--force`）；`5` 执行超时或无法启动 bash；
 `6` 使用 `--fix-todos` 但 API 配置缺失/非法。
 `--diff` 与 `--report-json` 在普通文件模式下输出到 stdout（便于管道解析）、`--print` 模式下走 stderr；`--report` 纯文本报告与状态行（`[已写出]`/`[dry-run]`）始终走 stderr。
-支持颜色的终端下，状态行与 `--report` 按 错误红 / 警告黄 / 成功绿 着色（TODO 灰）；
-`NO_COLOR=1` 关闭着色，`FORCE_COLOR=1` 可在管道中强制开启。
+支持颜色的终端下，状态行、诊断消息与 `--report` 按 错误红 / 警告黄 / 成功绿 着色（TODO 灰）；
+`--report` 末尾附一行「结论」摘要。着色优先级（高→低）：
+`--no-color`（恒关）> `--color`（恒开）> `NO_COLOR=1`（关）> `TERM=dumb`/未设置（关）>
+`FORCE_COLOR=1`（管道中强制开）> 自动检测 TTY。
+非 TTY / CI / 重定向下**逐字节等同于无色输出**；ANSI 只写 stderr，stdout（`--print` 脚本、
+`--report-json`）始终纯净。多文件转换时状态行带 `[i/N]` 进度前缀。
 `--print` 与 `--dry-run` 同时给出时，`--print` 优先，`--dry-run` 被忽略。
 
 ### 4.3 设置项

@@ -235,3 +235,148 @@ def test_run_refuses_errors(tmp_path):
     proc = run_cli(str(path), "--run", "--yes")
     assert proc.returncode == 4
     assert "已拒绝执行" in proc.stderr
+
+
+# ----------------------------------------------------------------------
+# v2.7.0：--color / --no-color 显式开关与四场景色彩矩阵
+# ----------------------------------------------------------------------
+def test_color_enabled_explicit_modes(monkeypatch):
+    from bat2sh import cli
+
+    class _NonTty:
+        def isatty(self) -> bool:
+            return False
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    assert cli.color_enabled(_NonTty(), "never") is False
+    assert cli.color_enabled(_NonTty(), "always") is True
+
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert cli.color_enabled(_NonTty(), "always") is True
+    assert cli.color_enabled(_NonTty(), "never") is False
+
+
+def test_no_color_flag_overrides_force_color(tmp_path):
+    path = make_bat(tmp_path, ERROR_BAT)
+    proc = run_cli(
+        str(path),
+        "--report",
+        "--no-color",
+        "-o",
+        str(tmp_path / "out.sh"),
+        env_extra={"FORCE_COLOR": "1"},
+    )
+    assert proc.returncode == 0
+    assert "\x1b[" not in proc.stderr
+    assert "\x1b[" not in proc.stdout
+
+
+def test_color_flag_forces_ansi_in_pipe_and_overrides_no_color(tmp_path):
+    path = make_bat(tmp_path, CLEAN_BAT)
+    proc = run_cli(
+        str(path),
+        "--color",
+        "-o",
+        str(tmp_path / "out.sh"),
+        env_extra={"NO_COLOR": "1"},
+    )
+    assert proc.returncode == 0
+    assert GREEN in proc.stderr
+    assert "\x1b[" not in proc.stdout
+
+
+def test_color_flags_are_mutually_exclusive():
+    proc = run_cli("--color", "--no-color")
+    assert proc.returncode == 2
+    assert "not allowed with" in proc.stderr
+
+
+def test_color_matrix_four_scenarios(tmp_path):
+    """TTY(模拟) / NO_COLOR / 非 TTY / --no-color 四场景：stdout 永不含 ANSI。"""
+    path = make_bat(tmp_path, ERROR_BAT)
+    tty_like = run_cli(
+        str(path), "--report", "-o", str(tmp_path / "t.sh"), env_extra={"FORCE_COLOR": "1"}
+    )
+    no_color = run_cli(
+        str(path),
+        "--report",
+        "-o",
+        str(tmp_path / "n.sh"),
+        env_extra={"FORCE_COLOR": "1", "NO_COLOR": "1"},
+    )
+    plain = run_cli(str(path), "--report", "-o", str(tmp_path / "p.sh"))
+    flag = run_cli(
+        str(path),
+        "--report",
+        "--no-color",
+        "-o",
+        str(tmp_path / "f.sh"),
+        env_extra={"FORCE_COLOR": "1"},
+    )
+    assert RED in tty_like.stderr
+    assert "\x1b[" not in no_color.stderr
+    assert "\x1b[" not in plain.stderr
+    assert "\x1b[" not in flag.stderr
+    for proc in (tty_like, no_color, plain, flag):
+        assert "\x1b[" not in proc.stdout
+
+
+# ----------------------------------------------------------------------
+# v2.7.0：报告结论摘要行
+# ----------------------------------------------------------------------
+def test_render_report_summary_levels():
+    from bat2sh.cli import render_report_summary
+    from bat2sh.core.types import ConvertReport, Diagnostic, SourceKind
+
+    clean = ConvertReport(source="x.bat", kind=SourceKind.BATCH)
+    assert render_report_summary(clean, False) == "结论: 转换完成，无错误 / 警告 / 待人工检查"
+
+    warned = ConvertReport(source="x.bat", kind=SourceKind.BATCH)
+    warned.warnings = [Diagnostic(1, "路径", category="path")]
+    assert "1 警告" in render_report_summary(warned, False)
+
+    errored = ConvertReport(source="x.bat", kind=SourceKind.BATCH)
+    errored.errors = [Diagnostic(1, "语法", category="syntax")]
+    assert "存在 1 处错误" in render_report_summary(errored, False)
+
+
+def test_report_summary_appended_on_stderr_with_color(tmp_path):
+    path = make_bat(tmp_path, WARNING_BAT)
+    proc = run_cli(
+        str(path), "--report", "-o", str(tmp_path / "out.sh"), env_extra={"FORCE_COLOR": "1"}
+    )
+    assert proc.returncode == 0
+    assert "结论:" in proc.stderr
+    assert YELLOW in proc.stderr
+    assert "结论:" not in proc.stdout
+
+
+def test_report_summary_clean_is_plain_without_color(tmp_path):
+    path = make_bat(tmp_path, CLEAN_BAT)
+    proc = run_cli(str(path), "--report", "-o", str(tmp_path / "out.sh"))
+    assert proc.returncode == 0
+    assert "结论: 转换完成，无错误 / 警告 / 待人工检查" in proc.stderr
+    assert "\x1b[" not in proc.stderr
+
+
+# ----------------------------------------------------------------------
+# v2.7.0：多文件批量进度指示
+# ----------------------------------------------------------------------
+def test_multi_file_progress_prefix(tmp_path):
+    first = tmp_path / "a.bat"
+    first.write_text(CLEAN_BAT, encoding="utf-8")
+    second = tmp_path / "b.bat"
+    second.write_text(WARNING_BAT, encoding="utf-8")
+    proc = run_cli(str(first), str(second), "--outdir", str(tmp_path / "out"))
+    assert proc.returncode == 0
+    assert "[1/2]" in proc.stderr
+    assert "[2/2]" in proc.stderr
+
+
+def test_single_file_has_no_progress_prefix(tmp_path):
+    path = make_bat(tmp_path, CLEAN_BAT)
+    proc = run_cli(str(path), "-o", str(tmp_path / "out.sh"))
+    assert proc.returncode == 0
+    assert "[1/1]" not in proc.stderr
+    assert "[已写出]" in proc.stderr
