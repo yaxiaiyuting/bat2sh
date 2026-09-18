@@ -35,6 +35,22 @@ def test_golden_case_matches_wine(name):
     )
 
 
+@pytest.mark.parametrize("name", ("g07", "g08", "g09", "g10", "g11", "g12"))
+def test_state_machine_case_matches_wine(name):
+    """v2.5.0：CFG 状态机产物须与 wine cmd 语义一致（goto 形态证伪）。"""
+    result = gh.compare_case(name)
+    assert result["state_machine"] is True
+    assert result["match"], (
+        f"{name}（状态机）与 wine 不一致：wine={result['wine']!r} bat2sh={result['bash']!r}"
+    )
+
+
+def test_state_machine_case_not_a_fallback_todo():
+    """状态机用例产物不得含 TODO（否则说明门控回退，Wine 对照失去意义）。"""
+    bat = (gh.CASES_DIR / "g07.bat").read_text(encoding="utf-8")
+    assert "__bat2sh_pc" in gh.to_bash(bat, state_machine=True)
+
+
 def test_g05_records_a1_freeze():
     result = gh.compare_case("g05")
     assert result["bash"] == "i=1\ni=1"

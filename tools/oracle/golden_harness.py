@@ -29,6 +29,8 @@ CASES_DIR = Path(__file__).resolve().parent / "cases"
 _REPO = Path(__file__).resolve().parents[2]
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 _CASE_NAMES = ("g01", "g02", "g03", "g04", "g05", "g06")
+# v2.5.0：goto 形态用例 —— 以 **CFG 状态机**（cfg_state_machine=True）产物对照 wine。
+_STATE_MACHINE_CASES = ("g07", "g08", "g09", "g10", "g11", "g12")
 
 UNRELIABLE_PROBES: dict[str, str] = {
     "x5_fd_digit": "echo 1.0.1>out.txt（wine 不吞位；真实 cmd 中紧邻 > 的数字是文件句柄）",
@@ -60,10 +62,13 @@ def _load_converter():
     return convert_text, ConvertSettings, SourceKind
 
 
-def to_bash(bat_text: str) -> str:
+def to_bash(bat_text: str, *, state_machine: bool = False) -> str:
     convert_text, ConvertSettings, SourceKind = _load_converter()
     script, _report = convert_text(
-        bat_text, SourceKind.BATCH, ConvertSettings(bash_check=False), "golden.bat"
+        bat_text,
+        SourceKind.BATCH,
+        ConvertSettings(bash_check=False, cfg_state_machine=state_machine),
+        "golden.bat",
     )
     return script
 
@@ -93,16 +98,23 @@ def run_bash(script: str, workdir: Path) -> str:
 
 def compare_case(name: str) -> dict:
     bat = (CASES_DIR / f"{name}.bat").read_text(encoding="utf-8")
-    script = to_bash(bat)
+    state_machine = name in _STATE_MACHINE_CASES
+    script = to_bash(bat, state_machine=state_machine)
     with tempfile.TemporaryDirectory() as td:
         workdir = Path(td)
         wine_out = normalize(run_wine(bat, workdir))
         bash_out = normalize(run_bash(script, workdir))
-    return {"name": name, "wine": wine_out, "bash": bash_out, "match": wine_out == bash_out}
+    return {
+        "name": name,
+        "wine": wine_out,
+        "bash": bash_out,
+        "match": wine_out == bash_out,
+        "state_machine": state_machine,
+    }
 
 
 def run_all() -> list[dict]:
-    return [compare_case(name) for name in _CASE_NAMES]
+    return [compare_case(name) for name in _CASE_NAMES + _STATE_MACHINE_CASES]
 
 
 def main() -> int:
@@ -111,10 +123,11 @@ def main() -> int:
         return 0
     results = run_all()
     width = max(len(r["wine"]) for r in results) + 2
-    print(f"{'case':6} {'wine':{width}} {'bat2sh->bash':{width}} verdict")
+    print(f"{'case':6} {'mode':14} {'wine':{width}} {'bat2sh->bash':{width}} verdict")
     for r in results:
         verdict = "MATCH" if r["match"] else "**DIFF**"
-        print(f"{r['name']:6} {r['wine']!r:{width}} {r['bash']!r:{width}} {verdict}")
+        mode = "state-machine" if r["state_machine"] else "default"
+        print(f"{r['name']:6} {mode:14} {r['wine']!r:{width}} {r['bash']!r:{width}} {verdict}")
     print()
     print("x5/A8 caveat:", "; ".join(UNRELIABLE_PROBES.values()))
     matched = sum(1 for r in results if r["match"])
