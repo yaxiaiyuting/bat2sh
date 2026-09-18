@@ -3,11 +3,12 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v2.3.0**（tag `v2.3.0`；**2.x 收尾版本**）。
+> 当前版本为 **v2.4.0**（tag `v2.4.0`；**goto CFG 高级 · 硬做授权版**，minor）。
 > ✅ **2.x 收尾成立（2026-09-18）**：三条件 (a)(b)(c) 全 ✓ → 冻结为**维护模式**；
-> goto（全部）/ B5 / 注册表写 / 名称映射均归**终态**，`goto CFG 高级` 归终态（仅 T1 重评）——
-> 见 **`docs/v2.3.0-2x-closure.md`**（收尾声明）。下一个大方向 = **PS 解冻**（需求驱动，未触发）。
-> v2.2.0 = sc 结构化诚实 TODO；v2.1.0 = CFG 只读数据模型；v2.0.0 = 解析层/词法层硬化。
+> B5 / 注册表写 / 名称映射归**终态**；`goto CFG 高级` 的**可证安全子集**已于 **v2.4.0** 落地
+> （冗余 goto → no-op；前向跳转不可达区间 → 注释化），其余 goto 形态维持终态（仅 T1 重评）——
+> 见 **`docs/v2.3.0-2x-closure.md`**（收尾声明）与 **`docs/v2.4.0-report.md`**。下一个大方向 = **PS 解冻**（需求驱动，未触发）。
+> v2.3.0 = 逐项实测 + 2.x 收尾；v2.2.0 = sc 结构化诚实 TODO；v2.1.0 = CFG 只读数据模型；v2.0.0 = 解析层/词法层硬化。
 > 1.x 已于 v1.11.0 收尾为维护模式；`v1.9.1` 为未发布研究代号，见 `docs/v1.9.1-attribution.md`。
 > ✅ **1.x 收尾成立（2026-09-17）**：路线图 §4 六标准（修订后）全 ✓ + 收尾三条件 (a)(b)(c) 全 ✓，
 > 1.x 冻结为**维护模式**；2.x 范围与启动条件见 **`docs/v1.11.0-1x-closure-final.md`**（收尾声明）。
@@ -76,7 +77,8 @@
 > 完整论证见 **`docs/v2.3.0-2x-closure.md`**（收尾声明）；逐项实测见 `docs/v2.3.0-reality-check.md`。
 
 - v2.0.0 解析层/词法层硬化（+2 语法通过）；v2.1.0 **CFG 只读数据模型**（`core/cfg.py`，零产物变化）；
-  v2.2.0 `sc` **结构化诚实 TODO**（`# TODO[SC]`）；v2.3.0 **逐项实测 + 2.x 收尾**（零代码改动）。
+  v2.2.0 `sc` **结构化诚实 TODO**（`# TODO[SC]`）；v2.3.0 **逐项实测 + 2.x 收尾**（零代码改动）；
+  v2.4.0 **goto CFG 高级可证安全子集**（冗余 goto no-op + 前向跳转不可达区间注释化）。
 - 2.x 基线（最终）：`151` 语料 / 语法 `149` / **功能完好 19** / degraded `85` / degraded TODO `897` /
   崩溃·超时 `0` / pytest `1448` / wine `6/6`。
 - **2.x 翻转清单（5）**：`for /r`→`find`、`for /f` 字符串、`net user /delete`→`userdel`（v1.11.0）+
@@ -118,16 +120,16 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **2.3.0**（**2.x 收尾版本**；冻结维护模式；见 `docs/v2.3.0-2x-closure.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.3.0） |
+| 当前版本 | **2.4.0**（**goto CFG 高级 · 硬做授权版**；minor；见 `docs/v2.4.0-report.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.4.0） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1448 passed** | `docs/releases/v2.2.0.md` §4 |
+| 测试基线 | pytest **1466 passed** | `docs/releases/v2.4.0.md` §5 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO），**v2.3.0**（2.x 收尾）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO），**v2.3.0**（2.x 收尾），**v2.4.0**（goto CFG 高级）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -347,12 +349,15 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
 - **接口**：`classify_goto()`（纯函数、互斥分类）、`summarize_goto_lines()`（`echo`/`rem`
   与 CJK 标签感知）、`validate_control_flow_patterns()`（测试守护）、
   `tools/c4/control_flow_report.py`（只读报告，复现计数）。
-- **实测（151 语料）**：goto 语句 1583；转换器口径 goto TODO 1362/39 文件（degraded 内 252/22）；
-  唯一已实现形态 = `goto :eof`（→ `exit 0`/`return`）。
-- **为何不实现**：唯一阻塞=goto 的 degraded 文件仅 3，翻转收益 ≈ 2/86；
-  形态数十种 → 撞库不可行 → 需状态机（15–25 人日，最高风险）。
-- **测试**：`tests/test_control_flow_taxonomy.py`（16 条，不依赖外部语料）。
-  设计与分阶段方案见 `docs/session-c4-design.md`。
+- **实测（151 语料）**：goto 语句 1583；转换器口径 goto TODO **1359**/39 文件（v2.4.0 后，较 1364 −5）。
+- **已实现形态（v2.4.0）**：`goto :eof`（→ `exit 0`/`return`）、`redundant_goto`（目标紧随其后 → 等价 no-op）、
+  `forward_skip` 的**可证安全子集**（无条件顶层 goto + 区间内无标签样行 → 区间不可达 → 逐行注释，含 CJK 标签意识）。
+- **未实现形态（诚实 TODO，仅 T1 重评）**：`backward_loop` / `in_block_goto` / `missing_label` /
+  `dynamic_target` / `label_in_block`；一般 `forward_skip`（条件/含标签区间/多入口）。
+  原因：须重构块栈发射 / `_label_line`（053 域）+ 状态机（15–25 人日），实测翻转 0（纪律 1）。
+- **测试**：`tests/test_control_flow_taxonomy.py`（16 条）+ `tests/test_batch_goto_dispositions.py`（8 条，逐形态归属）
+  + `tests/test_batch_goto_forward_skip.py`（9 条，可达性边界/运行时语义）。
+  设计与分阶段方案见 `docs/session-c4-design.md`；v2.4.0 实现与防护见 `docs/v2.4.0-report.md`、`docs/v2.4.0-053-protection.md`。
 
 ### 5.8 词法层残余额账（`core/lexical_residuals.py`，C(lex) / v1.10.0rc1）
 
@@ -628,6 +633,12 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | **`docs/v2.3.0-2x-closure.md`** | **2.x 收尾声明**（三条件全 ✓ + goto CFG 高级归属 + 3.x 范围 + PS 解冻评估） |
 | `docs/v2.3.0-report.md` | v2.3.0 报告（逐项实测 / 2.x 收尾判定 / goto CFG 高级归属 / 下一版起点） |
 | `docs/releases/v2.3.0.md` | v2.3.0 发布说明（实测优先 / 2.x 收尾声明 / goto CFG 高级归属 / PS 解冻评估） |
+| `docs/v2.4.0-coldstart.md` | v2.4.0 冷启动自检（前置五条 / 仪器复现 / goto CFG 高级复述 / 053·A1 代码锚点 / 前提核对） |
+| **`docs/v2.4.0-053-protection.md`** | **053/A1 回归防护设计**（测试清单 + 修复代码路径 + 四道检测 + 覆盖文件逐文件 diff + 回滚锚点） |
+| `docs/v2.4.0-review.md` | v2.4.0 自我审阅与裁定（范围/目标/风险/止损/退路/替代/原则性验收；裁定=进入实现） |
+| `docs/v2.4.0-breaking-changes.md` | v2.4.0 破坏性变更声明（允许/禁止 + 实测产物变化 + 近失静默错披露） |
+| `docs/v2.4.0-report.md` | v2.4.0 报告（goto 7+1 归属 / 053·A1 回归 / 实测指标 / 近失静默错 / 2.x 状态） |
+| `docs/releases/v2.4.0.md` | v2.4.0 发布说明（goto CFG 高级硬做授权 / 形态覆盖 / 防护 / 指标 / 已知限制） |
 | `docs/2.x-roadmap-research.md` | 2.x 路线图研究（goto/CFG、名称映射、版本序列 v2.0/v2.1/v2.2） |
 | `docs/releases/v1.11.0.md` | v1.11.0 发布说明（C2 收窄执行 / 归属重判 / 标准 3 修订 / 已知限制） |
 | `docs/releases/v1.10.0.md` | v1.10.0 正式版发布说明（1.x 功能冻结 / 四个并行子系统 / 诚实披露） |
