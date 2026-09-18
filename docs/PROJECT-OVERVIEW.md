@@ -3,8 +3,11 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v2.2.0**（tag `v2.2.0`；2.x 第三版：**sc 结构化诚实 TODO + 实测优先评估**
-> （`# TODO[SC]`）；v2.1.0 为 CFG 只读数据模型；v2.0.0 为解析层/词法层硬化）。
+> 当前版本为 **v2.3.0**（tag `v2.3.0`；**2.x 收尾版本**）。
+> ✅ **2.x 收尾成立（2026-09-18）**：三条件 (a)(b)(c) 全 ✓ → 冻结为**维护模式**；
+> goto（全部）/ B5 / 注册表写 / 名称映射均归**终态**，`goto CFG 高级` 归终态（仅 T1 重评）——
+> 见 **`docs/v2.3.0-2x-closure.md`**（收尾声明）。下一个大方向 = **PS 解冻**（需求驱动，未触发）。
+> v2.2.0 = sc 结构化诚实 TODO；v2.1.0 = CFG 只读数据模型；v2.0.0 = 解析层/词法层硬化。
 > 1.x 已于 v1.11.0 收尾为维护模式；`v1.9.1` 为未发布研究代号，见 `docs/v1.9.1-attribution.md`。
 > ✅ **1.x 收尾成立（2026-09-17）**：路线图 §4 六标准（修订后）全 ✓ + 收尾三条件 (a)(b)(c) 全 ✓，
 > 1.x 冻结为**维护模式**；2.x 范围与启动条件见 **`docs/v1.11.0-1x-closure-final.md`**（收尾声明）。
@@ -68,6 +71,24 @@
 
 ---
 
+### 0.2 2.x 收尾声明（**已收尾** → 维护模式）+ 3.x 方向
+
+> 完整论证见 **`docs/v2.3.0-2x-closure.md`**（收尾声明）；逐项实测见 `docs/v2.3.0-reality-check.md`。
+
+- v2.0.0 解析层/词法层硬化（+2 语法通过）；v2.1.0 **CFG 只读数据模型**（`core/cfg.py`，零产物变化）；
+  v2.2.0 `sc` **结构化诚实 TODO**（`# TODO[SC]`）；v2.3.0 **逐项实测 + 2.x 收尾**（零代码改动）。
+- 2.x 基线（最终）：`151` 语料 / 语法 `149` / **功能完好 19** / degraded `85` / degraded TODO `897` /
+  崩溃·超时 `0` / pytest `1448` / wine `6/6`。
+- **2.x 翻转清单（5）**：`for /r`→`find`、`for /f` 字符串、`net user /delete`→`userdel`（v1.11.0）+
+  降级管道行括号配平、`if exist %VAR:"=%`（v2.0.0）。
+- **收尾判据**：三条件 (a) 剩余失败全有归属 ✓、(b) 无可修未修（实测）✓、(c) degraded `85` = 实测下界 ✓。
+- **终态清单（2.x 收敛）**：goto（简单/回跳/块内/CFG 高级）、B5 括号跨行、注册表写、
+  `sc` 服务名映射、B2 输出适配、L4 对象、第三方 exe。**`goto CFG 高级` 明确归终态（仅 T1 真实需求重评）。**
+- **3.x 唯一大方向**：**PS 解冻**（PS 侧从实验性 → 完整语义）；启动条件 **T3（PS 刚需）**，**当前未触发**；
+  解析层重写为条件性方向（仅 T1）。**无触发不启动**（沿用需求驱动 T1/T2/T3）。
+
+---
+
 ## 1. 项目定位与目标
 
 **一句话**：bat2sh 是把 Windows 批处理（`.bat`/`.cmd`）与 PowerShell（`.ps1`）脚本
@@ -97,7 +118,7 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **2.2.0**（**sc 结构化诚实 TODO**；v2.1.0=CFG 只读模型；v2.0.0=解析层硬化；见 §5.9/§5.10） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.2.0） |
+| 当前版本 | **2.3.0**（**2.x 收尾版本**；冻结维护模式；见 `docs/v2.3.0-2x-closure.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.3.0） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
@@ -106,7 +127,7 @@
 | 测试基线 | pytest **1448 passed** | `docs/releases/v2.2.0.md` §4 |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO），**v2.3.0**（2.x 收尾）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
 
 ---
 
@@ -601,6 +622,12 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | `docs/v2.2.0-review.md` | v2.2.0 自我审阅与裁定（范围/风险/止损/退路/原则性验收；裁定 = sc 结构化诚实 TODO） |
 | `docs/v2.2.0-report.md` | v2.2.0 发布报告（逐项实测/翻转 0/指标/053-A1/下一版起点） |
 | `docs/releases/v2.2.0.md` | v2.2.0 发布说明（实测优先协议 / 逐项实测 / 六次估算错误 / sc 诚实 TODO 结构化） |
+| `docs/v2.3.0-coldstart.md` | v2.3.0 冷启动自检（前置 / 仪器复现 / 2.x 结构性事实 / 前提核对） |
+| `docs/v2.3.0-reality-check.md` | **v2.3.0 逐项实测（核心产出）**：goto 回跳/块内/CFG 高级/B5/注册表写全部翻转 0 + 裁定 |
+| `docs/v2.3.0-review.md` | v2.3.0 自我审阅与裁定（情形 B：全 0 → 触发 2.x 收尾评估） |
+| **`docs/v2.3.0-2x-closure.md`** | **2.x 收尾声明**（三条件全 ✓ + goto CFG 高级归属 + 3.x 范围 + PS 解冻评估） |
+| `docs/v2.3.0-report.md` | v2.3.0 报告（逐项实测 / 2.x 收尾判定 / goto CFG 高级归属 / 下一版起点） |
+| `docs/releases/v2.3.0.md` | v2.3.0 发布说明（实测优先 / 2.x 收尾声明 / goto CFG 高级归属 / PS 解冻评估） |
 | `docs/2.x-roadmap-research.md` | 2.x 路线图研究（goto/CFG、名称映射、版本序列 v2.0/v2.1/v2.2） |
 | `docs/releases/v1.11.0.md` | v1.11.0 发布说明（C2 收窄执行 / 归属重判 / 标准 3 修订 / 已知限制） |
 | `docs/releases/v1.10.0.md` | v1.10.0 正式版发布说明（1.x 功能冻结 / 四个并行子系统 / 诚实披露） |
