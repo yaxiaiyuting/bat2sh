@@ -85,8 +85,14 @@ def test_emit_no_goto_todo():
 # --- 门控接线（默认关闭 / opt-in） ----------------------------------------
 
 
-def test_gate_default_off_keeps_honest_todo(convert_bat):
+def test_gate_default_on_uses_state_machine(convert_bat):
     out, report = convert_bat("@echo off\n:Top\necho loop\ngoto Top\n")
+    assert "__bat2sh_pc" in out
+    assert report.todo_count == 0
+
+
+def test_gate_off_keeps_honest_todo(convert_bat):
+    out, report = convert_bat("@echo off\n:Top\necho loop\ngoto Top\n", cfg_state_machine=False)
     assert "# TODO: 手动检查: goto Top" in out
     assert "__bat2sh_pc" not in out
 

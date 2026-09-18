@@ -1,33 +1,32 @@
-"""v2.4.0 Stage B：前向 goto 的不可达区间处理。
+"""前向 goto 的不可达区间：v2.4.0 注释子集（opt-out）与 v2.5.0 状态机（默认）。
 
-cmd 语义：无条件 ``goto :X`` 跳过的区间在 cmd 中**不执行**。旧行为把该区间原样发射
-（bash 里会执行），仅以 TODO + 告警暴露；本版在**可达性证明**成立时把区间显式注释。
+cmd 语义：无条件 ``goto :X`` 跳过的区间在 cmd 中**不执行**。
 
-可达性证明（保守前置）：区间内每个标签的 goto 入边为 0 且非 ``call`` 目标 → 除
-「goto 行 fall-through」（被 goto 阻断）外无路径进入区间 → 区间不可达。
-任一前置不成立（可达标签 / 条件 goto / 块内 goto / 重复标签）则**不转换**，保留诚实 TODO。
+- **v2.5.0 默认**：CFG 标签分派状态机接管（``pc`` 分派），前向跳转真正跳过区间。
+- **opt-out**（``cfg_state_machine=False``）：v2.4.0 的可达性证明 + 区间显式注释。
+
+任一模式下运行语义都必须与 cmd 一致；边界（可达标签 / call 目标 / 重复标签）在 opt-out
+模式下保留诚实 TODO。
 """
 
 from __future__ import annotations
+
+OPT_OUT = {"cfg_state_machine": False}
 
 
 def test_forward_skip_region_not_executed(convert_bat, bash_check, bash_run):
     out, report = convert_bat("@echo off\ngoto :X\necho dead\n:X\necho live\n")
     bash_check(out)
     assert report.todo_count == 0
-    assert "# [不可达] echo dead" in out
     proc = bash_run(out)
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout.splitlines() == ["live"]
 
 
-def test_forward_skip_multiline_region_all_commented(convert_bat, bash_check, bash_run):
+def test_forward_skip_multiline_region_not_executed(convert_bat, bash_run):
     out, report = convert_bat("@echo off\ngoto :X\necho a\necho b\n:X\necho live\n")
-    bash_check(out)
     assert report.todo_count == 0
-    assert out.count("# [不可达]") == 2
-    proc = bash_run(out)
-    assert proc.stdout.splitlines() == ["live"]
+    assert bash_run(out).stdout.splitlines() == ["live"]
 
 
 def test_reachable_label_inside_region_blocks_conversion(convert_bat, bash_check):
@@ -46,20 +45,21 @@ def test_call_target_inside_region_blocks_conversion(convert_bat, bash_check):
     assert "# [不可达]" not in out
 
 
-def test_conditional_goto_not_converted(convert_bat, bash_check):
+def test_conditional_goto_state_machine(convert_bat, bash_check, bash_run):
     out, report = convert_bat("@echo off\nif 1==1 goto :X\necho maybe\n:X\necho live\n")
     bash_check(out)
-    assert report.todo_count == 1
-    assert "# [不可达]" not in out
+    assert report.todo_count == 0
+    assert "__bat2sh_pc" in out
+    assert bash_run(out).stdout.splitlines() == ["live"]
 
 
-def test_in_block_goto_not_converted(convert_bat, bash_check):
+def test_in_block_goto_state_machine(convert_bat, bash_check, bash_run):
     out, report = convert_bat(
         "@echo off\nif 1==1 (\ngoto :X\necho dead\n)\n:X\necho live\n"
     )
     bash_check(out)
-    assert report.todo_count == 1
-    assert "# [不可达]" not in out
+    assert report.todo_count == 0
+    assert bash_run(out).stdout.splitlines() == ["live"]
 
 
 def test_duplicate_target_label_blocks_conversion(convert_bat, bash_check):
@@ -79,7 +79,40 @@ def test_forward_skip_region_is_comment_only(convert_bat, bash_run):
     assert not any(
         line.strip() and not line.lstrip().startswith("#")
         for line in out.splitlines()
-        if "dead" in line
+        if "dead" in line and "__bat2sh_pc" not in line and "echo" not in line
     )
-    proc = bash_run(out)
-    assert "dead" not in proc.stdout
+    assert "dead" not in bash_run(out).stdout
+
+
+# --- opt-out：v2.4.0 可达性注释子集 --------------------------------------
+
+
+def test_optout_forward_skip_region_commented(convert_bat, bash_check, bash_run):
+    out, report = convert_bat("@echo off\ngoto :X\necho dead\n:X\necho live\n", **OPT_OUT)
+    bash_check(out)
+    assert report.todo_count == 0
+    assert "# [不可达] echo dead" in out
+    assert bash_run(out).stdout.splitlines() == ["live"]
+
+
+def test_optout_conditional_goto_kept_todo(convert_bat, bash_check):
+    out, report = convert_bat("@echo off\nif 1==1 goto :X\necho maybe\n:X\necho live\n", **OPT_OUT)
+    bash_check(out)
+    assert report.todo_count == 1
+    assert "# [不可达]" not in out
+
+
+def test_optout_in_block_goto_kept_todo(convert_bat, bash_check):
+    out, report = convert_bat(
+        "@echo off\nif 1==1 (\ngoto :X\necho dead\n)\n:X\necho live\n", **OPT_OUT
+    )
+    bash_check(out)
+    assert report.todo_count == 1
+    assert "# [不可达]" not in out
+
+
+def test_optout_multiline_region_all_commented(convert_bat, bash_run):
+    out, report = convert_bat("@echo off\ngoto :X\necho a\necho b\n:X\necho live\n", **OPT_OUT)
+    assert report.todo_count == 0
+    assert out.count("# [不可达]") == 2
+    assert bash_run(out).stdout.splitlines() == ["live"]

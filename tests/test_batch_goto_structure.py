@@ -17,7 +17,8 @@ def test_goto_target_label_not_functionized(convert_bat, bash_check):
     out, _ = convert_bat(MINIMAL_REPRO)
     bash_check(out)
     assert "label_SKIP" not in out
-    assert "# :SKIP（goto 目标，不函数化，主流程继续）" in out
+    # v2.5.0：goto 目标标签 = 状态机分派臂（非函数、非注释）
+    assert "__L_1)  # :SKIP" in out
 
 
 def test_forward_skip_region_does_not_execute(convert_bat, bash_run):
@@ -28,14 +29,14 @@ def test_forward_skip_region_does_not_execute(convert_bat, bash_run):
     assert proc.stdout.splitlines() == ["before", "skipped", "after"]
 
 
-def test_structure_positions_are_linear(convert_bat):
+def test_structure_source_order_preserved(convert_bat, bash_run):
     out, _ = convert_bat(MINIMAL_REPRO)
     assert (
         out.index('echo "before"')
-        < out.index("echo dead")
         < out.index('echo "skipped"')
         < out.index('echo "after"')
     )
+    assert bash_run(out).stdout.splitlines() == ["before", "skipped", "after"]
 
 
 def test_pure_call_target_still_functionized(convert_bat):
@@ -120,7 +121,9 @@ def test_stress_shape_keeps_post_skip_code_in_main_flow(convert_bat, bash_check)
 
 
 def test_forward_skip_region_is_explicitly_commented(convert_bat):
-    out, _ = convert_bat("@echo off\ngoto :SKIP\necho dead\n:SKIP\necho done\n")
+    out, _ = convert_bat(
+        "@echo off\ngoto :SKIP\necho dead\n:SKIP\necho done\n", cfg_state_machine=False
+    )
     assert "# TODO: 手动检查: goto :SKIP" not in out
     assert "# goto SKIP（前向跳转" in out
     assert "# [不可达] echo dead" in out
@@ -134,7 +137,7 @@ def test_no_warning_when_target_immediately_follows(convert_bat):
 
 def test_multiple_forward_skip_regions_commented_independently(convert_bat):
     text = "@echo off\ngoto :A\necho deadA\n:A\ngoto :B\necho deadB\n:B\necho done\n"
-    out, _ = convert_bat(text)
+    out, _ = convert_bat(text, cfg_state_machine=False)
     assert "# [不可达] echo deadA" in out
     assert "# [不可达] echo deadB" in out
     assert out.count("# [不可达]") == 2
