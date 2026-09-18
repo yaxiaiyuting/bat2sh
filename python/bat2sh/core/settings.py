@@ -38,6 +38,9 @@ class ConvertSettings:
     strict_mode: bool = True
     last_exit_code: str = "map"  # 退出码策略（PowerShell $LASTEXITCODE / 批处理 %ERRORLEVEL%）: warn | map
     bash_check: bool = True        # 生成脚本 bash -n 后置校验；失败则降级为注释（CLI: --no-bash-check）
+    # v2.5.0：CFG 标签分派状态机（goto 任意跳转 → while/case $pc）。
+    # **默认关闭**（实验性，门控命中才生效）；默认路径与 v2.4.0 逐字节相同。
+    cfg_state_machine: bool = False
 
     # 运行（GUI“转换并运行”）
     run_timeout: float = 60.0      # 超时秒数；超时自动终止脚本（含子进程）

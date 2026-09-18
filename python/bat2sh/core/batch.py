@@ -553,6 +553,14 @@ class BatchConverter:
     # 对外入口
     # ------------------------------------------------------------------
     def convert(self, text: str) -> str:
+        if self.settings.cfg_state_machine:
+            # v2.5.0 Stage 2：CFG 标签分派状态机（门控命中才接管；否则回退本方法）。
+            # 默认关闭；开启时未命中文件仍走下方原路径（053/A1 逐字节不变）。
+            from .cfg_state import emit as _emit_state_machine
+
+            machine = _emit_state_machine(text, self.settings, self.source_name)
+            if machine is not None:
+                return machine
         logical = self._logical_lines(text)
         self.report.total_lines = len(logical)
         self._prescan(logical)
