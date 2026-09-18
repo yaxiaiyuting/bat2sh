@@ -8,9 +8,13 @@
 > B5 / 注册表写 / 名称映射归**终态**；`goto CFG 高级` 的**可证安全子集**已于 **v2.4.0** 落地
 > （冗余 goto → no-op；前向跳转不可达区间 → 注释化），其余 goto 形态维持终态（仅 T1 重评）——
 > 见 **`docs/v2.3.0-2x-closure.md`**（收尾声明）与 **`docs/v2.4.0-report.md`**。
-> **已排期方向（用户 2026-09-18 裁定）**：**块栈重构** —— 解锁 `backward_loop` / `in_block_goto` /
-> 一般 `forward_skip` / 完整 goto CFG 状态的共同前置（沿用 `docs/v2.4.0-053-protection.md` 的回归防护 +
-> `core/cfg.py`）。其余大方向 = **PS 解冻**（需求驱动，未触发）。
+> **块栈重构 / 完整 CFG 状态机（v2.5.0，分支 `v2.5.0-blockstack`，未发布）**：交付**只读 CFG 图结构**
+> （`core/cfg_blocks.py`）+ **门控标签分派状态机**（`core/cfg_state.py`：`while/case $__bat2sh_pc`）。
+> 形态 `backward_loop` / `in_block_goto` / 一般 `forward_skip` 已实现，但**门控默认关闭**
+> （`settings.cfg_state_machine=False`）——默认路径与 v2.4.0 **逐字节相同**（053/A1 零回归）。
+> **激活默认路径待裁定**（25 eligible 文件语义未逐文件 oracle，守「不引入静默错」底线）；
+> 见 `docs/v2.5.0-blockstack-design.md`、`docs/v2.5.0-report.md`。
+> 其余大方向 = **PS 解冻**（需求驱动，未触发）。
 > v2.3.0 = 逐项实测 + 2.x 收尾；v2.2.0 = sc 结构化诚实 TODO；v2.1.0 = CFG 只读数据模型；v2.0.0 = 解析层/词法层硬化。
 > 1.x 已于 v1.11.0 收尾为维护模式；`v1.9.1` 为未发布研究代号，见 `docs/v1.9.1-attribution.md`。
 > ✅ **1.x 收尾成立（2026-09-17）**：路线图 §4 六标准（修订后）全 ✓ + 收尾三条件 (a)(b)(c) 全 ✓，
