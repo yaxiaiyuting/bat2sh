@@ -67,12 +67,11 @@ def test_stress_with_args_runs_past_positional_setup(tmp_path):
 def test_stress_structure_main_flow_is_linear():
     text = _convert("stress_test.bat")
     assert "label_SKIP" not in text
-    todo = text.index("# TODO: 手动检查: goto :SKIP")
-    warning = text.index("# 注意：以下代码原被 goto :SKIP 跳过")
-    dead = text.index('echo "这行不会执行"')
+    goto = text.index("# goto SKIP（前向跳转")
+    dead = text.index("# [不可达] echo 这行不会执行")
     label = text.index("# :SKIP（goto 目标，不函数化，主流程继续）")
     skipped = text.index('echo "跳过了。"')
-    assert todo < warning < dead < label < skipped
+    assert goto < dead < label < skipped
 
 
 def test_deepseek_static_goto_targets_not_functionized():

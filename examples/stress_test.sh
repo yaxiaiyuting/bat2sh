@@ -331,9 +331,8 @@ cat /sys/class/dmi/id/sys_vendor 2>/dev/null 2>/dev/null || true
 
 # 使用 goto 和标签
 echo "跳转测试:"
-# TODO: 手动检查: goto :SKIP
-# 注意：以下代码原被 goto :SKIP 跳过，在 bash 中会执行，请核对
-echo "这行不会执行"
+# goto SKIP（前向跳转：cmd 会跳过下方 1 行不可达代码，已注释保留）
+# [不可达] echo 这行不会执行
 # :SKIP（goto 目标，不函数化，主流程继续）
 echo "跳过了。"
 

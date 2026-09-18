@@ -20,18 +20,19 @@ def test_goto_target_label_not_functionized(convert_bat, bash_check):
     assert "# :SKIP（goto 目标，不函数化，主流程继续）" in out
 
 
-def test_main_flow_order_matches_source(convert_bat, bash_run):
+def test_forward_skip_region_does_not_execute(convert_bat, bash_run):
+    # cmd 语义：goto :SKIP 跳过 echo dead；产物必须同样不执行（原先会执行）。
     out, _ = convert_bat(MINIMAL_REPRO)
     proc = bash_run(out)
     assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.splitlines() == ["before", "dead", "skipped", "after"]
+    assert proc.stdout.splitlines() == ["before", "skipped", "after"]
 
 
 def test_structure_positions_are_linear(convert_bat):
     out, _ = convert_bat(MINIMAL_REPRO)
     assert (
         out.index('echo "before"')
-        < out.index('echo "dead"')
+        < out.index("echo dead")
         < out.index('echo "skipped"')
         < out.index('echo "after"')
     )
@@ -118,10 +119,12 @@ def test_stress_shape_keeps_post_skip_code_in_main_flow(convert_bat, bash_check)
     assert "label_SUB() {" in out
 
 
-def test_dead_code_warning_after_goto(convert_bat):
+def test_forward_skip_region_is_explicitly_commented(convert_bat):
     out, _ = convert_bat("@echo off\ngoto :SKIP\necho dead\n:SKIP\necho done\n")
-    assert "# 注意：以下代码原被 goto :SKIP 跳过，在 bash 中会执行，请核对" in out
-    assert out.index("# TODO: 手动检查: goto :SKIP") < out.index("# 注意：")
+    assert "# TODO: 手动检查: goto :SKIP" not in out
+    assert "# goto SKIP（前向跳转" in out
+    assert "# [不可达] echo dead" in out
+    assert out.index("# goto SKIP（前向跳转") < out.index("# [不可达] echo dead")
 
 
 def test_no_warning_when_target_immediately_follows(convert_bat):
@@ -129,22 +132,24 @@ def test_no_warning_when_target_immediately_follows(convert_bat):
     assert "# 注意：" not in out
 
 
-def test_multiple_goto_targets_warn_independently(convert_bat):
+def test_multiple_forward_skip_regions_commented_independently(convert_bat):
     text = "@echo off\ngoto :A\necho deadA\n:A\ngoto :B\necho deadB\n:B\necho done\n"
     out, _ = convert_bat(text)
-    assert "# 注意：以下代码原被 goto :A 跳过" in out
-    assert "# 注意：以下代码原被 goto :B 跳过" in out
-    assert out.count("# 注意：") == 2
+    assert "# [不可达] echo deadA" in out
+    assert "# [不可达] echo deadB" in out
+    assert out.count("# [不可达]") == 2
+    assert "# TODO: 手动检查" not in out
 
 
-def test_warning_not_emitted_past_target_label(convert_bat):
+def test_no_dead_region_when_target_immediately_follows(convert_bat):
     text = "@echo off\ngoto :A\n:A\necho done\ngoto :B\n:B\necho end\n"
     out, _ = convert_bat(text)
     assert "# 注意：" not in out
+    assert "# [不可达]" not in out
 
 
-def test_warning_is_comment_only(convert_bat, bash_run):
+def test_forward_skip_region_is_comment_only(convert_bat, bash_run):
     out, _ = convert_bat("@echo off\ngoto :SKIP\necho dead\n:SKIP\necho done\n")
     proc = bash_run(out)
     assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.splitlines() == ["dead", "done"]
+    assert proc.stdout.splitlines() == ["done"]

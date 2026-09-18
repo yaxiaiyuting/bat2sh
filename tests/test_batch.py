@@ -755,10 +755,14 @@ def test_goto_to_immediately_following_label_is_noop(convert_bat, bash_run):
     assert proc.stdout.splitlines() == ["done"]
 
 
-def test_goto_with_code_before_label_still_todo(convert_bat):
+def test_goto_skipping_unreachable_code_is_commented(convert_bat, bash_run):
     out, report = convert_bat("@echo off\ngoto :end\necho skipped\n:end\necho done\n")
-    assert "# TODO: 手动检查: goto :end" in out
-    assert report.todo_count == 1
+    assert "# TODO: 手动检查: goto :end" not in out
+    assert "# [不可达] echo skipped" in out
+    assert report.todo_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines() == ["done"]
 
 
 def test_exit_b(convert_bat):

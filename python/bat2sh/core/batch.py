@@ -46,6 +46,9 @@ _REG_VERB_OPS = {
 }
 
 
+#: 宽松标签行判据（含 CJK；`::` 注释不匹配）。用于「区间内是否可能存在跳转入口」的保守判断。
+_LABEL_LIKE_RE = re.compile(r"^\s*:([^\s:&|<>()]+)\s*$")
+
 #: cmd 的 echo 空行写法：`echo.`、`echo(`、`echo:` 等（分隔符后紧跟的内容仍按字面回显）
 _ECHO_BLANK_SEP = re.compile(r"(?i)^(@?\s*echo)([.:/\\\[\]+(,;=])(.*)$", re.S)
 
@@ -573,6 +576,15 @@ class BatchConverter:
 
     def _convert_logical(self, logical: list[tuple[int, str]]) -> None:
         for start, line in logical:
+            if start in self._dead_lines:
+                bucket = (
+                    self._func_out
+                    if (self._function_mode and self._current_func)
+                    else self._out
+                )
+                bucket.append(self._c("# [不可达] " + line.rstrip()))
+                self.report.unchanged_lines += 1
+                continue
             produced = self._convert_line(start, line)
             produced = [_restore_placeholders(item) for item in produced]
             if (
@@ -920,9 +932,9 @@ class BatchConverter:
                 )
             ):
                 self._errorlevel_lines.add(number)
-        self._prescan_redundant_gotos(logical)
+        self._prescan_goto_regions(logical)
 
-    def _prescan_redundant_gotos(self, logical: list[tuple[int, str]]) -> None:
+    def _prescan_goto_regions(self, logical: list[tuple[int, str]]) -> None:
         positions: dict[str, int] = {}
         duplicated: set[str] = set()
         for index, (_number, line) in enumerate(logical):
@@ -934,6 +946,14 @@ class BatchConverter:
                 duplicated.add(key)
             else:
                 positions[key] = index
+        depths: list[int] = []
+        depth = 0
+        for _number, line in logical:
+            stripped = line.strip()
+            depths.append(depth)
+            if not stripped or stripped.startswith("::"):
+                continue
+            depth = max(0, depth + stripped.count("(") - stripped.count(")"))
         for index, (number, line) in enumerate(logical):
             jump = re.match(r"(?i)^goto(?:\s*:\s*|\s+)([\w.\-]+)\s*$", line.strip())
             if jump is None:
@@ -942,7 +962,7 @@ class BatchConverter:
             target = positions.get(key)
             if key == "eof" or key in duplicated or target is None or target <= index:
                 continue
-            if key in self._call_targets:
+            if key in self._call_targets or depths[index] != 0:
                 continue
             next_code: int | None = None
             for following in range(index + 1, len(logical)):
@@ -953,6 +973,13 @@ class BatchConverter:
                 break
             if next_code == target:
                 self._redundant_gotos.add(number)
+                continue
+            region = list(range(index + 1, target))
+            if not region:
+                continue
+            if any(_LABEL_LIKE_RE.match(logical[offset][1]) for offset in region):
+                continue
+            self._forward_skip_regions[number] = [logical[offset][0] for offset in region]
 
     @staticmethod
     def _code_follows_before_label(
@@ -1714,6 +1741,20 @@ class BatchConverter:
         ):
             name = m.group(1)
             return [self._c(f"# goto {name}（冗余跳转：目标 :{name} 紧随其后，cmd 中等同继续执行）")]
+        if (
+            m is not None
+            and lineno in self._forward_skip_regions
+            and not self._stack
+            and self._current_func is None
+        ):
+            region = self._forward_skip_regions[lineno]
+            self._dead_lines.update(region)
+            name = m.group(1)
+            return [
+                self._c(
+                    f"# goto {name}（前向跳转：cmd 会跳过下方 {len(region)} 行不可达代码，已注释保留）"
+                )
+            ]
         if self._function_mode:
             self._todo(lineno, text, "goto 跨函数跳转无法自动重构，请手动改为函数调用或循环", category="control_flow")
         else:
