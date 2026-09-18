@@ -115,6 +115,33 @@ def render_report_text(report: ConvertReport, color: bool) -> str:
     return "\n".join(lines)
 
 
+def render_report_summary(report: ConvertReport, color: bool) -> str:
+    """报告末尾的一行「结论」摘要（错误红 / 警告黄 / 干净绿）。
+
+    独立于 ``to_text()`` / ``report_blocks()``，**不改变既有报告结构**——GUI 共用与
+    ``test_report_blocks_reconstructs_to_text`` 的逐行等价不变量保持不变。
+    """
+    error_count = report.error_count
+    warning_count = report.warning_count
+    todo_count = report.todo_count
+    if error_count:
+        level = "error"
+        summary = (
+            f"结论: 转换完成，存在 {error_count} 处错误 / {warning_count} 警告 / "
+            f"{todo_count} 待人工检查，请人工复核"
+        )
+    elif warning_count or todo_count:
+        level = "warning"
+        summary = (
+            f"结论: 转换完成（{error_count} 错误 / {warning_count} 警告 / "
+            f"{todo_count} 待人工检查）"
+        )
+    else:
+        level = "ok"
+        summary = "结论: 转换完成，无错误 / 警告 / 待人工检查"
+    return _paint(summary, level) if color else summary
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bat2sh",
@@ -293,8 +320,10 @@ def settings_from_args(args: argparse.Namespace) -> ConvertSettings:
 
 def _emit_report(convert_report: ConvertReport, args: argparse.Namespace) -> None:
     if args.report:
-        text = render_report_text(convert_report, color_enabled(sys.stderr, args.color))
+        color = color_enabled(sys.stderr, args.color)
+        text = render_report_text(convert_report, color)
         sys.stderr.write(text + "\n")
+        sys.stderr.write(render_report_summary(convert_report, color) + "\n")
     elif args.report_json:
         payload = convert_report.to_json() + "\n"
         # --print 时 stdout 属于脚本本身，JSON 报告只能走 stderr
