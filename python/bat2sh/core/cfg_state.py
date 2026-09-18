@@ -53,15 +53,17 @@ import re
 from dataclasses import dataclass, replace
 
 from .batch import BatchConverter
-from .cfg import logical_lines
+from .cfg import build_cfg, logical_lines
 from .cfg_blocks import analyze_flow
 from .settings import ConvertSettings
 from .syntax import bash_syntax_error
+from .types import ConvertReport, Diagnostic
 
 __all__ = ["Eligibility", "evaluate", "emit"]
 
 _LABEL_RE = re.compile(r"^:([A-Za-z0-9_][\w.\-]*)\s*$")
 _GOTO_RE = re.compile(r"(?i)^goto(?:\s*:\s*|\s+)([\w.\-]+)\s*$")
+_INTERACTIVE_RE = re.compile(r"(?i)^\s*@?\s*(?:set\s*/p\b|pause\b|choice\b)")
 
 _PC_VAR = "__bat2sh_pc"
 _ARM_START = "__bat2sh_start"
@@ -202,11 +204,47 @@ def _structural_self_check(output: str) -> bool:
     return referenced <= defined
 
 
-def emit(text: str, settings: ConvertSettings, source_name: str = "input.bat") -> str | None:
+def _warn_interactive_loops(text: str, report: ConvertReport) -> None:
+    """对「含运行时输入语句的循环」发**非阻断**告警（无 stdin 环境会挂起）。"""
+    logical = logical_lines(text)
+    lines = [line for _, line in logical]
+    cfg = build_cfg(lines, start_lines=[number for number, _ in logical])
+    flow = analyze_flow(cfg, lines)
+    block_by_id = {block.id: block for block in flow.blocks}
+    for loop in flow.loops:
+        header = block_by_id.get(loop.header_block)
+        if header is None:
+            continue
+        for tail_id in loop.tail_blocks:
+            tail = block_by_id.get(tail_id)
+            if tail is None:
+                continue
+            region = lines[header.start_index: tail.end_index + 1]
+            if any(_INTERACTIVE_RE.search(line) for line in region):
+                report.warnings.append(
+                    Diagnostic(
+                        header.start_line,
+                        f"循环 :{loop.label} 依赖运行时输入（交互式）；无 stdin 环境会挂起",
+                        "",
+                        "control_flow",
+                    )
+                )
+                break
+
+
+def emit(
+    text: str,
+    settings: ConvertSettings,
+    source_name: str = "input.bat",
+    report: ConvertReport | None = None,
+) -> str | None:
     """尝试发射状态机产物；门控不命中或自检失败返回 ``None``（回退原路径）。"""
     decision = evaluate(text)
     if not decision.ok:
         return None
+
+    if report is not None:
+        _warn_interactive_loops(text, report)
 
     converter = _DispatchConverter(settings, source_name)
     try:

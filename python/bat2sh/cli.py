@@ -32,7 +32,7 @@ from .core.engine import (
     output_path_for,
     write_output,
 )
-from .core.settings import ConvertSettings
+from .core.settings import ConvertSettings, resolve_cfg_state_machine
 from .core.types import ConvertReport, SourceKind, report_blocks
 
 RUN_EXIT_TODO = 4
@@ -106,6 +106,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-quote-vars", action="store_true", help="变量不强制加双引号")
     parser.add_argument("--no-strict", action="store_true", help="不添加 set -euo pipefail")
+    parser.add_argument(
+        "--cfg-state",
+        dest="cfg_state",
+        action="store_const",
+        const=True,
+        default=None,
+        help="启用 CFG 标签分派状态机（默认启用；优先级 CLI > 环境变量 > 配置文件）",
+    )
+    parser.add_argument(
+        "--no-cfg-state",
+        dest="cfg_state",
+        action="store_const",
+        const=False,
+        help="禁用 CFG 状态机（回退 v2.4.0 的 goto 诚实 TODO 行为；逃生通道）",
+    )
     parser.add_argument(
         "--no-bash-check",
         action="store_true",
@@ -228,6 +243,7 @@ def settings_from_args(args: argparse.Namespace) -> ConvertSettings:
         last_exit_code=args.last_exit_code,
         bash_check=not args.no_bash_check,
         overwrite=not args.no_overwrite,
+        cfg_state_machine=resolve_cfg_state_machine(args.cfg_state),
     )
 
 

@@ -79,6 +79,24 @@ class ConvertSettings:
         return ConvertSettings(**data)
 
 
+CFG_STATE_ENV = "BAT2SH_CFG_STATE"
+
+
+def resolve_cfg_state_machine(cli: bool | None = None) -> bool:
+    """解析 CFG 状态机开关，优先级 **CLI > 环境变量 > 配置文件**。
+
+    - ``cli`` 非 None → 直接采用（``--cfg-state`` / ``--no-cfg-state``）。
+    - 否则 ``BAT2SH_CFG_STATE``（``0/false/no/off`` 视为关闭）。
+    - 否则读配置文件（``load_settings``，缺省 `True`）。
+    """
+    if cli is not None:
+        return cli
+    raw = os.environ.get(CFG_STATE_ENV)
+    if raw is not None:
+        return raw.strip().lower() not in ("0", "false", "no", "off", "")
+    return load_settings().cfg_state_machine
+
+
 def config_path() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
     return Path(base) / "bat2sh" / "settings.json"

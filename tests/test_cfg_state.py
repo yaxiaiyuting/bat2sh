@@ -6,8 +6,9 @@
 
 from __future__ import annotations
 
+from bat2sh.cli import build_parser, settings_from_args
 from bat2sh.core.cfg_state import emit, evaluate
-from bat2sh.core.settings import ConvertSettings
+from bat2sh.core.settings import ConvertSettings, resolve_cfg_state_machine, save_settings
 
 
 def _emit(text: str) -> str | None:
@@ -114,6 +115,89 @@ def test_gate_on_goto_eof_unchanged(convert_bat):
     out, report = convert_bat("@echo off\ngoto :eof\n", cfg_state_machine=True)
     assert "exit 0" in out
     assert report.todo_count == 0
+
+
+# --- 回滚通道（CLI > 环境变量 > 配置文件） --------------------------------
+
+
+def test_rollback_cli_wins_over_env(monkeypatch):
+    monkeypatch.setenv("BAT2SH_CFG_STATE", "1")
+    assert resolve_cfg_state_machine(False) is False
+    assert resolve_cfg_state_machine(True) is True
+
+
+def test_rollback_env_off(monkeypatch):
+    for value in ("0", "false", "no", "off", ""):
+        monkeypatch.setenv("BAT2SH_CFG_STATE", value)
+        assert resolve_cfg_state_machine() is False
+    monkeypatch.setenv("BAT2SH_CFG_STATE", "1")
+    assert resolve_cfg_state_machine() is True
+
+
+def test_rollback_file_config(monkeypatch):
+    monkeypatch.delenv("BAT2SH_CFG_STATE", raising=False)
+    save_settings(ConvertSettings(cfg_state_machine=False))
+    assert resolve_cfg_state_machine() is False
+    save_settings(ConvertSettings(cfg_state_machine=True))
+    assert resolve_cfg_state_machine() is True
+
+
+def test_rollback_cli_flag_wins_over_env_and_file(monkeypatch):
+    monkeypatch.setenv("BAT2SH_CFG_STATE", "1")
+    save_settings(ConvertSettings(cfg_state_machine=True))
+    args = build_parser().parse_args(["--no-cfg-state", "x.bat"])
+    assert settings_from_args(args).cfg_state_machine is False
+
+
+def test_cli_flag_cfg_state_enables():
+    args = build_parser().parse_args(["--cfg-state", "x.bat"])
+    assert settings_from_args(args).cfg_state_machine is True
+
+
+def test_cli_default_is_state_machine_enabled(monkeypatch):
+    monkeypatch.delenv("BAT2SH_CFG_STATE", raising=False)
+    args = build_parser().parse_args(["x.bat"])
+    assert settings_from_args(args).cfg_state_machine is True
+
+
+def test_cli_no_cfg_state_keeps_goto_todo(monkeypatch):
+    monkeypatch.delenv("BAT2SH_CFG_STATE", raising=False)
+    args = build_parser().parse_args(["--no-cfg-state", "x.bat"])
+    settings = settings_from_args(args)
+    out, report = emit_fixture("@echo off\n:Top\necho loop\ngoto Top\n", settings)
+    assert "# TODO: 手动检查: goto Top" in out
+    assert "__bat2sh_pc" not in out
+
+
+def emit_fixture(text: str, settings: ConvertSettings):
+    from bat2sh.core.engine import convert_text
+    from bat2sh.core.types import SourceKind
+
+    return convert_text(text, SourceKind.BATCH, settings, "fixture.bat")
+
+
+# --- 交互式循环告警（非阻断） ---------------------------------------------
+
+
+def test_interactive_loop_warning_non_blocking(convert_bat):
+    text = (
+        "@echo off\n"
+        ":Top\n"
+        "set /p choice=请选择: \n"
+        "if \"%choice%\"==\"q\" goto Done\n"
+        "goto Top\n"
+        ":Done\n"
+        "echo bye\n"
+    )
+    out, report = convert_bat(text, cfg_state_machine=True)
+    assert "__bat2sh_pc" in out  # 仍转换（不阻断）
+    assert any("交互式" in w.message for w in report.warnings)
+
+
+def test_non_interactive_loop_no_warning(convert_bat):
+    text = "@echo off\n:Top\nset n=%n%x\necho %n%\nif not \"%n%\"==\"xxx\" goto Top\n"
+    _out, report = convert_bat(text, cfg_state_machine=True)
+    assert not any("交互式" in w.message for w in report.warnings)
 
 
 # --- 运行时语义（cmd 语义） -----------------------------------------------

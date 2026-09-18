@@ -558,7 +558,7 @@ class BatchConverter:
             # 默认关闭；开启时未命中文件仍走下方原路径（053/A1 逐字节不变）。
             from .cfg_state import emit as _emit_state_machine
 
-            machine = _emit_state_machine(text, self.settings, self.source_name)
+            machine = _emit_state_machine(text, self.settings, self.source_name, report=self.report)
             if machine is not None:
                 return machine
         logical = self._logical_lines(text)
