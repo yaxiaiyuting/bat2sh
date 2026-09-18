@@ -50,10 +50,21 @@ _ANSI_COLORS = {
 _ANSI_RESET = "\x1b[0m"
 
 
-def color_enabled(stream) -> bool:
+def color_enabled(stream, mode: str = "auto") -> bool:
     """终端支持色时启用：NO_COLOR（非空）优先关闭，FORCE_COLOR 强制开启（重定向/测试用），
     TERM 为 dumb 或未设置时关闭（.desktop 启动的进程不继承 shell 环境），其余情况要求 TTY。
-    任何检测失败一律保守返回 False，绝不抛出。"""
+    任何检测失败一律保守返回 False，绝不抛出。
+
+    ``mode`` 为命令行显式开关时压过环境探测（优先级 显式 > 环境 > TTY）：
+
+    - ``"never"``（``--no-color``）→ 恒关，压过 ``FORCE_COLOR`` 与 TTY；
+    - ``"always"``（``--color``）→ 恒开，压过 ``NO_COLOR`` 与非 TTY；
+    - ``"auto"``（默认）→ 环境探测逻辑（保持既有行为）。
+    """
+    if mode == "never":
+        return False
+    if mode == "always":
+        return True
     env = os.environ
     if env.get("NO_COLOR"):
         return False
@@ -224,6 +235,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="关闭模型思维链（默认；对 Qwen3 等混合思考模型生效）",
     )
     parser.add_argument("-q", "--quiet", action="store_true", help="静默模式")
+    color_group = parser.add_mutually_exclusive_group()
+    color_group.add_argument(
+        "--color",
+        dest="color",
+        action="store_const",
+        const="always",
+        default="auto",
+        help="强制启用 ANSI 色彩（即使输出被重定向/非 TTY；覆盖 NO_COLOR）",
+    )
+    color_group.add_argument(
+        "--no-color",
+        dest="color",
+        action="store_const",
+        const="never",
+        help="禁用 ANSI 色彩（优先级高于 FORCE_COLOR 与 TTY 检测；遵循 no-color.org）",
+    )
     parser.add_argument("--version", action="version", version=f"bat2sh {__version__}")
     return parser
 
@@ -249,7 +276,7 @@ def settings_from_args(args: argparse.Namespace) -> ConvertSettings:
 
 def _emit_report(convert_report: ConvertReport, args: argparse.Namespace) -> None:
     if args.report:
-        text = render_report_text(convert_report, color_enabled(sys.stderr))
+        text = render_report_text(convert_report, color_enabled(sys.stderr, args.color))
         sys.stderr.write(text + "\n")
     elif args.report_json:
         payload = convert_report.to_json() + "\n"
@@ -351,7 +378,7 @@ def run_one(
             f" | 警告 {report.warning_count}"
             f" | TODO {report.todo_count}"
         )
-        if color_enabled(sys.stderr):
+        if color_enabled(sys.stderr, args.color):
             status_line = _paint(status_line, level)
         sys.stderr.write(status_line + "\n")
     if args.diff:
@@ -717,7 +744,7 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
         print("bat2sh: 已取消发送，未写盘", file=sys.stderr)
         return 3
 
-    color = color_enabled(sys.stderr)
+    color = color_enabled(sys.stderr, args.color)
     panel = _FixPanel(
         selected,
         sys.stderr,
