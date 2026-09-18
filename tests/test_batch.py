@@ -744,9 +744,20 @@ def test_goto_eof_top_level(convert_bat):
     assert out.count("exit 0") == 2
 
 
-def test_goto_label_todo(convert_bat):
+def test_goto_to_immediately_following_label_is_noop(convert_bat, bash_run):
+    # cmd 语义：goto 到紧随其后的标签 == 继续执行（goto 不改 errorlevel）。
     out, report = convert_bat("@echo off\ngoto end\n:end\necho done\n")
-    assert "# TODO: 手动检查: goto end" in out
+    assert "# TODO: 手动检查: goto end" not in out
+    assert "（冗余跳转" in out
+    assert report.todo_count == 0
+    proc = bash_run(out)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines() == ["done"]
+
+
+def test_goto_with_code_before_label_still_todo(convert_bat):
+    out, report = convert_bat("@echo off\ngoto :end\necho skipped\n:end\necho done\n")
+    assert "# TODO: 手动检查: goto :end" in out
     assert report.todo_count == 1
 
 

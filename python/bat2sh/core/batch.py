@@ -522,6 +522,11 @@ class BatchConverter:
         self._call_targets: set[str] = set()
         self._goto_targets: set[str] = set()
         self._goto_dead_lines: dict[int, str] = {}
+        # v2.4.0：goto CFG 高级的「可证安全子集」——冗余 goto（等价 no-op）与
+        # 前向跳转的不可达区间（可达性证明后注释化）。均由 _prescan 只读预计算。
+        self._redundant_gotos: set[int] = set()
+        self._forward_skip_regions: dict[int, list[int]] = {}
+        self._dead_lines: set[int] = set()
         self._function_mode = False
         self._current_func: str | None = None
         self._needs_script_dir = False
@@ -915,6 +920,39 @@ class BatchConverter:
                 )
             ):
                 self._errorlevel_lines.add(number)
+        self._prescan_redundant_gotos(logical)
+
+    def _prescan_redundant_gotos(self, logical: list[tuple[int, str]]) -> None:
+        positions: dict[str, int] = {}
+        duplicated: set[str] = set()
+        for index, (_number, line) in enumerate(logical):
+            match = re.match(r"^:([A-Za-z0-9_][\w.\-]*)\s*$", line.strip())
+            if not match:
+                continue
+            key = match.group(1).lower()
+            if key in positions:
+                duplicated.add(key)
+            else:
+                positions[key] = index
+        for index, (number, line) in enumerate(logical):
+            jump = re.match(r"(?i)^goto(?:\s*:\s*|\s+)([\w.\-]+)\s*$", line.strip())
+            if jump is None:
+                continue
+            key = jump.group(1).lower()
+            target = positions.get(key)
+            if key == "eof" or key in duplicated or target is None or target <= index:
+                continue
+            if key in self._call_targets:
+                continue
+            next_code: int | None = None
+            for following in range(index + 1, len(logical)):
+                candidate = logical[following][1].strip()
+                if not candidate or candidate.startswith("::"):
+                    continue
+                next_code = following
+                break
+            if next_code == target:
+                self._redundant_gotos.add(number)
 
     @staticmethod
     def _code_follows_before_label(
@@ -1668,6 +1706,14 @@ class BatchConverter:
             # 批处理的 goto :eof 不修改 errorlevel；函数内用 return 保留上一条命令的退出码，
             # 这样 ``if errorlevel`` 改写出的 ``if ! func; then`` 才能真正捕获失败。
             return [self._c("return" if self._current_func else "exit 0")]
+        if (
+            m is not None
+            and lineno in self._redundant_gotos
+            and not self._stack
+            and self._current_func is None
+        ):
+            name = m.group(1)
+            return [self._c(f"# goto {name}（冗余跳转：目标 :{name} 紧随其后，cmd 中等同继续执行）")]
         if self._function_mode:
             self._todo(lineno, text, "goto 跨函数跳转无法自动重构，请手动改为函数调用或循环", category="control_flow")
         else:
