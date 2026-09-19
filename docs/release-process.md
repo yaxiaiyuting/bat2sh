@@ -113,7 +113,7 @@ v2.1.0 至 v2.8.1 **连续 9 个 tag**，其源码树内 `PKGBUILD` 的 `pkgver`
 | 3 | 类 CI 环境 pytest 全绿 | `./scripts/release-preflight.sh` |
 | 4 | 外部资源依赖有 skip 兜底 | 同上（第 4 步） |
 | 5 | PKGBUILD 哈希与 tag tarball 一致 | `./scripts/release-sync-pkg.sh <ver>` |
-| 6 | Release 资产已上传 | `./scripts/release-assets.sh <ver>` |
+| 6 | Release 资产已上传（sdist / `.deb` / `.rpm` / Arch 包） | `./scripts/release-assets.sh <ver>` |
 
 以上 1-4 由 `release-preflight.sh` 一次跑完；5-6 必须在 tag 之后。
 
@@ -165,3 +165,50 @@ v2.1.0 至 v2.8.1 **连续 9 个 tag**，其源码树内 `PKGBUILD` 的 `pkgver`
 
 v1.2.2 / v1.2.3 两个 Release **没有**仓库文档（它们本就是基准格式本身），
 脚本会跳过 —— 不从渲染后的 HTML 反向重建正文，避免杜撰内容。
+
+---
+
+## 6. 发行包（deb / rpm / Arch / Android）
+
+### 6.1 已支持的格式
+
+| 格式 | 脚本 | 架构 | 说明 |
+| :--- | :--- | :--- | :--- |
+| Arch | `PKGBUILD`（makepkg） | any | 原有路径 |
+| Debian/Ubuntu | `packaging/build-deb.sh` | `all` | 纯 Python，同一包在 amd64/arm64 通用 |
+| RPM | `packaging/build-rpm.sh` | `noarch` | 同上 |
+| Android APK | — | — | **当前不可行，见 6.3** |
+
+三个脚本都会把产物写到 `dist/`（已在 .gitignore 中忽略）。
+
+### 6.2 依赖声明口径
+
+转换核心仅依赖 Python 标准库，**CLI 无需 PySide6 即可运行**（Graphical 界面才需要）。
+因此两个新包的声明是：
+
+- `Depends/Requires: python3 >= 3.12`（与 `pyproject.toml` 的 `requires-python` 一致）
+- `Recommends: python3-pyside6`（**弱依赖**）
+
+放在 Recommends 而非 Depends，是为了避免在**未打包 PySide6 的发行版**（如 Debian 12）
+上直接无法安装 —— 那种情况下包仍可安装，CLI 可用，GUI 需自行 `pip install PySide6`。
+
+### 6.3 Android APK（arm64-v8a）：不可行，原因在上游
+
+`pyside6-android-deploy` 要求显式提供 **PySide6 / shiboken6 的 Android wheel**
+（`--wheel-pyside` / `--wheel-shiboken`）。实测检索：
+
+| 位置 | 结果 |
+| :--- | :--- |
+| PyPI `PySide6/6.11.2` | 5 个 wheel，**无 android** |
+| PyPI `PySide6-Android` 等 | **404（不存在）** |
+| Qt `official_releases/.../PySide6-6.11.2-src/` | **只有源码** |
+| Qt `snapshots/ci/pyside/6.11.2/` | **无 android wheel** |
+
+即 **Qt 未公开发布与 6.11.x 匹配的 Android wheel**。若坚持推进，只能自行交叉编译
+PySide6 for Android（Qt for Android aarch64 约 2–3 GB + shiboken 交叉编译数小时），
+或使用 2023 年的 CI 快照（版本不匹配，不适合随 Release 分发）。
+
+另有一个独立问题：本项目 GUI 是**桌面形态**（三栏 QSplitter / QFileDialog / 拖放），
+即使能打包，仍需一轮触屏适配才可用。
+
+详见 `packaging/android/README.md`。**本次不产出 APK，也不提交未经验证的构建产物。**

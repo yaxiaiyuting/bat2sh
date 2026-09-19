@@ -24,3 +24,7 @@ PKGBUILD.bak
 *.bad-*
 build/
 LICENSE.mit.bak
+
+# 打包产物（deb/rpm/apk）
+dist/
+build/

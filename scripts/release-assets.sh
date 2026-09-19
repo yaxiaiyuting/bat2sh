@@ -49,10 +49,34 @@ if [[ "$MODE" != "--no-build" ]]; then
     else
         echo "    警告: 本机无 makepkg，跳过 Arch 包" >&2
     fi
+
+    echo "==> 构建 Debian 包（.deb）"
+    if [[ -x packaging/build-deb.sh ]]; then
+        if ./packaging/build-deb.sh >/dev/null 2>&1; then
+            echo "    .deb 已生成"
+        else
+            echo "    警告: build-deb.sh 失败，跳过 .deb" >&2
+        fi
+    else
+        echo "    警告: 无 packaging/build-deb.sh，跳过 .deb" >&2
+    fi
+
+    echo "==> 构建 RPM 包（.rpm）"
+    if [[ -x packaging/build-rpm.sh ]]; then
+        if ./packaging/build-rpm.sh >/dev/null 2>&1; then
+            echo "    .rpm 已生成"
+        else
+            echo "    警告: build-rpm.sh 失败（可能缺 rpmbuild），跳过 .rpm" >&2
+        fi
+    else
+        echo "    警告: 无 packaging/build-rpm.sh，跳过 .rpm" >&2
+    fi
 fi
 
-# 收集产物（sdist 在 dist/，Arch 包在仓库根）
+# 收集产物：sdist / .deb / .rpm 在 dist/，Arch 包在仓库根
 while IFS= read -r -d '' f; do files+=("$f"); done < <(find dist -maxdepth 1 -name "bat2sh-$VER.tar.gz" -print0 2>/dev/null)
+while IFS= read -r -d '' f; do files+=("$f"); done < <(find dist -maxdepth 1 -name "bat2sh*$VER*.deb" -print0 2>/dev/null)
+while IFS= read -r -d '' f; do files+=("$f"); done < <(find dist -maxdepth 1 -name "bat2sh-$VER-*.rpm" -print0 2>/dev/null)
 while IFS= read -r -d '' f; do files+=("$f"); done < <(find . -maxdepth 1 -name "bat2sh-$VER-*.pkg.tar.*" -print0 2>/dev/null)
 
 if [[ ${#files[@]} -eq 0 ]]; then

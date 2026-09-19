@@ -1,4 +1,18 @@
 #!/bin/sh
 # bat2sh 启动器（安装版使用 /usr/lib/bat2sh 中的模块）
+#
+# 解释器选择：优先 python3，再回退 python。
+# 背景：Debian/Ubuntu 默认**不提供 /usr/bin/python**（只有 python3）。
+# 旧版硬编码 /usr/bin/python，会让 .deb/.rpm 安装后启动即失败；
+# Arch 上两者都存在，因此「优先 python3」对两个生态都成立。
+if command -v python3 >/dev/null 2>&1; then
+    PY=python3
+elif command -v python >/dev/null 2>&1; then
+    PY=python
+else
+    echo "bat2sh: 未找到 python3 解释器" >&2
+    exit 127
+fi
+
 export PYTHONPATH="/usr/lib/bat2sh${PYTHONPATH:+:$PYTHONPATH}"
-exec /usr/bin/python -m bat2sh "$@"
+exec "$PY" -m bat2sh "$@"
