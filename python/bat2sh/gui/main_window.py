@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from PySide6.QtCore import QProcess, Qt, QTimer, QUrl
+from PySide6.QtCore import QProcess, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
@@ -249,7 +249,7 @@ class MainWindow(QMainWindow):
             None, self.fix_todos, "调用已配置的 API 为无法自动转换的 TODO 生成修复建议（逐条确认）",
         )
         self.action_theme = self._make_action(
-            "切换主题", self._icon("weather-clear-night", std.SP_BrowserReload),
+            "切换主题", self._icon("preferences-desktop-theme", std.SP_BrowserReload),
             "Ctrl+T", self.toggle_theme, "在跟随系统 / 浅色 / 深色之间切换",
         )
         self.action_settings = self._make_action(
@@ -283,6 +283,7 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar("主工具栏", self)
         toolbar.setObjectName("main-toolbar")
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toolbar.setIconSize(QSize(22, 22))
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         for action in (
@@ -506,7 +507,7 @@ class MainWindow(QMainWindow):
             item.setToolTip(str(entry.path))
             item.setData(Qt.ItemDataRole.UserRole, str(entry.path))
             icon_name = "text-x-script" if entry.kind is not SourceKind.UNKNOWN else "text-x-generic"
-            item.setIcon(QIcon.fromTheme(icon_name))
+            item.setIcon(self._icon(icon_name, self.style().StandardPixmap.SP_FileIcon))
             self.file_list.addItem(item)
         if 0 <= current_row < self.file_list.count():
             self.file_list.setCurrentRow(current_row)
