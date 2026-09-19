@@ -71,6 +71,7 @@ from .theme import apply_theme, system_is_dark
 SCRIPT_SUFFIXES = (".bat", ".cmd", ".ps1", ".psm1")
 RUN_TERMINATE_GRACE_MS = 2_000
 SETSID_PATH = shutil.which("setsid")
+PANEL_SPACING = 6
 
 
 def collect_script_paths(
@@ -322,7 +323,7 @@ class MainWindow(QMainWindow):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(6)
         layout.addWidget(splitter, 1)
         layout.addWidget(self._build_run_panel())
         self.setCentralWidget(container)
@@ -330,7 +331,9 @@ class MainWindow(QMainWindow):
     def _build_run_panel(self) -> QWidget:
         self.run_panel = QGroupBox("运行输出")
         layout = QVBoxLayout(self.run_panel)
+        layout.setSpacing(PANEL_SPACING)
         header = QHBoxLayout()
+        header.setSpacing(PANEL_SPACING)
         self.run_status_label = QLabel("尚未运行")
         self.run_status_label.setStyleSheet("color: palette(mid);")
         self.run_stop_button = QPushButton("停止")
@@ -348,6 +351,7 @@ class MainWindow(QMainWindow):
         self.run_input_row = QWidget()
         input_row = QHBoxLayout(self.run_input_row)
         input_row.setContentsMargins(0, 0, 0, 0)
+        input_row.setSpacing(PANEL_SPACING)
         self.run_input = QLineEdit()
         self.run_input.setPlaceholderText("向脚本发送输入（运行中可用，回车发送）")
         self.run_input.setEnabled(False)
@@ -376,6 +380,7 @@ class MainWindow(QMainWindow):
     def _build_left_panel(self) -> QWidget:
         box = QGroupBox("待转换文件")
         layout = QVBoxLayout(box)
+        layout.setSpacing(PANEL_SPACING)
         self.file_list = QListWidget()
         self.file_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.file_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -383,6 +388,7 @@ class MainWindow(QMainWindow):
         self.file_list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self.file_list)
         buttons = QHBoxLayout()
+        buttons.setSpacing(PANEL_SPACING)
         remove_button = QPushButton("移除所选")
         remove_button.clicked.connect(self.remove_selected)
         clear_button = QPushButton("清空")
@@ -399,7 +405,9 @@ class MainWindow(QMainWindow):
     def _build_source_panel(self) -> QWidget:
         box = QGroupBox("源文件预览（只读）")
         layout = QVBoxLayout(box)
+        layout.setSpacing(PANEL_SPACING)
         header = QHBoxLayout()
+        header.setSpacing(PANEL_SPACING)
         self.source_path_label = QLabel("未选择文件")
         self.source_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.kind_label = QLabel("")
@@ -422,7 +430,9 @@ class MainWindow(QMainWindow):
     def _build_output_panel(self) -> QWidget:
         box = QGroupBox("转换结果（可编辑）")
         layout = QVBoxLayout(box)
+        layout.setSpacing(PANEL_SPACING)
         header = QHBoxLayout()
+        header.setSpacing(PANEL_SPACING)
         self.output_path_label = QLabel("转换后在此预览")
         self.output_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         diff_button = QPushButton("预览差异")
@@ -445,7 +455,7 @@ class MainWindow(QMainWindow):
         self.progress = QProgressBar()
         self.progress.setMaximumWidth(220)
         self.progress.hide()
-        self.counts_label = QLabel("警告 0 · 错误 0 · 已转换 0/0")
+        self.counts_label = QLabel(counts_text(None))
         status.addWidget(self.status_label, 1)
         status.addPermanentWidget(self.progress)
         status.addPermanentWidget(self.counts_label)
