@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QRect, QSize, Qt
-from PySide6.QtGui import QColor, QFontDatabase, QPainter, QTextFormat
+from PySide6.QtGui import QFontDatabase, QPainter, QPalette, QTextFormat
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
 
@@ -68,7 +68,11 @@ class CodeEditor(QPlainTextEdit):
         current = self.textCursor().blockNumber()
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                color = QColor("#6fb3ff") if number == current else self.palette().color(self.foregroundRole())
+                color = (
+                    self.palette().color(QPalette.ColorRole.Highlight)
+                    if number == current
+                    else self.palette().color(self.foregroundRole())
+                )
                 painter.setPen(color)
                 painter.drawText(
                     0,

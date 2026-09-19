@@ -11,6 +11,7 @@ from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QFontDatabase,
+    QPalette,
     QTextCharFormat,
     QTextCursor,
 )
@@ -54,7 +55,7 @@ from ..core.settings import (
 )
 from ..core.syntax import bash_syntax_error
 from ..core.types import ConvertReport
-from .theme import report_level_color
+from .theme import diff_colors, report_level_color, status_text_color
 
 
 class SettingsDialog(QDialog):
@@ -288,7 +289,8 @@ class SettingsDialog(QDialog):
         self.api_test_status.setToolTip("")
 
     def _show_api_test_result(self, ok: bool, message: str) -> None:
-        color = "#43a047" if ok else "#e53935"
+        dark = self.palette().color(QPalette.ColorRole.Window).lightness() < 128
+        color = status_text_color("success" if ok else "error", dark)
         mark = "✓" if ok else "✗"
         self.api_test_status.setStyleSheet(f"color: {color};")
         self.api_test_status.setText(f"{mark} {message}")
@@ -424,8 +426,7 @@ def build_diff_html(
         context=True,
         numlines=4,
     )
-    background = "#232629" if dark else "#fcfcfc"
-    foreground = "#eff0f1" if dark else "#232629"
+    background, foreground = diff_colors(dark)
     return f"<div style='background:{background};color:{foreground};'>{html}</div>"
 
 

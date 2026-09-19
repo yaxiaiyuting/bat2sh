@@ -10,6 +10,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
+# Breeze 系语义色单一来源：与 dark_palette()/light_palette() 的 Base/Text/Highlight 同源。
+_PALETTE_HEX = {
+    "dark": {"base": "#232629", "text": "#eff0f1", "highlight": "#3daee9"},
+    "light": {"base": "#fcfcfc", "text": "#232629", "highlight": "#3daee9"},
+}
+
 
 def _color_scheme(name: str):
     try:
@@ -76,6 +82,7 @@ def light_palette() -> QPalette:
     palette.setColor(QPalette.ColorRole.Highlight, highlight)
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
     palette.setColor(QPalette.ColorRole.Link, QColor(41, 128, 185))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(120, 125, 130))
     return palette
 
 
@@ -103,6 +110,22 @@ def apply_theme(app: QApplication, mode: str) -> bool:
     return dark
 
 
+def palette_hex(dark: bool) -> dict[str, str]:
+    """当前主题（深/浅）的 Base/Text/Highlight hex。"""
+    return _PALETTE_HEX["dark" if dark else "light"]
+
+
+def diff_colors(dark: bool) -> tuple[str, str]:
+    """差异 HTML 的 (background, foreground)，与调色板同源。"""
+    colors = palette_hex(dark)
+    return colors["base"], colors["text"]
+
+
+def accent_color(dark: bool) -> str:
+    """主题强调色（Breeze 为 #3daee9），用于当前行号等点缀。"""
+    return palette_hex(dark)["highlight"]
+
+
 def report_level_color(level: str, dark: bool) -> str | None:
     """报告行级别 → 前景色 hex；info/normal → None（使用默认前景色）。"""
     colors = {
@@ -111,3 +134,10 @@ def report_level_color(level: str, dark: bool) -> str | None:
         "todo": "#8c9196" if dark else "#787d82",
     }
     return colors.get(level)
+
+
+def status_text_color(level: str, dark: bool) -> str | None:
+    """状态文本语义色：``success`` 补绿色，其余复用 :func:`report_level_color`。"""
+    if level == "success":
+        return "#5fd38a" if dark else "#1b7f3b"
+    return report_level_color(level, dark)
