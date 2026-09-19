@@ -116,3 +116,52 @@ v2.1.0 至 v2.8.1 **连续 9 个 tag**，其源码树内 `PKGBUILD` 的 `pkgver`
 | 6 | Release 资产已上传 | `./scripts/release-assets.sh <ver>` |
 
 以上 1-4 由 `release-preflight.sh` 一次跑完；5-6 必须在 tag 之后。
+
+---
+
+## 5. Release 说明格式（历代对齐）
+
+2026-09-20 评估发现：release 说明的格式在 **v1.10.0a1** 起漂移，
+与 v1.2.2–v1.9.2 的既有格式不再一致：
+
+| 项 | v1.2.2 – v1.9.2（基准） | v1.10.0a1 – v2.8.1（漂移） |
+| :--- | :--- | :--- |
+| 标题 | `## bat2sh vX.Y.Z`（H2） | `# bat2sh vX.Y.Z 发布说明 —— xxx`（H1） |
+| Full Changelog 页脚 | 每个版本都有 | **15 个版本全部缺失** |
+
+已把 15 个漂移文档对齐（标题改 H2、补 Full Changelog 页脚），
+使 `docs/releases/*.md` 全部以 `## bat2sh vX.Y.Z` 开头。
+
+**刻意未做**：不重排各版本的内部章节编号（如 `## 1. 修复说明` → `## 修复说明`）。
+这些编号被其它文档以 `§X.Y` 形式交叉引用，重排会**静默破坏引用**；
+且各版本的章节结构反映其真实内容组织，不属于「格式」范畴。
+
+### 基准格式
+
+    ## bat2sh vX.Y.Z
+
+    > **性质**：<major/minor/patch>。<一句话范围与结论。>
+
+    ### New features      （可选）
+    ### Fixes             （可选）
+    ### 已知限制          （可选）
+    ### 验证 / Tests
+    ### 后续              （可选）
+
+    **Full Changelog**: https://github.com/yaxiaiyuting/bat2sh/compare/<prev>...<ver>
+
+要点：
+
+- 标题固定 `## bat2sh vX.Y.Z`；描述性文字放 `性质` 引用块，**不写进标题**。
+- 结尾必须有 `**Full Changelog**` 行，`<prev>` 取**上一个 Release** 的 tag
+  （预发布版同样适用，如 `compare/v1.9.2...v1.10.0a1`）。
+- 预发布版（a1/b1/rc1）与正式版使用同一格式。
+
+### 同步到 GitHub Release
+
+    ./tools/publish/sync-release-notes.sh --dry-run   # 预览将同步哪些版本
+    ./tools/publish/sync-release-notes.sh             # 同步全部有文档的版本
+    ./tools/publish/sync-release-notes.sh v2.8.1      # 只同步指定版本
+
+v1.2.2 / v1.2.3 两个 Release **没有**仓库文档（它们本就是基准格式本身），
+脚本会跳过 —— 不从渲染后的 HTML 反向重建正文，避免杜撰内容。
