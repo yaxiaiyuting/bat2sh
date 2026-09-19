@@ -13,11 +13,12 @@ import pytest
 # 必须在构造 QApplication 之前选择离屏平台（CI 无显示环境）。
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import QSize, Qt  # noqa: E402
+from PySide6.QtWidgets import QApplication, QSplitter, QToolBar  # noqa: E402
 
 from bat2sh.core.settings import ConvertSettings  # noqa: E402
 from bat2sh.gui.app import script_paths_from_argv  # noqa: E402
-from bat2sh.gui.main_window import MainWindow  # noqa: E402
+from bat2sh.gui.main_window import MainWindow, counts_text  # noqa: E402
 
 _app: QApplication | None = None
 
@@ -102,3 +103,30 @@ def test_startup_duplicate_paths_deduplicated(window, tmp_path):
     bat.write_text("echo dup\r\n", encoding="utf-8")
     window.open_paths(script_paths_from_argv(["bat2sh", str(bat), str(bat)]))
     assert len(window.files) == 1
+
+
+def test_statusbar_counts_matches_counts_text(window):
+    assert window.counts_label.text() == counts_text(None)
+
+
+def test_layout_structure_and_spacing_unchanged(window):
+    splitter = window.findChild(QSplitter)
+    assert splitter is not None
+    assert splitter.count() == 3
+    assert splitter.orientation() == Qt.Orientation.Horizontal
+    assert window.centralWidget().layout().spacing() == 6
+
+
+def test_toolbar_icon_size_is_breeze_standard(window):
+    toolbar = window.findChild(QToolBar)
+    assert toolbar is not None
+    assert toolbar.iconSize() == QSize(22, 22)
+
+
+def test_file_list_item_icon_has_fallback(window, tmp_path):
+    bat = tmp_path / "icon.bat"
+    bat.write_text("echo icon\r\n", encoding="utf-8")
+    window.open_paths([bat])
+    item = window.file_list.item(0)
+    assert item is not None
+    assert not item.icon().isNull()

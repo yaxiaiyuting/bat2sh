@@ -12,6 +12,12 @@ from bat2sh.gui.main_window import (
     entry_to_result,
     filter_new_paths,
 )
+from bat2sh.gui.theme import (
+    accent_color,
+    diff_colors,
+    palette_hex,
+    status_text_color,
+)
 
 
 def test_build_diff_html_contains_table_and_names():
@@ -100,3 +106,29 @@ def test_filter_new_paths_dedupes_resolved_and_keeps_order(tmp_path):
     assert got == [target]
     assert existing == set()
     assert filter_new_paths({target.resolve()}, [target]) == []
+
+
+def test_diff_colors_single_source_matches_palette_hex():
+    for dark in (True, False):
+        base, text = diff_colors(dark)
+        assert (base, text) == (palette_hex(dark)["base"], palette_hex(dark)["text"])
+
+
+def test_diff_colors_keep_committed_values():
+    assert diff_colors(True) == ("#232629", "#eff0f1")
+    assert diff_colors(False) == ("#fcfcfc", "#232629")
+
+
+def test_accent_color_is_theme_highlight():
+    assert accent_color(True) == accent_color(False) == "#3daee9"
+
+
+def test_status_text_color_success_and_error_are_distinct_per_theme():
+    for dark in (True, False):
+        success = status_text_color("success", dark)
+        error = status_text_color("error", dark)
+        assert success is not None and error is not None
+        assert success != error
+    assert status_text_color("success", True) != status_text_color("success", False)
+    assert status_text_color("success", True).startswith("#")
+    assert status_text_color("info", True) is None
