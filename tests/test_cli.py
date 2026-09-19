@@ -85,6 +85,29 @@ def test_print_only_todo_with_fail_on_todo_exit_3(tmp_path):
     assert main([str(path), "--print", "--fail-on-todo"]) == 3
 
 
+PS_TRY_CATCH = (
+    'try {\n    Write-Host "one"\n    Write-Host "two"\n'
+    '} catch {\n    Write-Host "err"\n}\n'
+)
+
+
+def test_ps_try_catch_todo_gate_exit_3(tmp_path, capsys):
+    path = tmp_path / "try.ps1"
+    path.write_text(PS_TRY_CATCH, encoding="utf-8")
+    code = main([str(path), "--print", "--fail-on-todo"])
+    assert code == 3
+    assert "# TODO: try/catch 未等价转换" in capsys.readouterr().out
+
+
+def test_ps_try_catch_report_counts_todo(tmp_path, capsys):
+    path = tmp_path / "try.ps1"
+    path.write_text(PS_TRY_CATCH, encoding="utf-8")
+    assert main([str(path), "--print", "--report-json"]) == 0
+    data = json.loads(capsys.readouterr().err)
+    assert data["todo_count"] == 1
+    assert data["warning_count"] == 1
+
+
 def test_fail_on_todo_aggregates_multiple_files(tmp_path):
     todo = make_bat(tmp_path, "todo.bat", TODO_BAT)
     clean = make_bat(tmp_path, "clean.bat")

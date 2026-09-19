@@ -159,13 +159,18 @@ class PowerShellConverter:
     ) -> None:
         self.report.warnings.append(Diagnostic(lineno, message, original, category))
 
-    def _todo(
+    def _register_todo(
         self, lineno: int, original: str, hint: str = "", category: str = ""
-    ) -> str:
+    ) -> None:
         message = f"手动检查: {original}"
         if hint:
             message += f"（{hint}）"
         self.report.todos.append(Diagnostic(lineno, message, original, category))
+
+    def _todo(
+        self, lineno: int, original: str, hint: str = "", category: str = ""
+    ) -> str:
+        self._register_todo(lineno, original, hint, category)
         return "# TODO: 手动检查: " + original
 
     def _logical_lines(self, text: str) -> list[tuple[int, str]]:
@@ -1047,6 +1052,9 @@ class PowerShellConverter:
             "哈希表字面量（含嵌套或复杂值）无法等价转换，已整体注释，请人工检查",
             header,
             category="objects",
+        )
+        self._register_todo(
+            lineno, header, "哈希表字面量（含嵌套或复杂值）无法等价转换", category="objects"
         )
         out = [self._c("# TODO: 手动检查: " + header)]
         out.extend(self._c("# " + line) for line in lines if line.strip() and line.strip() != "}")
@@ -3398,6 +3406,7 @@ class PowerShellConverter:
             header = self._match_condition_header(after)
             if header is None:
                 self._warn(lineno, "无法解析 elseif 条件", text, category="control_flow")
+                self._register_todo(lineno, text, "无法解析 elseif 条件", category="control_flow")
                 return [self._c("# TODO: 手动检查: " + text)]
             keyword, cond, inline, block_open = header
             result = self._emit_condition_block(lineno, text, "elseif", cond, inline, block_open)
@@ -3507,6 +3516,9 @@ class PowerShellConverter:
         inline, complete = self._parse_block_body(after)
         if self._try_buffer is None:
             self._warn(lineno, "catch 分支仅保留结构，错误处理逻辑需人工转换", text, category="control_flow")
+            self._register_todo(
+                lineno, text, "catch 分支仅保留结构，错误处理逻辑需人工转换", category="control_flow"
+            )
             lines = [self._c("else  # TODO: catch 块")]
             inline_lines = self._convert_line(lineno, inline) if inline else []
             lines.extend(inline_lines)
@@ -3549,6 +3561,9 @@ class PowerShellConverter:
                 self._stack.append(block)
             return lines
         self._warn(lineno, "try/catch 已简化处理：try 体直接执行，catch 分支仅保留结构", text, category="control_flow")
+        self._register_todo(
+            lineno, text, "try/catch 未等价转换，catch 分支仅保留结构", category="control_flow"
+        )
         if type_name:
             self._warn(
                 lineno,
@@ -3589,6 +3604,9 @@ class PowerShellConverter:
             if block.close_word:
                 lines.append(self._c(block.close_word))
         self._warn(lineno, "finally 块总是执行，已转换为独立的 if true 块，请核对", text, category="control_flow")
+        self._register_todo(
+            lineno, text, "finally 块总是执行，已转换为独立的 if true 块", category="control_flow"
+        )
         lines.append(self._c("if true; then  # TODO: finally 块总是执行"))
         after = rest[7:].strip()
         inline, complete = self._parse_block_body(after)
@@ -3645,6 +3663,12 @@ class PowerShellConverter:
                 self._hashtable_header,
                 category="objects",
             )
+            self._register_todo(
+                self._hashtable_lineno,
+                self._hashtable_header,
+                "哈希表字面量未找到结束花括号",
+                category="objects",
+            )
             self._out.append(self._c("# TODO: 手动检查: " + self._hashtable_header))
             self._out.extend(
                 self._c("# " + line) for line in self._hashtable_lines if line.strip()
@@ -3657,6 +3681,12 @@ class PowerShellConverter:
                 self._here_lineno,
                 "here-string 未找到结束标记，内容已丢弃，请人工检查",
                 self._here_end,
+                category="strings",
+            )
+            self._register_todo(
+                self._here_lineno,
+                self._here_end,
+                "here-string 未找到结束标记",
                 category="strings",
             )
             self._out.append(self._c("# TODO: here-string 未闭合，请人工检查"))

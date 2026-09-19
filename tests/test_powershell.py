@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from bat2sh.core.powershell import PowerShellConverter
 from bat2sh.core.types import SourceKind
 
@@ -530,7 +532,8 @@ def test_try_finally_is_parallel_block(convert_ps, bash_check):
     assert "if true; then  # TODO: finally 块总是执行" in out
     assert 'echo "done"' in out
     assert out.index('ls -la "/tmp/a"') < out.index("if true; then  # TODO: finally")
-    assert report.todo_count == 0
+    assert report.todo_count == 1
+    assert any("finally 块总是执行" in d.message for d in report.todos)
     assert report.warning_count == 1
     bash_check(out)
 
@@ -560,7 +563,8 @@ def test_try_empty_body(convert_ps, bash_check):
     assert "if true; then  # TODO: try/catch 未等价转换" in out
     assert "\n:\n" in out
     assert "else  # TODO: catch 块" in out
-    assert report.todo_count == 0
+    assert report.todo_count == 1
+    assert any("try/catch 未等价转换" in d.message for d in report.todos)
     bash_check(out)
 
 
@@ -599,11 +603,35 @@ def test_try_nested_falls_back_to_todo(convert_ps, bash_check):
         "}\n"
     )
     assert any("嵌套 try 无法自动转换" in d.message for d in report.todos)
+    assert any("catch 分支仅保留结构" in d.message for d in report.todos)
     assert "# TODO: 手动检查: try {" in out
     assert 'echo "outer catch"' in out
     assert "多余的 }" not in out
-    assert report.todo_count == 1
+    assert report.todo_count == 2
     bash_check(out)
+
+
+TODO_MARKER_SOURCES = (
+    'try {\n    Write-Host "one"\n    Write-Host "two"\n} catch {\n    Write-Host "err"\n}\n',
+    'try {\n    Get-Item "/tmp/a"\n} finally {\n    Write-Host "done"\n}\n',
+    "try {\n    try {\n        Write-Host \"inner\"\n    } catch {\n"
+    "        Write-Host \"ic\"\n    }\n} catch {\n    Write-Host \"oc\"\n}\n",
+    "$h = @{\n    a = @{ b = 1 }\n}\n",
+    '$x = @"\nunterminated\n',
+)
+
+
+@pytest.mark.parametrize("source", TODO_MARKER_SOURCES)
+def test_todo_marker_implies_todo_count(convert_ps, source):
+    """v2.8.1 回归：产物含 `# TODO` 标记时 report.todo_count 必须 > 0。"""
+    out, report = convert_ps(source)
+    markers = [
+        line
+        for line in out.splitlines()
+        if "# TODO" in line and "带有 # TODO 标记" not in line
+    ]
+    assert markers, "用例应产出 `# TODO` 标记"
+    assert report.todo_count > 0, f"标记未被计入 todo_count: {markers}"
 
 
 # ----------------------------------------------------------------------
