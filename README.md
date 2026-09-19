@@ -88,8 +88,12 @@ makepkg -si
 ```
 
 依赖解析：`python`、`python-pyside6`（AUR 之外的官方仓库均有）。
-PKGBUILD 使用 GitHub Release 的 tag tarball 作为 `source`，并固定 `sha256sums`；
-发布新版本时需要同步更新 `pkgver` 与校验和（`updpkgsums`）。
+PKGBUILD 使用 GitHub Release 的 tag tarball 作为 `source`，并固定 `sha256sums`。
+
+发布新版本时，版本号（`pkgver`）必须用 `scripts/release-bump.sh` 在 **tag 之前**写入并提交，
+校验和则在 **tag 之后**用 `scripts/release-sync-pkg.sh` 同步 —— 因为 `sha256sums` 校验的 tarball
+内容由 tag 指向的 commit 决定，属自指约束，无法提前计算。完整顺序与检查清单见
+**`docs/release-process.md`**。
 
 ### 3.2 免打包安装（推荐个人使用）
 
