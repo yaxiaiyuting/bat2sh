@@ -3,8 +3,15 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v2.8.0**（tag `v2.8.0`；**GUI 视觉优化**，minor）。
-> v2.8.0 做 PySide6 图形界面的**视觉优化**（**不重做布局**）：配色统一（语义色单一来源，
+> 当前版本为 **v2.8.1**（tag `v2.8.1`；**PS 报告诚实性修复**，patch）。
+> v2.8.1 修 PS 路径 `try/catch` 等自定义 `# TODO` 标记未计入 `todo_count` →
+> `--fail-on-todo` 静默退出 0（应 3）；全量 664 语料 defect **8 → 0**。pytest **1561**；
+> 151 语料零回归；未触 bat / 053/A1。详见 `docs/releases/v2.8.1.md`。
+> 随版交付 **PS 解冻只读评估**（判定：**继续冻结**）——根本障碍 = 语义（对象模型/`.NET`/CIM/注册表/远程），
+> PS strict = 0/664，硬 D 构造 41.7%，oracle（pwsh）缺失；重启触发 T1′–T4′。
+> 详见 **`docs/ps-assessment-verdict.md`**（核心）、`ps-assessment-reality.md`、`ps-assessment-history.md`、
+> `ps-assessment-blockers.md`。
+> v2.8.0（tag `v2.8.0`）做 PySide6 图形界面的**视觉优化**（**不重做布局**）：配色统一（语义色单一来源，
 > 去硬编码）、间距/对齐统一（`spacing=6`、状态栏文案一致）、图标一致性（主题图标名 + 兜底 + 22px）；
 > **零交互改动 / 零新依赖**（仅 PySide6）。pytest **1554**；151 语料 **151/149/101/19/82/851/崩溃 0** 零回归。
 > 详见 `docs/v2.8.0-report.md`、`docs/v2.8.0-gui-audit.md`。
@@ -143,7 +150,7 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **2.8.0**（**GUI 视觉优化**；minor；见 `docs/v2.8.0-report.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.8.0） |
+| 当前版本 | **2.8.1**（**PS 报告诚实性修复**；patch；见 `docs/releases/v2.8.1.md`、`docs/ps-assessment-verdict.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.8.1） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |

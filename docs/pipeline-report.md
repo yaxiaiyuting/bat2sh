@@ -1,141 +1,119 @@
-# bat2sh 流水线报告 —— v2.8.0（GUI 视觉优化）已发布
+# bat2sh 流水线报告 —— PS 评估收尾 + v2.8.1（报告诚实性修复）已发布
 
-> **用户醒来第一读物。** 本 session（冷启动）目标：PySide6 GUI **视觉优化**（不重做布局）。
-> **结论**：**v2.8.0 已完整交付并发布**（审计 → 实现 → 验收 → 发布 → 真实系统安装验证）。
-> 本文取代 [v2.7.0 流水线报告]（v2.7.0 相关文档仍在 `docs/v2.7.0-*.md`）。
-> 起点 HEAD（锁定）= `94090b6`；终点 HEAD = `fb855f7`（发布回填后以 `git rev-parse HEAD` 为准）。
+> **用户醒来第一读物。** 本 session 目标：PS 只读评估收尾（提交 4 份文档）+ 修 A 类缺陷 + 发 v2.8.1。
+> **结论**：**v2.8.1 已完整交付并发布**；**PS 判定：继续冻结**；项目进入**维护模式**。
+> 起点 HEAD = `46d5d21`；终点 HEAD = 以 `git rev-parse HEAD` 为准（发布回填后）。
+> 前一版流水线见 `docs/pipeline-report.md` 历史（v2.8.0 段见 `docs/v2.8.0-report.md`）。
 
 ---
 
 ## 0. TL;DR
 
-| 版本 | 状态 | tag | CI | Release |
-| :--- | :--- | :--- | :--- | :--- |
-| **v2.8.0** GUI 视觉 | ✅ **已发布** | `v2.8.0` @ `281c049` | ✅ 全绿（tag + main×2） | ✅ Latest（含截图） |
-| v2.7.0 CLI 美化 | ✅ 已发布（上一 session） | `v2.7.0` | ✅ | ✅ |
-
-- **做了什么**：配色统一、间距/对齐统一、图标一致性（**未重做布局**）。
-- **零交互改动 / 零新依赖（仅 PySide6）**。
-- **pytest 1546 → 1554**；**151 语料 151/149/101/19/82/851/崩溃 0 零回归**。
-- **真实系统 `pacman -U` 安装验证通过**（v2.7.0 的锁问题本会话已消失）。
+| 交付 | 状态 | 证据 |
+| :--- | :--- | :--- |
+| PS 解冻评估（4 文档） | ✅ commit `a919050` | `docs/ps-assessment-*.md` |
+| **判定** | ✅ **继续冻结** | `ps-assessment-verdict.md` |
+| A 类缺陷修复 | ✅ commit `c0d7fb3` | PS `# TODO` 计入 `todo_count` |
+| 发布 | ✅ tag `v2.8.1` @ `e628e39` | CI 全绿 / Release Latest |
+| 项目状态 | ✅ **维护模式** | 等 T1′–T4′ 触发 |
 
 ---
 
-## 1. 前置确认（任务书 §一）—— 全部通过
+## 1. 前置确认
 
 | # | 前置 | 结果 |
 | :--- | :--- | :--- |
-| 1 | `git tag -l "v2.7.0"` 有输出 | ✅ `v2.7.0` |
-| 2 | 起点 HEAD = `94090b6` | ✅ 实测 `94090b6` |
-| 3 | `git status` 干净 | ✅ |
-| 4 | `pytest -q` 全绿 | ✅ **1546 passed** |
-| 5 | 仪器复现 `151/149/101/19/82/851/崩溃 0` | ✅ 逐字段一致 |
+| 1 | 起点 HEAD = `46d5d21` | ✅ |
+| 2 | `git status` 干净（4 份评估 doc untracked） | ✅ |
+| 3 | pytest | ✅ **1554 passed** |
+| 4 | PS 语料可用（664 + 60） | ✅ |
+| 5 | **pwsh 运行时 oracle** | ❌ 缺失（语义不可测，已披露） |
 
 ---
 
-## 2. 只读审计与判据（任务书 §四）
+## 2. PS 解冻评估（commit `a919050`）
 
-`docs/v2.8.0-gui-audit.md`：现状盘点（布局/主题/配色/间距/图标）+ 视觉问题清单 P1–P6 + 优化方案。
+**判定：继续冻结。** 要点：
 
-**判据（§4.3）**：视觉问题全部落在 **配色 / 一致性 / 图标 / 间距**，可在现有三栏布局上直接优化，
-**无需重做布局** → **继续实现 v2.8.0**。
+- **PS strict = 0/664**（rc0 且无 `# TODO`）：即便修好全部语法，语义等价仍不可达。
+- **硬 D 构造 277/664 = 41.7%**；`objects` TODO **47.6%**（对象模型/.NET/CIM/注册表/远程）。
+- 语法 550/664 = 82.8%（114 个 A 类发射缺陷）；rc==0 214；崩溃 0。
+- 无真实需求（T1/T2/T3 未触发）；**pwsh oracle 缺失** → 语义工作不可验证。
+- 重启触发收紧为 **T1′–T4′**（见 verdict）。
 
-> 布局（三栏 `QSplitter` + 工具栏 + 可折叠运行面板）**无结构缺陷**，未触发「暂停等用户定方向」。
-
----
-
-## 3. 实现（分批 commit）
-
-| # | commit | 内容 |
-| ---: | :--- | :--- |
-| 1 | `c5a61f3` | 配色/主题统一：`theme` 语义色单一来源；`build_diff_html` / `_show_api_test_result` / 编辑器行号去硬编码；浅色占位符色 |
-| 2 | `15cc054` | 间距/对齐：容器与面板统一 `spacing=6`；状态栏计数文案统一 |
-| 3 | `2b49685` | 图标：主题图标名修正、列表图标兜底、工具栏 `iconSize=22` |
-| 4 | `bd85cbc` | 文档 + 测试（+8 视觉守护测试） |
-| 5 | `7c93602` | 截图（深/浅）+ 高 DPI/验收数据回填 |
-
-**批次说明**：`docs/v2.8.0-gui-audit.md` 随 commit 1 提交（未单独成 commit，已披露）。
-
-### 3.1 硬性约束（任务书 §4.4）—— 全部满足
-
-| 约束 | 结果 |
-| :--- | :--- |
-| KDE Breeze 风格 | ✅ 不覆盖 Breeze；复用其调色板/图标主题 |
-| 不重做布局 | ✅ 仅改颜色/间距数值/图标名；结构测试守护 |
-| 功能零回归 | ✅ 未触碰信号/动作/快捷键/业务逻辑 |
-| 测试全绿 | ✅ 1554 passed |
-| 无新依赖 | ✅ `pyproject.toml` 未变 |
-| DPI 兼容 | ✅ `QT_SCALE_FACTOR=2` 正常；无像素硬编码 |
+交付：`ps-assessment-history.md`、`ps-assessment-reality.md`（含 /tmp 数据摘要附录）、
+`ps-assessment-blockers.md`、**`ps-assessment-verdict.md`（核心）**。
 
 ---
 
-## 4. 验收（任务书 §六）
+## 3. A 类缺陷修复（commit `c0d7fb3`）
 
-| 验收 | 结果 |
-| :--- | :--- |
-| pytest 全绿 | ✅ **1554 passed** |
-| GUI 功能全量 smoke | ✅ 启动/转换/预览/运行/各对话框（offscreen + 安装版） |
-| 高 DPI 显示正常 | ✅ `QT_SCALE_FACTOR=2` 与默认均正常 |
-| 无新依赖 | ✅ |
-| 151 语料无回归 | ✅ 逐字段不变 |
-| 布局未重做（确认） | ✅ 三栏 splitter/工具栏/面板结构测试 + diff 复核 |
+**问题**：PS `try/catch`、`finally`、复杂哈希表、`elseif` 解析失败、未闭合 here-string 的
+自定义 `# TODO` 标记**只登记 warning**，不计入 `todo_count` → `--fail-on-todo` **静默退出 0**。
 
-### 4.1 截图
+**修复**：新增 `_register_todo`（`_todo` 复用），在 **7 处**自定义标记点登记 todo。
 
-| 主题 | 文件 |
-| :--- | :--- |
-| 深色 | `docs/screenshots/v2.8.0-gui-dark.png` |
-| 浅色 | `docs/screenshots/v2.8.0-gui-light.png` |
+| 指标（全量 664，排除脚本头） | 修复前 | 修复后 |
+| :--- | ---: | ---: |
+| defect（markers>0 且 todos==0） | 8 | **0** |
+| markers > todos | 262 | 10（多标记同属一个 todo） |
+
+**回归测试**：`test_powershell.py` 5 条 invariant（参数化）+ `test_cli.py` 2 条门回归；
+更新 3 条既有断言（原断言 `todo_count==0` 即缺陷本身）。
+
+**边界**：PS 路径独立，**未触 053/A1 与 bat 转换逻辑**；**不是「PS 解冻」**，只修报告诚实性。
 
 ---
 
-## 5. 发布（任务书 §七）
+## 4. 发布 v2.8.1
 
 | 步骤 | 结果 |
 | :--- | :--- |
-| preflight | ✅ 1537 passed / 17 skipped（类 CI 空 HOME） |
-| bump | **`281c049`** `chore: bump version to v2.8.0` |
-| tag | **`v2.8.0`**（annotated @ `281c049`） |
-| push | main FF `94090b6 → 281c049`；tag 已推 |
-| CI | ✅ tag `35425936572` / main(bump) `35425934534` / main(pkg) `35426036443` 全 success |
-| PKGBUILD | **`fb855f7`**，sha256 `1d39d21b…04fd`（二次下载一致），.SRCINFO 重生成 |
-| Release | ✅ **v2.8.0（Latest）** https://github.com/yaxiaiyuting/bat2sh/releases/tag/v2.8.0 |
+| preflight | ✅ 1544 passed / 17 skipped |
+| bump | **`e628e39`** `chore: bump version to v2.8.1` |
+| tag | **`v2.8.1`**（annotated） |
+| CI | ✅ tag `35429963246` / main `35429961583` / pkg `35430069124` 全 success |
+| PKGBUILD | **`0d06a4c`**，sha256 `cf6a3e29…1c64`（二次一致），.SRCINFO 重生成 |
+| Release | ✅ **v2.8.1（Latest）** https://github.com/yaxiaiyuting/bat2sh/releases/tag/v2.8.1 |
 | AUR | **不进** |
-| 本机验证 | ✅ **真实系统 `pacman -U`**：`bat2sh 2.8.0`；CLI 转换 + GUI 构造/转换/计数全过（`docs/releases/v2.8.0-verification.md`） |
+| 本机验证 | ✅ 真实 `pacman -U`：`bat2sh 2.8.1`；PS 门 exit 3；bat 门回归 OK（`docs/releases/v2.8.1-verification.md`） |
 
 ---
 
-## 6. 偏离与如实披露（纪律 4）
+## 5. 验收
 
-| # | 偏离 | 说明 |
-| :--- | :--- | :--- |
-| G-1 | 审计随 commit 1 提交 | 未单独成 commit（内容/用途不受影响） |
-| G-2 | 未引入全局 QSS | 刻意尊重 Breeze 原生观感，只调少量硬编码色与 `QLayout` 间距 |
-| G-3 | 截图 | 以目标主题**启动**后离屏捕获（运行中切换主题在 offscreen 下 palette 传播不完全，属预存在机制）；已说明，保证代表性 |
-| G-4 | CLI 未动 | 本版专注 GUI；CLI 已在 v2.7.0 交付 |
-
----
-
-## 7. 交付物清单
-
-| 文件 | 状态 |
+| 项 | 结果 |
 | :--- | :--- |
-| `docs/v2.8.0-gui-audit.md` | ✅ 只读审计（核心） |
-| `docs/v2.8.0-report.md` | ✅ v2.8.0 报告（含发布回填） |
-| `docs/releases/v2.8.0.md` | ✅ release notes |
-| `docs/releases/v2.8.0-verification.md` | ✅ 安装验证日志 |
-| `docs/screenshots/v2.8.0-gui-{dark,light}.png` | ✅ 截图 |
-| `docs/pipeline-report.md` | ✅ 本文件 |
-| 分支 + tag + Release | ✅ `v2.8.0-gui-visual` / `v2.8.0` / Release（Latest） |
+| pytest | ✅ **1561 passed**（+7） |
+| 全量 664 defect | ✅ **8 → 0** |
+| PS 语法口径 | ✅ 56/60 = 93.3%（未回退） |
+| 151 bat 语料 | ✅ 151/149/101/19/82/851/崩溃 0 |
+| 053/A1 | ✅ 未触 |
+| 无新依赖 | ✅ |
 
 ---
 
-## 8. 后续
+## 6. 偏离与如实披露（纪律 3/4）
 
-1. **3.x 唯一大方向**：**PS 解冻**（PS 侧实验性 → 完整语义；启动条件 **T3 PS 刚需**，未触发）。
-2. **v2.8.x**：视觉微调（按用户反馈）。
-3. **backlog（跨版本）**：P-1 CJK 变量名展开 / P-2 延迟展开 `!`（见 `docs/v2.6.0-report.md`）。
+| # | 项 | 说明 |
+| :--- | :--- | :--- |
+| 1 | 任务书 §2.1「语法 75.0%」 | 实为 v1.8.0 **修复前**；修复后 93.3%（reality §0 已校正） |
+| 2 | 664 全量归因 | **模式级自动归因**（非 450 文件逐条人工）；原始结果 `/tmp/ps-full/results.json`，摘要入 reality 附录 B |
+| 3 | 头行口径修正 | 初次「474/550」把脚本头 `# 带有 # TODO 标记` 计入；改用 `measure.py::count_markers` 口径后为 262（修复前）/10（修复后）；defect 8→0 |
+| 4 | 运行时语义 73.7% | **不可复现**（pwsh 缺失） |
+| 5 | 3 条既有测试断言更新 | 原 `todo_count==0` 即缺陷本身；改为语义正确的计数并加 invariant |
+| 6 | 本 session 未开专用分支 | 直接在 `main` 提交（docs + fix + bump），符合 patch 发布 |
 
 ---
 
-> **v2.8.0 已发布。** 本文件为流水线终报告。
+## 7. 后续（**维护模式**）
+
+1. **等 T1′–T4′ 触发**（`ps-assessment-verdict.md` §4）：
+   - T1′ 真实 PS 迁移需求；T2′ PS 回归；T3′ 外部刚需 **且 pwsh oracle 就绪**；T4′ 具名读类映射。
+2. **若触发**的候选范围（P0 报告诚实性 → P1 A 类发射缺陷 → P2 pwsh 设施 → P3 对象读类）
+   见 verdict §5，**本 session 不激活**。
+3. **backlog（跨版本）**：P-1 CJK 变量名展开 / P-2 延迟展开 `!`（`docs/v2.6.0-report.md`）。
+
+---
+
+> **v2.8.1 已发布，项目进入维护模式。** 本文件为流水线终报告。
