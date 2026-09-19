@@ -42,15 +42,20 @@ fi
 
 echo "==> 4/4 引用仓库外资源的测试必须带 pytest.skip 兜底（否则 CI 会红）"
 # 旧版本此步只“提示、不判失败”，因此拦不住 v1.8.1 那类问题；现改为真失败。
+#
+# 口径说明：只匹配**构造真实路径**的写法，不匹配文档字符串/注释里出现的 "~/" 字样。
+# 首次改成硬门时曾用裸 '~/' 匹配，结果把 tests/ 里说明语料来源的 docstring
+# 误判为违规（preflight 自己先红了）—— 门禁必须精确，否则会被绕过或误伤。
+EXTERNAL_PATH_RE='Path\.home\(\)|os\.path\.expanduser\(\)|\.expanduser\(|Path\("~'
 violations=0
 while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     if ! grep -q 'pytest\.skip' "$f"; then
         echo "  违规: $f 引用了仓库外路径，但没有 pytest.skip 兜底" >&2
-        grep -nE '(Path\.home\(\)|os\.path\.expanduser\(|~/)' "$f" >&2 || true
+        grep -nE "$EXTERNAL_PATH_RE" "$f" >&2 || true
         violations=1
     fi
-done < <(grep -rlE '(Path\.home\(\)|os\.path\.expanduser\(|~/)' tests/ --include='*.py' || true)
+done < <(grep -rlE "$EXTERNAL_PATH_RE" tests/ --include='*.py' || true)
 
 if [[ "$violations" -ne 0 ]]; then
     echo "错误: 上述测试在 CI（无外部语料）会**失败**而非跳过。禁止 tag。" >&2
