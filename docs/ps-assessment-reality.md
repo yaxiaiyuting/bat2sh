@@ -29,6 +29,11 @@ python3 tools/corpus-analysis/ps_silent_check.py --out /tmp/ps-verify
 
 **语料关系**：repo 内 `tests/fixtures/real-corpus/fleschutz/` 的 60 个 `.ps1` 是
 `~/下载/PowerShell-1.6/scripts`（**664** 个 `.ps1`，CC0）的**子集**（同名）。
+>
+> **口径校正（2026-09-20 复核）**：该目录实测为 **665** 个 `.ps1` —— 无符号链接、无 0 字节文件、
+> 无 `.PS1` 大小写变体，`data/` 子目录下也没有脚本。语料文件全部早于 2026-01-01，未发生漂移，
+> 因此 664 与 665 之差属于**当时的计数口径未记录**（本文档其余处沿用 664，未逐一改写）。
+> 本次复现以实测为准：**665**。
 
 ---
 

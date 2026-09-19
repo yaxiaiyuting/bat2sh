@@ -156,10 +156,10 @@
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1466 passed** | `docs/releases/v2.4.0.md` §5 |
+| 测试基线 | pytest **1561 passed**（空 HOME 的 CI 等价环境：1544 passed / 17 skipped） | 2026-09-20 独立复现（Python 3.14.7） |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO），**v2.3.0**（2.x 收尾），**v2.4.0**（goto CFG 高级）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag` |
+| 已有 tag | 共 **37** 个：v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO），**v2.3.0**（2.x 收尾），**v2.4.0**（goto CFG 高级），**v2.5.0**（块栈重构 + CFG 状态机默认开启），**v2.6.0**（新语料验证 + A-1 修复），**v2.7.0**（CLI 输出美化），**v2.8.0**（GUI 视觉优化），**v2.8.1**（PS 报告诚实性修复）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag`（37 个） |
 
 ---
 
@@ -167,21 +167,21 @@
 
 ```text
 bat2sh/
-├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 1.10.0）
+├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 2.8.1）
 ├── PKGBUILD                     # Arch/CachyOS 打包脚本（makepkg -si）
 ├── .SRCINFO                     # PKGBUILD 的机读元数据（pkgver/sha256sums 同步）
 ├── bat2sh.desktop               # 桌面项（MIME 关联 x-bat / x-powershell）
 ├── bat2sh.install               # pacman 安装钩子（刷新 MIME/desktop 数据库）
 ├── install.sh                   # 免打包安装脚本（默认 ~/.local）
 ├── LICENSE                      # AGPL-3.0-or-later
-├── README.md                    # 主文档（安装/使用/规则/限制，786 行）
+├── README.md                    # 主文档（安装/使用/规则/限制，824 行）
 ├── data/mime/bat2sh.xml         # 自定义 MIME 类型定义
 ├── .github/workflows/test.yml   # CI：3.12/3.13/3.14 矩阵跑 pytest -q
 ├── scripts/
 │   ├── bat2sh-dev               # 源码目录直接运行（设置 PYTHONPATH 后 python -m bat2sh）
 │   └── bat2sh-launcher          # 安装版启动器（PYTHONPATH=/usr/lib/bat2sh）
 ├── examples/                    # 可运行示例（.bat/.ps1 及其 .sh 对照）
-├── tests/                       # pytest 回归测试（70 个 test_*.py + fixtures/）
+├── tests/                       # pytest 回归测试（115 个 test_*.py + fixtures/）
 ├── tools/corpus-analysis/       # 真实语料批量分析脚本与匿名化结果
 ├── docs/                        # 设计/研究报告与发布说明（见 §9）
 └── python/bat2sh/
@@ -196,8 +196,8 @@ bat2sh/
     │   ├── settings.py          # ConvertSettings + JSON 持久化
     │   ├── utils.py             # 引号/重定向切分/路径转换等工具
     │   ├── rules.py             # 全部转换规则表（字典，便于扩展）
-    │   ├── batch.py             # 批处理转换器（3224 行）
-    │   ├── powershell.py        # PowerShell 转换器（3531 行）
+    │   ├── batch.py             # 批处理转换器（4129 行）
+    │   ├── powershell.py        # PowerShell 转换器（3703 行）
     │   ├── syntax.py            # bash -n 后置校验 + 整体降级
 │   ├── registry_map.py      # 注册表只读键映射规则表
 │   ├── control_flow.py      # C4 goto 控制流形态台账（v1.10.0b1；只读，不驱动转换）
@@ -540,19 +540,22 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 0. **tag 前必跑 `./scripts/release-preflight.sh`**（v1.8.1 起）：
    在**空 `HOME` 的类 CI 环境**下跑 pytest，复现 CI「无外部语料/配置」条件，
-   并要求工作区干净。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
+   并要求工作区干净，且**校验四处版本号一致**（D-1 门，见 `docs/release-process.md`）。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
    本地全绿但 CI 红，tag 打完后才发现。该脚本用于杜绝此类「本地绿、tag 后红」。
-1. **版本号两处同步**：`pyproject.toml` 的 `version` 与 `python/bat2sh/__init__.py` 的
-   `__version__`（两者当前均为 `1.10.0` 正式版）。
+1. **版本号四处同步（必须在 tag 之前完成，D-1 修复）**：`pyproject.toml` 的 `version`、
+   `python/bat2sh/__init__.py` 的 `__version__`、`PKGBUILD` 的 `pkgver`、`.SRCINFO` 的 `pkgver`
+   必须写入**同一次 bump 提交**。用 `./scripts/release-bump.sh <版本>` 一次完成，
+   并由 `release-preflight.sh` 第 2 步强制校验。
    **pre-release 纪律**：alpha/beta/rc 同样是发布——tag 打在 bump commit、CI 全绿、release notes 完整；
    且 pre-release **不同步** `PKGBUILD`/`.SRCINFO`（`v1.10.0a1/b1/rc1` 均停留 1.9.2）。
    **v1.10.0 起为正式版**：`PKGBUILD`/`.SRCINFO` 已同步 `1.10.0` + tag tarball `sha256`。
-2. **PKGBUILD 同步**：更新 `pkgver`；tag 生成后同步 `sha256sums`（可用 `updpkgsums`），
-   并更新 `.SRCINFO` 使其与 `PKGBUILD` 一致。v1.6.0 的提交序列即为
-   `030ab72 chore: bump version to v1.6.0` → `1f68d42 chore(pkg): sync PKGBUILD hashes`
-   → `11cd50e docs: v1.6.0 release note`；v1.7.0 为 `7864015 chore: bump version to v1.7.0`
-   → `f18d625 chore(pkg): sync PKGBUILD hashes for v1.7.0`；
-   v1.8.0 为 `81a50a3 chore: bump version to v1.8.0` → `0f6494b chore(pkg): sync PKGBUILD hashes for v1.8.0`。
+2. **PKGBUILD 校验和同步（tag 之后）**：用 `./scripts/release-sync-pkg.sh <版本>` 下载 tag
+   tarball、写入 `sha256sums` 并重生成 `.SRCINFO`。
+   **为什么哈希不能提前**：它校验的是 `archive/refs/tags/v<X.Y.Z>.tar.gz`，而该 tarball 的内容
+   由 tag 指向的 commit 决定——哈希依赖 tag 自身，是**自指约束**，只能放在 tag 之后。
+   **注意（D-1 教训）**：正因为这一半无法提前，历史上把 `pkgver` 也一起推到了 tag 之后，
+   导致 v2.1.0–v2.8.1 **连续 9 个 tag 内版本号停留在上一版**。**版本号必须提前，只有哈希可以滞后。**
+   完整顺序与检查清单见 **`docs/release-process.md`**。
 3. **打 tag**：tag 打在版本 bump commit 上（`v1.6.0` → `030ab72`，`v1.7.0` → `7864015`，
    `v1.8.0` → `81a50a3`）。
 4. **发布说明**：在 `docs/releases/` 下新增 `<版本>.md`（现有 v1.3.0 … v1.8.1），
