@@ -1,13 +1,44 @@
-# bat2sh — Windows 脚本转 Bash 转换器
+# bat2sh — Windows Batch / PowerShell → Bash Converter
+
+[![CI](https://github.com/yaxiaiyuting/bat2sh/actions/workflows/test.yml/badge.svg)](https://github.com/yaxiaiyuting/bat2sh/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/yaxiaiyuting/bat2sh)](https://github.com/yaxiaiyuting/bat2sh/releases)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+
+**Convert Windows Batch (`.bat`/`.cmd`) and PowerShell (`.ps1`) scripts to Linux Bash.**
+Desktop GUI (PySide6/Qt6) + CLI. An Android APK is also available. The conversion engine
+depends only on the Python standard library.
 
 将 Windows 批处理（`.bat`/`.cmd`）与 PowerShell（`.ps1`）脚本转换为 Linux Bash 脚本的
 桌面工具 + 命令行工具。界面使用 **Python 3 + PySide6（Qt6）**，贴合 KDE Breeze 风格，
 在 Wayland（KWin）下原生运行；核心转换引擎只依赖 Python 标准库。
 
+```bash
+makepkg -si                            # Arch / CachyOS
+./install.sh                           # 免打包安装到 ~/.local
+bat2sh --cli input.bat -o output.sh    # CLI 单文件转换
+```
+
 > 转换是"尽力而为"的静态翻译：能自动转换的语句会直接翻译，无法等价转换的语句会
 > 插入 `# TODO: 手动检查: <原命令>` 注释并在预览中红色高亮。报告分
 > **错误（红）/ 警告（黄）/ 无法自动转换（TODO，灰）** 三层；错误表示生成脚本可能
 > 无法正确执行，务必优先处理。**生成脚本务必人工复核。**
+
+---
+
+## 目录
+
+- [1. 功能特性](#1-功能特性)
+- [2. 项目结构](#2-项目结构)
+- [3. 安装](#3-安装)
+- [4. 使用](#4-使用)
+- [5. 编码处理](#5-编码处理)
+- [6. 支持的转换规则](#6-支持的转换规则)
+- [7. 示例](#7-示例)
+- [8. 无法完美转换、需要人工干预的特性](#8-无法完美转换需要人工干预的特性)
+- [9. 扩展转换规则](#9-扩展转换规则)
+- [10. 开发与测试](#10-开发与测试)
+- [11. 许可](#11-许可)
 
 ---
 
