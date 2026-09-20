@@ -1,0 +1,19 @@
+[project]
+name = "flet-proot-poc"
+version = "0.1.0"
+description = "proot-in-Flet PoC (bat2sh Phase 1)"
+requires-python = ">=3.10"
+dependencies = ["flet"]
+
+[tool.flet]
+org = "org.example"
+product = "prootpoc"
+company = "bat2sh-poc"
+copyright = "PoC only, not for distribution"
+
+[tool.flet.app]
+path = "src"
+module = "main"
+
+[tool.flet.android]
+target_sdk_version = 28

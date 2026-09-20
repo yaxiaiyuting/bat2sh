@@ -1,0 +1,9 @@
+# 仓库根 .gitignore 里的 "src/" 会连坐 packaging/android/**/src/，
+# 这里把它重新纳入（嵌套 .gitignore 优先级更高）。
+!src/
+!src/**
+
+# 但 Phase 1 PoC 的二进制资产不入库（合计 ~72 MB）；
+# 用 proot-poc/fetch-assets.sh 按需拉取，sha256 见 docs/android-poc-report.md。
+proot-poc/src/assets/
+proot-poc/src/assets/**
