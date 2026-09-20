@@ -1,6 +1,6 @@
 [project]
 name = "bat2sh-android"
-version = "2.8.1"
+version = "2.9.0"
 description = "bat2sh Android —— .bat/.cmd/.ps1 转 bash 的最小可用版本"
 requires-python = ">=3.10"
 dependencies = ["flet"]

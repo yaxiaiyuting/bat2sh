@@ -46,7 +46,7 @@ v2.1.0 至 v2.8.1 **连续 9 个 tag**，其源码树内 `PKGBUILD` 的 `pkgver`
 
 ### 修复后的顺序（不可颠倒）
 
-    1. ./scripts/release-bump.sh <X.Y.Z>          # 版本号写入四处，随提交入库
+    1. ./scripts/release-bump.sh <X.Y.Z>          # 版本号写入五处，随提交入库
     2. git add -A && git commit -m "chore: bump version to v<X.Y.Z>"
     3. ./scripts/release-preflight.sh             # 必须通过（含 D-1 门）
     4. git tag -a v<X.Y.Z> -m "v<X.Y.Z>" && git push origin main v<X.Y.Z>
@@ -57,8 +57,11 @@ v2.1.0 至 v2.8.1 **连续 9 个 tag**，其源码树内 `PKGBUILD` 的 `pkgver`
 ### 强制执行点
 
 `scripts/release-preflight.sh` 第 2 步调用 `release-bump.sh --check`，
-校验 `pyproject.toml` / `__init__.py` / `PKGBUILD` / `.SRCINFO` **四处版本一致**，
-不一致即 `exit 1`，禁止 tag。
+校验 `pyproject.toml` / `python/bat2sh/__init__.py` / `PKGBUILD` / `.SRCINFO` /
+**`packaging/android/pyproject.toml`** **五处版本一致**，不一致即 `exit 1`，禁止 tag。
+
+> 第五处是 **v2.9.0 起**纳入的。Android 工程是独立的 Flet 项目，它的 `version`
+> 决定 APK 的 `versionName` —— 不同步就是 D-1 的翻版：tag 说 A，而发布出去的 APK 自称 B。
 
 ---
 
@@ -109,7 +112,7 @@ v2.1.0 至 v2.8.1 **连续 9 个 tag**，其源码树内 `PKGBUILD` 的 `pkgver`
 | # | 检查 | 命令 |
 | :--- | :--- | :--- |
 | 1 | 工作区干净 | `git status --porcelain` |
-| 2 | 四处版本一致 | `./scripts/release-bump.sh --check` |
+| 2 | 五处版本一致 | `./scripts/release-bump.sh --check` |
 | 3 | 类 CI 环境 pytest 全绿 | `./scripts/release-preflight.sh` |
 | 4 | 外部资源依赖有 skip 兜底 | 同上（第 4 步） |
 | 5 | PKGBUILD 哈希与 tag tarball 一致 | `./scripts/release-sync-pkg.sh <ver>` |
@@ -177,7 +180,7 @@ v1.2.2 / v1.2.3 两个 Release **没有**仓库文档（它们本就是基准格
 | Arch | `PKGBUILD`（makepkg） | any | 原有路径 |
 | Debian/Ubuntu | `packaging/build-deb.sh` | `all` | 纯 Python，同一包在 amd64/arm64 通用 |
 | RPM | `packaging/build-rpm.sh` | `noarch` | 同上 |
-| Android APK | — | — | **当前不可行，见 6.3** |
+| Android APK | `packaging/android/build.sh` | `arm64-v8a` / `x86_64` | Flet + 内嵌 Termux 运行时；见 6.3 |
 
 三个脚本都会把产物写到 `dist/`（已在 .gitignore 中忽略）。
 
@@ -192,23 +195,29 @@ v1.2.2 / v1.2.3 两个 Release **没有**仓库文档（它们本就是基准格
 放在 Recommends 而非 Depends，是为了避免在**未打包 PySide6 的发行版**（如 Debian 12）
 上直接无法安装 —— 那种情况下包仍可安装，CLI 可用，GUI 需自行 `pip install PySide6`。
 
-### 6.3 Android APK（arm64-v8a）：不可行，原因在上游
+### 6.3 Android APK（arm64-v8a）：**可行**，v2.9.0 起随 Release 发布
 
-`pyside6-android-deploy` 要求显式提供 **PySide6 / shiboken6 的 Android wheel**
-（`--wheel-pyside` / `--wheel-shiboken`）。实测检索：
+> **本节结论于 v2.9.0 更新。** 原文结论「不可行，原因在上游」针对的是
+> **PySide6** 路线（`pyside6-android-deploy` 需要 PySide6/shiboken6 的 Android wheel，
+> 而 Qt 未公开发布与 6.11.x 匹配的 android wheel）。该判断对 PySide6 仍然成立，
+> 但**不再是本项目的 Android 路线**。
+>
+> 现行路线是 **Flet + 内嵌 Termux bootstrap**，已实际产出可安装 APK。
 
-| 位置 | 结果 |
+| 项 | 值 |
 | :--- | :--- |
-| PyPI `PySide6/6.11.2` | 5 个 wheel，**无 android** |
-| PyPI `PySide6-Android` 等 | **404（不存在）** |
-| Qt `official_releases/.../PySide6-6.11.2-src/` | **只有源码** |
-| Qt `snapshots/ci/pyside/6.11.2/` | **无 android wheel** |
+| 构建 | `cd packaging/android && ./build.sh arm64-v8a`（或 `x86_64`） |
+| 依赖 | Flet 1.0.0 / Flutter 3.44.8 / JDK 17 / Android SDK；环境见 `/tmp/flet-termux-poc/env.sh` |
+| 关键配置 | `target_sdk_version = 28`（**硬要求**：SELinux 域变为 `untrusted_app_27`，应用私有目录内二进制才可 `execve`） |
+| 体积 | 约 87 MB（Termux bootstrap 32 MB） |
+| 签名 | debug 签名（侧载 PoC；**不适合上架**） |
+| 资产 | 作为 GitHub Release 资产上传（`gh release upload --clobber`） |
 
-即 **Qt 未公开发布与 6.11.x 匹配的 Android wheel**。若坚持推进，只能自行交叉编译
-PySide6 for Android（Qt for Android aarch64 约 2–3 GB + shiboken 交叉编译数小时），
-或使用 2023 年的 CI 快照（版本不匹配，不适合随 Release 分发）。
+**构建顺序陷阱**：`flet build` 会清空 `build/apk/`。
+若同时构建两个 ABI，**交付的那个 ABI 必须最后构建**，否则会被后续构建删掉。
+`build.sh` 只带本 ABI 的 bootstrap（`--exclude` 掉另一份 32 MB）。
 
-另有一个独立问题：本项目 GUI 是**桌面形态**（三栏 QSplitter / QFileDialog / 拖放），
-即使能打包，仍需一轮触屏适配才可用。
+**仍未建立**：多 ABI 分发策略、release 签名、CI 自动构建。
+如需长期维护，建议单独一个 session 处理。
 
-详见 `packaging/android/README.md`。**本次不产出 APK，也不提交未经验证的构建产物。**
+详见 `docs/android-api-report.md`、`packaging/android/README.md`。

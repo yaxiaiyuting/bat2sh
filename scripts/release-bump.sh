@@ -8,14 +8,18 @@
 # 版本同步提交永远落在 tag 之后，于是 tag 内容永远不自洽。
 # 任何从 Release 源码包执行 makepkg -si 的用户都会构建出上一个版本。
 #
-# 修复策略：把**版本号**（pkgver / .SRCINFO pkgver）提前到 tag 之前，
+# 修复策略：把**版本号**（pkgver / .SRCINFO pkgver / android pyproject）提前到 tag 之前，
 # 与 pyproject.toml、__init__.py 在同一次提交内完成；**sha256** 因为自指
 # （哈希依赖 tag 指向的 commit）无法在 tag 前算出，仍留到 tag 之后，
 # 由 scripts/release-sync-pkg.sh 显式同步。
 #
+# v2.9.0 起纳入第五处：packaging/android/pyproject.toml。它是独立的 Flet 工程，
+# 决定 APK 的 versionName；不同步就会出现「tag 说 A、发布出去的 APK 自称 B」，
+# 与 D-1 同类。
+#
 # 用法:
 #   ./scripts/release-bump.sh 2.9.0        # 写入版本号（不提交，由你 review 后提交）
-#   ./scripts/release-bump.sh --check      # 只校验四处版本是否一致（preflight 亦调用）
+#   ./scripts/release-bump.sh --check      # 只校验五处版本是否一致（preflight 亦调用）
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,25 +29,32 @@ PYPROJECT="pyproject.toml"
 INIT="python/bat2sh/__init__.py"
 PKGBUILD="PKGBUILD"
 SRCINFO=".SRCINFO"
+# Android 工程是**独立的** Flet 项目，版本号写在它自己的 pyproject.toml 里。
+# 它同样会随 Release 分发（APK 的 versionName 由它决定），因此必须纳入同一道门，
+# 否则就是 D-1 的翻版：tag 说 2.9.0，而发布出去的 APK 自称 2.8.1。
+ANDROID_PYPROJECT="packaging/android/pyproject.toml"
 
 read_pyproject() { grep -m1 '^version[[:space:]]*=' "$PYPROJECT" | sed 's/.*"\(.*\)".*/\1/'; }
 read_init()      { grep -m1 '__version__' "$INIT" | sed 's/.*"\(.*\)".*/\1/'; }
 read_pkgbuild()  { grep -m1 '^pkgver=' "$PKGBUILD" | cut -d= -f2; }
 read_srcinfo()   { grep -m1 '^[[:space:]]*pkgver[[:space:]]*=' "$SRCINFO" | awk '{print $3}'; }
+read_android()   { grep -m1 '^version[[:space:]]*=' "$ANDROID_PYPROJECT" | sed 's/.*"\(.*\)".*/\1/'; }
 
 check() {
-    local a b c d
+    local a b c d e
     a="$(read_pyproject)"; b="$(read_init)"; c="$(read_pkgbuild)"; d="$(read_srcinfo)"
-    printf '  pyproject.toml            %s\n' "$a"
-    printf '  python/bat2sh/__init__.py %s\n' "$b"
-    printf '  PKGBUILD pkgver           %s\n' "$c"
-    printf '  .SRCINFO pkgver           %s\n' "$d"
-    if [[ "$a" != "$b" || "$a" != "$c" || "$a" != "$d" ]]; then
-        echo "错误: 四处版本号不一致（这正是 D-1 缺陷）。" >&2
+    e="$(read_android)"
+    printf '  pyproject.toml              %s\n' "$a"
+    printf '  python/bat2sh/__init__.py   %s\n' "$b"
+    printf '  PKGBUILD pkgver             %s\n' "$c"
+    printf '  .SRCINFO pkgver             %s\n' "$d"
+    printf '  android/pyproject.toml      %s\n' "$e"
+    if [[ "$a" != "$b" || "$a" != "$c" || "$a" != "$d" || "$a" != "$e" ]]; then
+        echo "错误: 五处版本号不一致（这正是 D-1 缺陷）。" >&2
         echo "      修复: ./scripts/release-bump.sh <版本>  且必须在打 tag 之前提交。" >&2
         return 1
     fi
-    echo "    OK: 四处版本一致 = $a"
+    echo "    OK: 五处版本一致 = $a"
 }
 
 if [[ "${1:-}" == "--check" ]]; then
@@ -69,6 +80,7 @@ echo "==> 版本 bump: $OLD -> $NEW"
 sed -i "0,/^version[[:space:]]*=.*/s//version = \"$NEW\"/" "$PYPROJECT"
 sed -i "0,/^__version__[[:space:]]*=.*/s//__version__ = \"$NEW\"/" "$INIT"
 sed -i "0,/^pkgver=.*/s//pkgver=$NEW/" "$PKGBUILD"
+sed -i "0,/^version[[:space:]]*=.*/s//version = \"$NEW\"/" "$ANDROID_PYPROJECT"
 
 if command -v makepkg >/dev/null 2>&1 && makepkg --printsrcinfo > "$SRCINFO.tmp" 2>/dev/null; then
     mv "$SRCINFO.tmp" "$SRCINFO"
