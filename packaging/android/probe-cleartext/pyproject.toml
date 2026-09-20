@@ -1,0 +1,19 @@
+[project]
+name = "bat2sh-probe-cleartext"
+version = "0.0.1"
+description = "明文 HTTP 可达性探针（targetSdk 28，与正式工程一致）"
+requires-python = ">=3.10"
+dependencies = ["flet"]
+
+[tool.flet]
+org = "io.github"
+product = "bat2shprobe"
+company = "bat2sh"
+
+[tool.flet.app]
+path = "src"
+module = "main"
+
+[tool.flet.android]
+# 与正式工程完全一致：targetSdk 28 决定了 usesCleartextTraffic 的默认值
+target_sdk_version = 28

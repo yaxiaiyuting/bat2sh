@@ -19,3 +19,9 @@ module = "main"
 # Phase A 实测结论：targetSdk 28 时 SELinux 域为 untrusted_app_27，
 # 应用私有目录内的二进制恢复 execve，子进程 fork / 管道 / 脚本全部可用。
 target_sdk_version = 28
+
+# 网络权限。注意键名是 permission（单数、表结构），**不是** permissions = [...]。
+# Flet 其实已经硬编码默认加入 INTERNET（build_base.py:1062），这里显式声明是为了
+# 防止将来 Flet 改默认值时静默丢权限（见 docs/android-api-assessment.md §4.3.1）。
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
