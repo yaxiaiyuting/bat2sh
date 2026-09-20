@@ -3,10 +3,15 @@
 > 本文面向第一次接触本仓库的开发者，用真实仓库证据梳理项目定位、目录、架构、构建、
 > 测试与发布流程。事实来源：`README.md`、`pyproject.toml`、`PKGBUILD`、`.SRCINFO`、
 > `.github/workflows/test.yml`、`python/bat2sh/` 源码与 `docs/`。
-> 当前版本为 **v2.8.1**（tag `v2.8.1`；**PS 报告诚实性修复**，patch）。
-> v2.8.1 修 PS 路径 `try/catch` 等自定义 `# TODO` 标记未计入 `todo_count` →
-> `--fail-on-todo` 静默退出 0（应 3）；全量 664 语料 defect **8 → 0**。pytest **1561**；
-> 151 语料零回归；未触 bat / 053/A1。详见 `docs/releases/v2.8.1.md`。
+> 当前版本为 **v2.9.0**（tag `v2.9.0`；**Android 版 API 修复（含并行）**，minor）。
+> v2.9.0 交付 **Android APK**（Flet + 内嵌 Termux 运行时，`targetSdk 28`）：接入 `core/api/`
+> 的 OpenAI 兼容修复链路，并给出手机端并行面板（可展开列表 / 逐 chunk 流式 / 错误隔离 /
+> 单条重试 / 聚合 diff 确认后才写盘）；**`python/bat2sh/core/` 零改动**，桌面 CLI/GUI 行为不变。
+> pytest **1571**（类 CI 空 HOME：1571 passed / 17 skipped）。详见 `docs/releases/v2.9.0.md`、
+> `docs/android-api-report.md`。**这是首个随 Release 发布的 Android 二进制产物。**
+> v2.8.1（tag `v2.8.1`）**PS 报告诚实性修复**（patch）：PS 路径 `try/catch` 等自定义 `# TODO`
+> 标记未计入 `todo_count` → `--fail-on-todo` 静默退出 0（应 3）；全量 664 语料 defect **8 → 0**；
+> pytest **1561**；151 语料零回归；未触 bat / 053/A1。详见 `docs/releases/v2.8.1.md`。
 > 随版交付 **PS 解冻只读评估**（判定：**继续冻结**）——根本障碍 = 语义（对象模型/`.NET`/CIM/注册表/远程），
 > PS strict = 0/664，硬 D 构造 41.7%，oracle（pwsh）缺失；重启触发 T1′–T4′。
 > 详见 **`docs/ps-assessment-verdict.md`**（核心）、`ps-assessment-reality.md`、`ps-assessment-history.md`、
@@ -109,8 +114,14 @@
 - v2.0.0 解析层/词法层硬化（+2 语法通过）；v2.1.0 **CFG 只读数据模型**（`core/cfg.py`，零产物变化）；
   v2.2.0 `sc` **结构化诚实 TODO**（`# TODO[SC]`）；v2.3.0 **逐项实测 + 2.x 收尾**（零代码改动）；
   v2.4.0 **goto CFG 高级可证安全子集**（冗余 goto no-op + 前向跳转不可达区间注释化）。
-- 2.x 基线（最终）：`151` 语料 / 语法 `149` / **功能完好 19** / degraded `85` / degraded TODO `897` /
-  崩溃·超时 `0` / pytest `1448` / wine `6/6`。
+- **收尾之后的维护期发布（事实补充，v2.9.0 时点）**：v2.5.0 **块栈重构 + 完整 CFG 状态机默认开启**、
+  v2.6.0 新语料验证（发现并修复 A-1）、v2.7.0 CLI 输出美化、v2.8.0 GUI 视觉优化、
+  v2.8.1 PS 报告诚实性修复、**v2.9.0 Android 版 API 修复（含并行）**。
+  即「维护模式」**不等于停更** —— 缺陷修复与文档维护照常；v2.9.0 另新增了一个**平台形态**
+  （Android APK），但**未改动 `python/bat2sh/core/`**（转换语义仍冻结）。
+- 2.x 收尾基线（**v2.3.0 时点**，非最新）：`151` 语料 / 语法 `149` / **功能完好 19** / degraded `85` /
+  degraded TODO `897` / 崩溃·超时 `0` / pytest `1448` / wine `6/6`。
+  （最新测试基线见 §2 关键事实表。）
 - **2.x 翻转清单（5）**：`for /r`→`find`、`for /f` 字符串、`net user /delete`→`userdel`（v1.11.0）+
   降级管道行括号配平、`if exist %VAR:"=%`（v2.0.0）。
 - **收尾判据**：三条件 (a) 剩余失败全有归属 ✓、(b) 无可修未修（实测）✓、(c) degraded `85` = 实测下界 ✓。
@@ -150,16 +161,17 @@
 | 项目 | 值 | 证据 |
 | --- | --- | --- |
 | 仓库 | https://github.com/yaxiaiyuting/bat2sh | `pyproject.toml`、`PKGBUILD`、`python/bat2sh/__init__.py` |
-| 当前版本 | **2.8.1**（**PS 报告诚实性修复**；patch；见 `docs/releases/v2.8.1.md`、`docs/ps-assessment-verdict.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`（已同步 2.8.1） |
+| 当前版本 | **2.9.0**（**Android 版 API 修复（含并行）**；minor；见 `docs/releases/v2.9.0.md`、`docs/android-api-report.md`） | `pyproject.toml`、`python/bat2sh/__init__.py`、`PKGBUILD`、`packaging/android/pyproject.toml`（**五处**已同步 2.9.0） |
 | 语言 | Python >= 3.12 | `pyproject.toml` `requires-python = ">=3.12"` |
 | GUI 框架 | PySide6 / Qt6（`PySide6>=6.5`） | `pyproject.toml` |
 | 许可证 | AGPL-3.0-or-later | `pyproject.toml`、`PKGBUILD`、`LICENSE` |
 | 目标系统 | CachyOS / Arch Linux（KDE/Wayland 优先） | `README.md` §3.1/§3.4 |
+| Android | **v2.9.0 起随 Release 发布 APK**（arm64-v8a；Flet + 内嵌 Termux 运行时；`targetSdk 28`；debug 签名，侧载用） | `packaging/android/`、`docs/android-api-report.md` |
 | 依赖分层 | 转换核心仅标准库；GUI 额外 PySide6 | `python/bat2sh/__init__.py` 文档串、`README.md` |
-| 测试基线 | pytest **1561 passed**（空 HOME 的 CI 等价环境：1544 passed / 17 skipped） | 2026-09-20 独立复现（Python 3.14.7） |
+| 测试基线 | pytest **1571 passed / 17 skipped**（空 HOME 的 CI 等价环境实测） | 2026-09-20 v2.9.0 发布前置检查（`release-preflight.sh`，Python 3.14.7） |
 | CI | GitHub Actions，Python 3.12 / 3.13 / 3.14 | `.github/workflows/test.yml` |
 | 入口命令 | `bat2sh`（`bat2sh.__main__:main`） | `pyproject.toml` `[project.scripts]` |
-| 已有 tag | 共 **37** 个：v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO），**v2.3.0**（2.x 收尾），**v2.4.0**（goto CFG 高级），**v2.5.0**（块栈重构 + CFG 状态机默认开启），**v2.6.0**（新语料验证 + A-1 修复），**v2.7.0**（CLI 输出美化），**v2.8.0**（GUI 视觉优化），**v2.8.1**（PS 报告诚实性修复）（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag`（37 个） |
+| 已有 tag | 共 **38** 个：v1.0.0 … v1.11.0，**v2.0.0**（解析层/词法层硬化），**v2.1.0**（CFG 只读数据模型），**v2.2.0**（sc 结构化诚实 TODO），**v2.3.0**（2.x 收尾），**v2.4.0**（goto CFG 高级），**v2.5.0**（块栈重构 + CFG 状态机默认开启），**v2.6.0**（新语料验证 + A-1 修复），**v2.7.0**（CLI 输出美化），**v2.8.0**（GUI 视觉优化），**v2.8.1**（PS 报告诚实性修复），**v2.9.0**（Android 版 API 修复（含并行））（`v1.10.0a1`/`b1`/`rc1` 为 pre-release；v1.9.1 未打 tag） | `git tag`（38 个） |
 
 ---
 
@@ -167,14 +179,19 @@
 
 ```text
 bat2sh/
-├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 2.8.1）
+├── pyproject.toml               # setuptools 打包配置 + pytest 配置（version 2.9.0）
 ├── PKGBUILD                     # Arch/CachyOS 打包脚本（makepkg -si）
 ├── .SRCINFO                     # PKGBUILD 的机读元数据（pkgver/sha256sums 同步）
 ├── bat2sh.desktop               # 桌面项（MIME 关联 x-bat / x-powershell）
 ├── bat2sh.install               # pacman 安装钩子（刷新 MIME/desktop 数据库）
 ├── install.sh                   # 免打包安装脚本（默认 ~/.local）
 ├── LICENSE                      # AGPL-3.0-or-later
-├── README.md                    # 主文档（安装/使用/规则/限制，824 行）
+├── README.md                    # 主文档（安装/使用/规则/限制，859 行）
+├── packaging/                   # 发行打包
+│   ├── android/                 #   Android APK（Flet + 内嵌 Termux 运行时；v2.9.0 起）
+│   ├── build-deb.sh             #   Debian/Ubuntu .deb
+│   ├── build-rpm.sh             #   RPM
+│   └── bat2sh.spec              #   RPM spec
 ├── data/mime/bat2sh.xml         # 自定义 MIME 类型定义
 ├── .github/workflows/test.yml   # CI：3.12/3.13/3.14 矩阵跑 pytest -q
 ├── scripts/
@@ -285,6 +302,13 @@ core/api/fixer.py     M1/M3/M4 三类 TODO 标记扫描 + 发送边界构造 + d
 core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并发 + 从后往前合并（bash -n 可注入）
 ```
 
+**Android 复用（v2.9.0）**：这四个模块在 Android 版**原样复用、`core` 零改动**。
+Flet 侧只做三件事：① 注入 `XDG_CONFIG_HOME`，使 `api.json` 落到应用私有目录；
+② 注入 **Termux 版 `syntax_checker`**（core 默认实现在 `which("bash")` 为 `None` 时
+`return None` ＝**静默判通过**，Android 上会放过坏合并，故「未执行」一律判失败）；
+③ 把 `on_event` 的 chunk 经队列搬到 Flet 事件循环里批量 `page.update()`。
+详见 `docs/android-api-report.md`。
+
 ---
 
 ## 5. 核心子系统说明
@@ -367,6 +391,10 @@ core/api/parallel.py  多选并行编排：可收缩限流器 + 429 退避降并
   不提供"全部同意"，`--yes`/`--force` 不可绕过，非 TTY 直接拒绝。
 - **应用门槛**：建议必须通过整脚本 `bash -n` 校验 + unified diff 确认后才应用；
   失败保留原 TODO；全部结束一次性写盘，中断则丢弃。
+- **Android 侧（v2.9.0）**：同一子系统在 Android 版可用。发送前弹 `AlertDialog` 确认
+  （「将把 N 条 TODO 发送到 `<endpoint>`」，**不记忆**）；并行面板按**方案 B（可展开列表）**
+  呈现：折叠行只显示状态，流式正文**只在展开项渲染**；一条失败不阻塞其余，
+  失败条目可就地「重试这一条」。详见 `docs/android-api-report.md`。
 
 ### 5.7 goto 控制流形态台账（`core/control_flow.py`，C4 / v1.10.0b1）
 
@@ -540,10 +568,12 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 
 0. **tag 前必跑 `./scripts/release-preflight.sh`**（v1.8.1 起）：
    在**空 `HOME` 的类 CI 环境**下跑 pytest，复现 CI「无外部语料/配置」条件，
-   并要求工作区干净，且**校验四处版本号一致**（D-1 门，见 `docs/release-process.md`）。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
+   并要求工作区干净，且**校验五处版本号一致**（D-1 门，见 `docs/release-process.md`）。**背景事故**：v1.8.1 有测试依赖仓库外的 `~/下载/非常批处理/`，
    本地全绿但 CI 红，tag 打完后才发现。该脚本用于杜绝此类「本地绿、tag 后红」。
-1. **版本号四处同步（必须在 tag 之前完成，D-1 修复）**：`pyproject.toml` 的 `version`、
-   `python/bat2sh/__init__.py` 的 `__version__`、`PKGBUILD` 的 `pkgver`、`.SRCINFO` 的 `pkgver`
+1. **版本号五处同步（必须在 tag 之前完成，D-1 修复）**：`pyproject.toml` 的 `version`、
+   `python/bat2sh/__init__.py` 的 `__version__`、`PKGBUILD` 的 `pkgver`、`.SRCINFO` 的 `pkgver`、
+   **`packaging/android/pyproject.toml` 的 `version`**（v2.9.0 起纳入 —— 它决定 APK 的
+   `versionName`，不同步就是 D-1 翻版：tag 说 A 而发布出去的 APK 自称 B）
    必须写入**同一次 bump 提交**。用 `./scripts/release-bump.sh <版本>` 一次完成，
    并由 `release-preflight.sh` 第 2 步强制校验。
    **pre-release 纪律**：alpha/beta/rc 同样是发布——tag 打在 bump commit、CI 全绿、release notes 完整；
@@ -558,10 +588,17 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
    完整顺序与检查清单见 **`docs/release-process.md`**。
 3. **打 tag**：tag 打在版本 bump commit 上（`v1.6.0` → `030ab72`，`v1.7.0` → `7864015`，
    `v1.8.0` → `81a50a3`）。
-4. **发布说明**：在 `docs/releases/` 下新增 `<版本>.md`（现有 v1.3.0 … v1.8.1），
+4. **发布说明**：在 `docs/releases/` 下新增 `<版本>.md`（现有 v1.3.0 … v2.9.0），
+   标题固定 `## bat2sh vX.Y.Z`，描述性文字放 `性质` 引用块，结尾必须有 `**Full Changelog**` 行；
    记录 New features / Fixes / 验证（pytest 数、CI 结果、`bat2sh --version` 输出）。
 5. **CI 门槛**：GitHub Actions 在 Python 3.12 / 3.13 / 3.14 上运行 `pytest -q`，
    全绿方可发布。
+6. **发布二进制资产（D-2 修复）**：`./scripts/release-assets.sh <版本>` 构建并上传
+   sdist（`bat2sh-<ver>.tar.gz`）、`.deb`、`.rpm`、Arch 包（`--dry-run` 可先预览）。
+   **v2.9.0 起另有 Android APK**：先 `cd packaging/android && ./build.sh arm64-v8a`
+   （⚠️ `flet build` 会清空 `build/apk/` —— **交付的那个 ABI 必须最后构建**，
+   否则会被后续构建删掉），再 `gh release upload v<版本> <apk> --clobber`。
+   上传后可用 `gh release view --json assets` 的 `digest` 字段核对 `sha256`。
 
 ### 8.1 会话并发写入防护（r2 新增，会话级纪律）
 
