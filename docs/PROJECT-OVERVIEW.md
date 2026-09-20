@@ -619,6 +619,12 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 配套建议：长研究会话可在开始时把 HEAD 落盘到 `/tmp/<session>/head.lock`，
 并在每次 commit 前后各校验一次（参考 `docs/v1.x-roadmap-research.md` §7 纪律 7）。
 
+> ⚠️ **纪律编号的核实状态（2026-09-21）**：本项目**没有**统一的纪律编号注册表 ——
+> 编号在不同时期被**重新编排过至少三次**（版本报告内联式 / `v1.x-roadmap-research.md` §7 的
+> 7 条清单 / 各会话任务书自带编号），因此「纪律 N」在不同文档里可能指向**不同概念**。
+> 逐条核实记录（22 条出处、8 条编号冲突、3 个缺失编号 11/15/21）见 **`docs/DISCIPLINES.md`**。
+> **引用「纪律 N」前请先核对，勿默认编号全局唯一。**
+
 ---
 
 ## 9. 文档索引（`docs/`）
@@ -626,6 +632,7 @@ bat2sh --cli a.bat --fix-todos              # 交互式 API 修复 TODO
 | 文件 | 一句话说明 |
 | --- | --- |
 | `docs/PROJECT-OVERVIEW.md` | 本文：项目总览与新人地图 |
+| `docs/DISCIPLINES.md` | **纪律 1–22 核实记录**：逐条出处、编号冲突（8 条）、缺失编号（11/15/21）、三套并存编号体系 |
 | `docs/api-fix-design.md` | v1.4 API 修复 TODO 的设计诊断稿（只读，含配置/发送边界/接口契约） |
 | `docs/pipeline-patterns.md` | v1.3 管道模式挖掘报告：真实管道行频次统计与候选清单 |
 | `docs/real-corpus-report.md` | v1.3 真实语料覆盖率体检报告（37 脚本，归一化描述） |
