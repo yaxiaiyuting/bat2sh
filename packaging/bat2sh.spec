@@ -41,6 +41,8 @@ install -Dm644 %{repo}/data/mime/bat2sh.xml          %{buildroot}%{_datadir}/mim
 install -Dm644 %{repo}/python/bat2sh/data/bat2sh.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/bat2sh.svg
 install -Dm644 %{repo}/README.md                     %{buildroot}%{_datadir}/doc/bat2sh/README.md
 install -Dm644 %{repo}/LICENSE                       %{buildroot}%{_datadir}/doc/bat2sh/LICENSE
+# NOTICE 持有版权人与应用声明（LICENSE 为纯 AGPL-3.0 官方正文），两者必须同装
+install -Dm644 %{repo}/NOTICE                        %{buildroot}%{_datadir}/doc/bat2sh/NOTICE
 cp -a %{repo}/examples/. %{buildroot}%{_datadir}/doc/bat2sh/examples/
 
 %post
@@ -61,6 +63,7 @@ fi
 
 %files
 %license %{_datadir}/doc/bat2sh/LICENSE
+%license %{_datadir}/doc/bat2sh/NOTICE
 %{_bindir}/bat2sh
 %{bat2shlib}/bat2sh
 %{_datadir}/applications/bat2sh.desktop

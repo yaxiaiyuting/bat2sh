@@ -40,7 +40,19 @@ install -Dm755 scripts/bat2sh-launcher        "$STAGE/usr/bin/$PKG"
 install -Dm644 bat2sh.desktop                 "$STAGE/usr/share/applications/$PKG.desktop"
 install -Dm644 data/mime/bat2sh.xml           "$STAGE/usr/share/mime/packages/$PKG.xml"
 install -Dm644 python/bat2sh/data/bat2sh.svg  "$STAGE/usr/share/icons/hicolor/scalable/apps/$PKG.svg"
-install -Dm644 LICENSE                        "$STAGE/usr/share/doc/$PKG/copyright"
+# Debian policy：copyright 文件必须**同时**含版权声明与分发许可证。
+#   NOTICE  —— 版权人（Copyright (C) 2026 yaxiaiyuting）+ FSF 推荐 notice 块
+#   LICENSE —— AGPL-3.0 官方正文（**不含**版权人：为让 GitHub SPDX matcher 能识别，
+#              该文件必须只含标准许可证文本，见 docs/discoverability-report.md §4）
+# 故此处两者拼接，缺一不可。
+{
+  cat NOTICE
+  echo ""
+  echo "---"
+  echo ""
+  cat LICENSE
+} > "$STAGE/usr/share/doc/$PKG/copyright"
+chmod 644 "$STAGE/usr/share/doc/$PKG/copyright"
 install -Dm644 README.md                      "$STAGE/usr/share/doc/$PKG/README.md"
 cp -a examples/. "$STAGE/usr/share/doc/$PKG/examples/"
 

@@ -67,7 +67,8 @@ bat2sh/
 ├── install.sh                   # 免打包安装脚本（默认 ~/.local）
 ├── bat2sh.desktop               # 桌面项
 ├── pyproject.toml               # pip/setuptools 打包配置
-├── LICENSE
+├── LICENSE                      # AGPL-3.0 官方正文（纯许可证文本）
+├── NOTICE                       # 版权与许可声明（版权人 + FSF notice 块）
 ├── README.md
 ├── .github/
 │   └── workflows/test.yml       # CI：多版本 Python 运行 pytest
