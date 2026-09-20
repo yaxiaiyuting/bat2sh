@@ -1,9 +1,19 @@
-# 仓库根 .gitignore 里的 "src/" 会连坐 packaging/android/**/src/，
-# 这里把它重新纳入（嵌套 .gitignore 优先级更高）。
+# 仓库根 .gitignore 的 "src/" 规则会连坐 packaging/android/**/src/，
+# 这里把它重新纳入（嵌套 .gitignore 的优先级更高）。
 !src/
 !src/**
 
-# 但 Phase 1 PoC 的二进制资产不入库（合计 ~72 MB）；
-# 用 proot-poc/fetch-assets.sh 按需拉取，sha256 见 docs/android-poc-report.md。
+# ---- 生成物与二进制资产，不入库 ----
+# core 的同步产物：单一事实来源是 python/bat2sh/，用 ./sync-core.sh 生成
+src/bat2sh/
+# Termux bootstrap（每个 ABI 约 32 MB）
+src/assets/*.zip
+probe-target28/src/assets/*.zip
+# proot PoC 的资产
 proot-poc/src/assets/
-proot-poc/src/assets/**
+# 构建产物
+build/
+
+# !src/** 会连 __pycache__ 一起放进来，这里再排除一次
+__pycache__/
+*.pyc

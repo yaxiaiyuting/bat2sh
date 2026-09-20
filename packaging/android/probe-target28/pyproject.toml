@@ -1,0 +1,20 @@
+[project]
+name = "bat2sh-probe-target28"
+version = "0.1.0"
+description = "Phase A probe: targetSdk 28 + Termux runtime (no proot)"
+requires-python = ">=3.10"
+dependencies = ["flet"]
+
+[tool.flet]
+org = "org.example"
+product = "target28probe"
+company = "bat2sh-poc"
+copyright = "PoC only, not for distribution"
+
+[tool.flet.app]
+path = "src"
+module = "main"
+
+# Phase A 的核心变量：降 targetSdk 到 28，恢复应用私有目录内二进制的 execve。
+[tool.flet.android]
+target_sdk_version = 28
