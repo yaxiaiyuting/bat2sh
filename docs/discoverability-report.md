@@ -15,12 +15,12 @@
 | 3 | GitHub homepage | ✅ 已生效 |
 | 4 | README 首屏 + TOC | ✅ 已改（独立 commit） |
 | 5 | PROJECT-OVERVIEW 更新至 v2.9.0 | ✅ 已改（独立 commit） |
-| 6 | **LICENSE 修正** | ✅ **已修正**（2026-09-21，commit `1222d44`）—— 上轮因实际缺陷与任务书预设不符而暂停；本轮用户确认后按诊断执行：删除 16–100 行的 85 行重复残片，官方正文与版权声明一字未动。详见 §4 |
+| 6 | **LICENSE 修正** | ✅ **已完成（两步）**，GitHub 已识别为 **`AGPL-3.0`**。① `1222d44` 删除 85 行重复残片；② `6ef83a1` 把 15 行应用声明移至 `NOTICE`，`LICENSE` 只留官方正文（661 行，逐字节等于 FSF 文本）。详见 §4 |
 | 7 | 搜索可见性复测 | ✅ **4 个目标查询全部 0 → 1 命中** |
 
 **一句话**：元数据（description / topics / homepage）改动**立即生效** ——
 优化前 bat2sh 在 4 个目标英文查询下**全部 0 命中**，优化后**全部命中**。
-README 与 PROJECT-OVERVIEW 已同步；**LICENSE 重复残片已修正**（GitHub 侧识别待其异步索引）。
+README 与 PROJECT-OVERVIEW 已同步；**LICENSE 已修正，GitHub 许可证识别由 `NOASSERTION` → `AGPL-3.0`**。
 
 ---
 
@@ -119,18 +119,42 @@ H2 标题数: 12（含新增的「目录」）  TOC 条目数: 11
 
 ---
 
-## 4. LICENSE 修正（上轮暂停 → 本轮已执行）
+## 4. LICENSE 修正（两步完成 → GitHub 已识别 AGPL-3.0）
 
-> **状态更新（2026-09-21，commit `1222d44`）**：用户已确认「立即修」。
-> 本轮按下方 §4.4 的建议修法执行，并**在修改前重新做了逐字节复核**（防凭记忆改）。
-> 执行结果：`LICENSE` 760 → **676 行**（纯删除 84 行、零新增），
-> 第 16 行起与 FSF 官方 `agpl-3.0.txt`（661 行）**逐行完全一致**；
-> 第 1–15 行应用声明逐字节保留；文件权限 644 不变。
-> 核验：`tail -n +16 LICENSE | diff - /tmp/agpl-official.txt` → 无差异；
-> 旧行 101–760 与新行 17–676 逐行一致（官方正文未被触碰）；
-> 被删区间不含任何官方正文独有标记。
-> **GitHub 侧许可证识别仍为 `NOASSERTION`** —— licensee 是异步索引，
-> 按计划 3–7 天后复测。以下为**上轮（暂停时）的原始诊断**，保留备查。
+> ### ✅ 最终状态（2026-09-21）
+>
+> | 步骤 | commit | 动作 | GitHub 识别 |
+> | :--- | :--- | :--- | :--- |
+> | ① | `1222d44` | 删除 LICENSE 中 85 行 AGPL **重复残片**（760 → 676 行） | 仍 `NOASSERTION` |
+> | ② | `6ef83a1` | **应用声明移至 `NOTICE`**，LICENSE 只留官方正文（676 → **661 行**） | **`AGPL-3.0` ✅** |
+>
+> **关键结论**：`NOASSERTION` 的**真正原因不是残片，而是 LICENSE 开头那 15 行应用声明** ——
+> GitHub SPDX matcher 要求 LICENSE 文件只含标准许可证文本。修正后**推送即刻生效**
+> （并非此前推测的「异步索引延迟」）。
+>
+> 最终产物：`LICENSE` 661 行 **逐字节等于** FSF `agpl-3.0.txt`
+> （sha256 `0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0`，34,523 字节）；
+> `NOTICE` 20 行，原 15 行声明逐行完整保留。
+>
+> ### ⚠️ 已知副作用（本次未处理，**待用户决定**）
+>
+> 移走声明后，`LICENSE` 不再包含版权人（`Copyright (C) 2026 yaxiaiyuting`）。
+> 三处打包脚本直接使用 `LICENSE`，因此受影响：
+>
+> | 位置 | 现状 | 影响 |
+> | :--- | :--- | :--- |
+> | `packaging/build-deb.sh:43` | 把 `LICENSE` 装成 Debian 的 **`copyright`** 文件 | **Debian policy 要求 copyright 同时含版权声明与许可证** —— 现在缺版权人 |
+> | `PKGBUILD:28` | 只装 `LICENSE` 到 `/usr/share/licenses/` | 未随包提供 `NOTICE`（可选） |
+> | `packaging/bat2sh.spec:43` | 只装 `LICENSE` | 同上 |
+> | `README.md:70` | 目录树列出 `LICENSE` | 未列 `NOTICE` |
+>
+> **最小修法**（3 处打包 + 1 处 README，均一行）：在安装 `LICENSE` 的同一位置一并安装 `NOTICE`；
+> `build-deb.sh` 的 `copyright` 改为 `NOTICE` + `LICENSE` 拼接（Debian 惯例）。
+> **本 session 未执行**（不在授权交付物清单内）。
+>
+> ---
+>
+> 以下为**上轮（暂停时）的原始诊断**，保留备查。
 
 ### 4.1 为什么暂停
 
