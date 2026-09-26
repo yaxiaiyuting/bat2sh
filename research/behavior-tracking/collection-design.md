@@ -70,49 +70,72 @@ qemu-system-x86_64 -accel kvm -cpu host -m 512 -kernel /boot/vmlinuz-linux-cachy
 | Windows + TCG（放弃 KVM） | ❌ **不实用** —— 本实验最小的 Linux guest 已慢 11 倍；完整 Windows 10 启动/执行会慢到无法接受 |
 | Windows + KVM + 其他机制 | ✅ 必须走 **guest 侧插桩**（§3.6、§7） |
 
-**结论：QEMU TCG 插件路线对本项目不可用。** 这一条同时**否决了基于同一机制的第三方框架**
-（包括任务书提到的「Novgorod State University QEMU 插件框架」，若其确实基于 TCG 插件 API）。
+**结论：QEMU TCG 插件路线对本项目不可用。** 这一条同时**否决了基于同一机制的第三方框架** ——
+**已确认**任务书提到的「Novgorod State University QEMU 插件框架」（§3.4）正是 **TCG/翻译块**机制，故一并出局。
 
-### 3.2 Cuckoo Sandbox / CAPEv2
+### 3.2 Cuckoo Sandbox / CAPEv2 【已复核】
 
 | 项 | 评估 |
 | :--- | :--- |
-| Cuckoo Sandbox | **已停止维护**（原项目多年无更新），被 CAPEv2 取代。不建议作为基础。〔知识，待复核〕 |
-| CAPEv2 | 活跃维护的社区 fork，是当前开源 Windows 动态分析的事实标准，**功能上远超本项目需求**。 |
-| 与本项目的关系 | 它解决的是**恶意样本分析**（反沙箱、持久化、C2 提取）；我们要的是**行为真值**（脚本做了什么 I/O）。**目标不同，但底层机制高度重叠**。 |
-| 可直接用？ | ⚠️ **不建议整体引入**。它是重量级编排系统（数据库、结果服务器、Web UI、多 VM 调度），引入成本远高于 PoC 收益。 |
-| 值得借鉴的部分 | **它的 guest 侧设计**：CAPEv2 在 guest 内注入 monitor DLL 挂钩 NT API，这正是绕过 §3.1 TCG 墙的**正确机制**（guest 侧插桩而非宿主侧插桩）。**这是 L1 层的首选借鉴对象。** |
-| 许可 | GPL 系（CAPEv2 为 GPL-3.0）〔知识，待复核〕。用作**参考设计**不受影响；若**链接/分发**则需评估与 AGPL-3.0 的兼容性。 |
+| **Cuckoo Sandbox** | ❌ **确认已死**。README 原文：*"Cuckoo Sandbox 2.x is currently unmaintained."* 最后提交 **2021-04-26**，最后发布 **2.0.7（2019-06-19）**。GPLv3。**不作候选。** |
+| **CAPEv2** | ✅ **确认活跃**。最后提交 **2026-09-23**。当前开源 Windows 动态分析的事实标准。 |
+| **guest 侧机制** | 独立仓库 **`capemon`**（最后提交 **2026-09-25**，同样活跃）：**注入 guest 进程的 DLL，挂钩 Win32 / ntdll API 层**，把行为上报给宿主 **result server**。 |
+| **超管支持** | **KVM 是官方推荐**：`installer/kvm-qemu.sh` 固定 libvirt 11.1.0，用 qcow2 linked-clone 快照。**与本项目宿主栈同构**。 |
+| 与本项目的关系 | 它解决**恶意样本分析**（反沙箱、持久化、C2 提取）；我们要**行为真值**（脚本做了什么 I/O）。**目标不同，但底层机制高度重叠**。 |
+| 可直接用？ | ⚠️ **不建议整体引入**（重量级编排：数据库、result server、Web UI、多 VM 调度）。 |
+| **可抽出单独用？** | ⚠️ **仅部分**：DLL 能独立编译，但**宿主侧 result server / 管道协议必须自己重实现**。 |
+| 许可 | **GPLv3**（CAPEv2 与 capemon 均为）。参考设计不受影响；**链接/分发**需评估与 AGPL-3.0 兼容性。 |
 
-> **结论：不作为依赖引入，作为 L1 层的架构参考。**
+> **结论：不作依赖引入；作为 L1 层的架构参考。它挂钩的正是 API 层 —— 覆盖 L1 ✅ / L2 部分 / L3 ❌。**
 
-### 3.3 "Crucible"（任务书提到的「五信号监控」）
+### 3.3 "Crucible"（「五信号监控」）—— ⚠️ **本条曾被误判，现更正**
 
-**未能证实。** 本 session 未能找到名为 "Crucible"、以「五信号监控」为特征的沙箱/行为分析项目。〔知识，待复核〕
+**该引用确实存在。** [AshwinNHacker/Crucible](https://github.com/AshwinNHacker/Crucible) 的 GitHub 描述原文包含
+*"VM execution, **five-signal behavioral monitoring**, YARA detection…"*。
 
-已知同名物是 Trail of Bits 的 **Crucible**（Rust 模糊测试框架），与「五信号监控」无关。
-
-> **处置：不纳入设计。** 若用户能提供出处（论文/仓库链接），下一 session 复核后重新评估。
-> **本 session 不基于该未证实引用做任何设计决策。**
-
-### 3.4 "Novgorod State University QEMU 插件框架"
-
-**未能证实。** 未找到该名称的公开框架。〔知识，待复核〕
-
-> **处置：不纳入设计。** 且如 §3.1 所示，**任何基于 QEMU TCG 插件 API 的方案在本项目场景下都不可用**，
-> 因此即使该框架存在，**也需先回答"它是否支持 KVM"**，否则同样出局。
-
-### 3.5 VMI（虚拟机自省）
-
-LibVMI / DRAKVUF / Volatility 系：从**宿主机外部**读取 guest 内存，**无需 guest 侧 agent**，理论上最干净。
-
-| 优点 | 缺点 |
+| 项 | 事实 |
 | :--- | :--- |
-| 无 guest 侧足迹（脚本无法察觉被观测） | 需要 **guest 内核符号/调试信息**，Windows 10 支持脆弱 |
-| 抗规避 | DRAKVUF 主要面向 **Xen**；KVM 支持有限且需特定 QEMU 版本〔知识，待复核〕 |
-| 可覆盖 L1+L2 | **工程量最大**，与"最小 PoC"目标冲突 |
+| 提交历史 | **仅 1 个提交（2026-07-17）** |
+| README 自述 | *"This is a **portfolio/demonstration project**"* |
+| 附带 VM 镜像 / 可用 hook 会话 | ❌ 均无 |
+| 许可 | MIT |
+| **可复用性** | ❌ **不可复用** —— 作品集演示，非可用基础设施 |
 
-> **结论：本 session 不采用；留作 L1/L2 的长期备选。**
+> **⚠️ 更正**：初版本文档与 `poc-verdict.md` 曾记为「**未能证实存在**」。**该结论是错的**，此处更正。
+> **处置不变：不纳入设计** —— 理由从「不存在」改为「**存在，但仅 1 个提交、自述为演示项目、无可复用产物**」。
+>
+> 附带发现一个**同名但完全不同**的项目：[Adamkadaban/crucible](https://github.com/Adamkadaban/crucible)
+> —— MIT，**QEMU/KVM 上的 Go mTLS guest agent**，最后提交 **2026-06-26**。见 §7。
+
+### 3.4 "Novgorod State University QEMU 插件框架" —— ⚠️ **本条曾被误判，现更正**
+
+**该框架确实存在（2015 年论文）。**
+
+| 项 | 事实 |
+| :--- | :--- |
+| 文献 | Fursova N.I., Dovgalyuk P.M., Vasiliev I.A., *"Using ABI for Virtual Machines Introspection"*（«Использование ABI для интроспекции виртуальных машин»） |
+| 出处 | Trudy ISP RAN **27(6), 2015, pp.159–168**，DOI `10.15514/ISPRAS-2015-27(6)-11` |
+| 机构 | **Yaroslav-the-Wise Novgorod State University**（大诺夫哥罗德） |
+| 内容 | 基于 QEMU 的可插拔插桩框架，监控每条指令、把 syscall 分派给插件；已实现**文件操作与进程监控**，并有 **API 函数监控原型** |
+| 公开仓库 | ❌ **论文中未给出任何 URL** |
+| **可用性** | ❌ **为零** —— 2015 年成果；且**基于动态翻译 / 翻译块（TB）** → 与 §3.1 的墙**同源**，**KVM 下失效** |
+
+> **⚠️ 更正**：初版记为「未能证实存在」。**该结论是错的**，此处更正。**处置不变：不纳入设计。**
+>
+> **重要区分**：这是**独立、更早的** QEMU 扩展，**不是**上游官方 TCG 插件 API —— 两者不要混为一谈。
+> 但两者**同样受限于 TCG**，因此**同样出局**（§3.1 的墙对二者一体生效）。
+
+### 3.5 VMI（虚拟机自省）—— ❌ **确认对 KVM 不可用**
+
+| 工具 | 事实 | 判定 |
+| :--- | :--- | :--- |
+| **LibVMI** | 最后发布 **v0.14.0（2020-12-29）**。README 原文：*"Memory events require hypervisor support and are currently only available with **Xen**."* KVM 驱动需**打过补丁的 QEMU**，而仓库内 `tools/qemu-kvm-patch/` **仅到 QEMU v4.1.0（2019）** | ❌ **死路** |
+| **DRAKVUF** | **基于 Xen**；要求 **Intel VT-x + EPT**，**不支持 AMD**；支持 guest 仅 Win7/8 与 **Win10 x64（build ≥2004），无 Windows 11**。引擎最后发布 **1.0（2022-12-29）** | ❌ **双重不可用** |
+| DRAKVUF Sandbox | 仍在维护（v0.21.0，2026-08-19），但其"支持 KVM"实为**嵌套虚拟化**（Xen 跑在 KVM 里），**不是 KVM 自省** | ❌ 不适用 |
+
+> **⚠️ 与本机直接相关**：本宿主是 **AMD**（CPU `svm`，模块 `kvm_amd`）。
+> DRAKVUF 要求 **Intel VT-x/EPT** → **在本机连前提都不成立**。
+> 加之 Windows 11 不被支持（本 session 采用的正是 Win11）→ **VMI 不是"备选"，是整体出局。**
 
 ### 3.6 QEMU Guest Agent（QGA）—— ✅ **本 session 选用**
 
@@ -185,17 +208,27 @@ LibVMI / DRAKVUF / Volatility 系：从**宿主机外部**读取 guest 内存，
 > **静默截断是本方案的第二个陷阱**：输出超限时 QGA **不报错**，只是截断并置 `*-truncated`。
 > **不检查该标志，指纹会静默丢失输出**，且丢失方式不可预测。→ 指纹中**必须记录**这两个布尔值。
 
+**上限已定位到源码**：`GUEST_EXEC_MAX_OUTPUT` = **每流 16 MiB**（`qga/commands.c`）。
+对本项目的 `.bat` 样本来说 16 MiB 极宽裕，但**仍必须检查标志** —— 截断是静默的，不能靠"应该够用"来假设。
+
+> **⚠️ 第三条陷阱：stdout/stderr 的「交错顺序」不可恢复。**
+> `merged` 模式在文档中标注 *"Not effective on windows guests"*，且**在 `CONFIG_WIN32` 下被条件编译排除**。
+> 因此 Windows guest 上**只能拿到分离的两条流**，**它们真实的时间交错顺序永久丢失**。
+> → 指纹 schema 中 `stdout` / `stderr` 是**两个独立字段**，**不承诺**跨流顺序（`collection-design.md` §5）。
+> 若未来需要精确交错，必须走 guest 侧插桩（§7）。
+
 ### 4.3 文件系统差分（§3.6 缺口的解法）
 
 因 QGA **无目录列举命令**，差分必须在 guest 内生成清单。两种做法：
 
 | 方案 | 命令 | 评价 |
 | :--- | :--- | :--- |
-| **D1（推荐）** | `powershell -NoProfile -Command "Get-ChildItem -Recurse -Force \| Select FullName,Length,LastWriteTime \| ConvertTo-Json"` | **结构化 JSON**，**不受系统语言影响**。Win10 LTSC 自带 PS 5.1 |
-| D2 | `cmd /c dir /s /b /a` | 简单，但**输出是本地化文本**（中文 Windows → 中文表头），解析脆弱，且**无大小/时间** |
+| **D1（推荐）** | `powershell -NoProfile -Command "Get-ChildItem -Recurse -Force \| Select FullName,Length,LastWriteTime,@{n='Hash';e={(Get-FileHash $_.FullName -Algorithm SHA256).Hash}} \| ConvertTo-Json"` | **结构化 JSON**，**不受系统语言影响**；含**内容哈希** → 可检出「同内容覆写」以外的任何内容变化。Windows 自带 PS 5.1 |
+| D2 | `cmd /c dir /s /b /a` | 简单，但**输出是本地化文本**（中文 Windows → 中文表头），解析脆弱，且**无大小/时间/哈希** |
 
 > **选 D1。** 理由：**被测脚本是 cmd/bat，但采集工具不必是**。
-> 用 PowerShell 产出 JSON 可以**彻底规避本地化文本解析**这个长期维护陷阱。
+> 用 PowerShell 产出 JSON 可以**彻底规避本地化文本解析**这个长期维护陷阱，
+> 并顺带拿到 **SHA256 内容哈希**（`Get-FileHash`）—— 这是 `length` 之外更强的变化判据。
 
 **差分的前置条件**：先 `guest-fsfreeze-freeze` 再生成清单、`guest-fsfreeze-thaw` 后执行，
 保证清单反映**落盘状态**而非 in-flight 缓存。参照实现：先 freeze → 清单 → thaw → 执行 → freeze → 清单 → thaw。
@@ -314,18 +347,19 @@ virsh --connect qemu:///system snapshot-revert win-behavior clean   # 每个样�
 
 ## 7. 下一 session（L1 / L2）的可选路线
 
-按**性价比排序**（均为绕过 §3.1 TCG 墙的 guest 侧方案）：
+按**性价比排序**（除 0 外均为绕过 §3.1 TCG 墙的 guest 侧方案）：
 
 | 优先级 | 路线 | 覆盖 | 成本 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
+| **0** | **[Adamkadaban/crucible](https://github.com/Adamkadaban/crucible)** —— QEMU/KVM 上的 Go mTLS guest agent | L3（现成） | **低** | MIT，最后提交 **2026-06-26**。`POST /exec` 直接返回 `exitCode + stdoutBase64 + stderrBase64 + timedOut + durationMs + truncated`，另有 `/upload`、`/download`、`/inspect`。**是为 L3 量身定做的采集器** —— 值得评估是否直接替换 §4 的 QGA 手写流程 |
 | **1** | **NTFS last-access + 对象访问审计**（`fsutil behavior set disablelastaccess 0`、`auditpol`） | L2（读操作） | **低** —— 配置 + 解析事件日志，**无需内核代码** | **直接补上 §4.3 最大盲区**，是当前方案最自然的延伸 |
 | **2** | **注册表差分 / 进程差分** | L2 近似 | 低 | 复用 L3 的清单-差分框架，只换清单生成器 |
 | **3** | **ETW（Windows 事件追踪）** | L1/L2 | 中 | 系统自带、无须注入；`Microsoft-Windows-Kernel-File` provider 可给文件 I/O |
-| **4** | **CAPEv2 的 monitor DLL 思路**（guest 侧 NT API hook） | L1 | 高 | **架构上正确**（§3.2），但工程量大 |
-| **5** | VMI（LibVMI/DRAKVUF） | L1+L2 | 最高 | 抗规避但 Windows 10 支持脆弱 |
+| **4** | **CAPEv2 的 `capemon`**（guest 侧 Win32/ntdll API hook DLL） | L1 | 高 | **架构上正确**（§3.2）；但需自己重实现宿主侧 result-server 协议 |
+| **5** | VMI（LibVMI/DRAKVUF） | — | — | ❌ **已确认出局**，非备选（§3.5） |
 
-> **建议**：下一 session 从**优先级 1** 开始。它用**纯配置**补上最大盲区，
-> 且**复用本 session 已建立的清单-差分框架**，不引入新的架构风险。
+> **建议**：下一 session 先花少量时间**评估优先级 0**（成熟 L3 采集器，可能省掉 §4 的全部手写工作），
+> 再进入**优先级 1**（纯配置补上最大盲区）。两者不冲突。
 
 ## 8. 结论
 
@@ -333,10 +367,17 @@ virsh --connect qemu:///system snapshot-revert win-behavior clean   # 每个样�
 | :--- | :--- |
 | 三层模型是否成立？ | ✅ 成立，且**成本差异巨大** —— 必须先做 L3 |
 | QEMU TCG 插件可用？ | ❌ **实测否决**（KVM 下静默失效，§3.1） |
-| 任务书提到的 Crucible / Novgorod 框架？ | ❌ **未能证实**，不纳入设计（§3.3、§3.4） |
-| Cuckoo / CAPEv2？ | ⚠️ 不整体引入；**借鉴其 guest 侧插桩思路**用于 L1（§3.2） |
-| 最小 PoC 用什么？ | ✅ **QGA `guest-exec` + PowerShell 清单差分**（§4） |
-| 最大风险？ | ⚠️ **静默失败**：KVM 插件空转、输出截断、净差分盲区 —— 三者都表现为「看起来正常」 |
+| 任务书提到的 Crucible？ | ⚠️ **存在但不可复用** —— 1 个提交的作品集演示项目（§3.3，**已更正初版"未能证实"的误判**） |
+| 任务书提到的 Novgorod 框架？ | ⚠️ **存在但不可用** —— 2015 年论文，TCG/翻译块机制，KVM 下失效；无公开仓库（§3.4，**已更正**） |
+| Cuckoo？ | ❌ **确认已死**（最后提交 2021-04-26） |
+| CAPEv2？ | ✅ 活跃（2026-09-23），KVM 为官方推荐；不整体引入，**其 `capemon` 是 L1 的架构参考**（§3.2） |
+| VMI？ | ❌ **确认出局** —— 本机是 AMD，DRAKVUF 需 Intel VT-x/EPT；LibVMI 的 KVM 补丁止于 2019（§3.5） |
+| 最小 PoC 用什么？ | ✅ **QGA `guest-exec` + PowerShell 清单差分**（§4）—— 调研确认这是 L3 的正确最小工具 |
+| 最大风险？ | ⚠️ **静默失败**：KVM 插件空转、输出截断、跨流顺序丢失、净差分盲区 —— 四者都表现为「看起来正常」 |
 
-> **本设计最重要的产出不是流程图，而是三个"沉默陷阱"的清单**（§3.1、§4.2、§4.3）。
+> **本设计最重要的产出不是流程图，而是四个"沉默陷阱"的清单**（§3.1、§4.2 ×2、§4.3）。
 > 研究基础设施的失败模式几乎总是"安静地给出不完整的数据"。
+>
+> **本文件经过一次实证更正**：§3.3 与 §3.4 的两个引用**初版误判为"不存在"，实际存在**。
+> 更正后**处置不变**（仍不采用），但**理由不同** —— 这个区别对后续决策很重要：
+> 「不存在」意味着可能还有别的同类工具；「存在但不可复用」意味着**这条路已经走过了，不必重走**。

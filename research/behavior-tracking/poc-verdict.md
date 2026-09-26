@@ -59,17 +59,29 @@
 | **净差分看不到读操作与瞬时副作用** | 【实证】wine 预验证复现（`b.txt` 建后即删 → 差分中完全消失） |
 | **样本本身正确**（P1 退出码 7、P2 差分符合预期） | 【实证】wine 预验证 —— **使后续失败可归因于通路而非样本** |
 
-## 4. ❌ 本 session 否决 / 未能证实
+## 4. ❌ 本 session 否决（含一次**自我更正**）
 
 | 项 | 结论 |
 | :--- | :--- |
 | **QEMU TCG 插件框架** | ❌ **实测否决** —— KVM 下完全失效；放弃 KVM 用 TCG 则慢到不可用（最小 Linux guest 已慢 11 倍）。**L1/L2 必须走 guest 侧插桩** |
-| **「Crucible 五信号监控」** | ❌ **未能证实存在**。未纳入设计 |
-| **「Novgorod State University QEMU 插件框架」** | ❌ **未能证实存在**。且即使存在，**同样需先回答「是否支持 KVM」**（§3.1 的墙对一切 TCG 插件方案有效） |
-| Cuckoo Sandbox | 已停止维护，不作基础 |
-| CAPEv2 | 不整体引入（重量级编排）；**借鉴其 guest 侧 NT API hook 思路**用于 L1 |
+| **「Crucible 五信号监控」** | ⚠️ **存在，但不可复用** —— [AshwinNHacker/Crucible](https://github.com/AshwinNHacker/Crucible)，GitHub 描述含 "five-signal behavioral monitoring"；**但仅 1 个提交、README 自述 "portfolio/demonstration project"、无可复用产物** |
+| **「Novgorod State University QEMU 插件框架」** | ⚠️ **存在，但不可用** —— Fursova/Dovgalyuk/Vasiliev, Trudy ISP RAN 27(6), 2015, DOI `10.15514/ISPRAS-2015-27(6)-11`；**TCG/翻译块机制 → KVM 下失效**；无公开仓库 |
+| Cuckoo Sandbox | ❌ **确认已死** —— README 原文 "2.x is currently unmaintained"，最后提交 2021-04-26 |
+| CAPEv2 | ⚠️ **活跃**（2026-09-23，KVM 官方推荐）；不整体引入；其 `capemon`（2026-09-25）是 L1 的架构参考 |
+| VMI（LibVMI / DRAKVUF） | ❌ **确认出局** —— 本机 **AMD**，DRAKVUF 需 Intel VT-x/EPT 且不支持 Win11；LibVMI 的 KVM 补丁止于 QEMU 4.1.0（2019） |
 
-> **对任务书 §4.2 的偏离**：任务书列出的 4 个「参考项目」中，**2 个未能证实、1 个（QEMU 插件）被实测否决**。
+> ### ⚠️ 更正声明
+> 本 session **初版**把 Crucible 与 Novgorod 框架记为「**未能证实存在**」。**该结论是错的。**
+> 经独立调研复核，**两者确实存在**，已在上表与 `collection-design.md` §3.3/§3.4 更正。
+>
+> **处置不变（仍不采用），但理由不同** —— 这个区别对后续决策重要：
+> 「不存在」意味着**可能还有同类工具值得找**；「存在但不可复用」意味着**这条路已经走过，不必重走**。
+>
+> **教训**：「我没搜到」不等于「不存在」。本 session 把一次检索失败写成了存在性结论，这是**过度断言**。
+> 已按 §八.2「主动披露偏离」更正，而非悄悄修改。
+
+> **对任务书 §4.2 的偏离**：任务书列出的 4 个「参考项目」中，**1 个（QEMU 插件）被实测否决、
+> 2 个存在但不可用、1 个（CAPEv2）活跃但不整体引入**。
 > 本 session **如实报告而非凑数采纳** —— 这本身就是 PoC 的价值（§八.5「失败也是合格结果」）。
 
 ## 5. ⏸ 未完成（因阻塞而未执行）
