@@ -390,6 +390,58 @@ def test_type_regular_file_still_cat(convert_bat):
     assert "cat a.txt" in out
 
 
+# ----------------------------------------------------------------------
+# F1（oracle V3/V4 + other.bat）：`type` 的 `\` 未转换
+#
+# `type` 同时登记在 BATCH_SIMPLE_MAP 与 BATCH_HANDLER_MAP，handler 优先 ⇒
+# `cmd_type` 绕开了 `convert_backslashes`，产物是 `cat "${W}\f.txt"`（**字面反斜杠
+# 文件名**），必然读不到；又因 `set -euo pipefail` 触发提前中止，把后续操作一起吞掉。
+# 断言**运行语义**（真读到内容），不编码产物字符串。
+# ----------------------------------------------------------------------
+def test_type_backslash_path_reads_file(convert_bat, tmp_path):
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "f.txt").write_text("data\n", encoding="utf-8")
+    out, report = convert_bat(
+        '@echo off\nset "W=%~dp0sub"\ntype "%W%\\f.txt"\n', bash_check=False
+    )
+    assert report.todo_count == 0
+    # 写成文件再跑：产物用 `${BASH_SOURCE[0]}` 推 SCRIPT_DIR，`bash < file` 下才有值
+    (tmp_path / "run.sh").write_text(out, encoding="utf-8")
+    proc = subprocess.run(
+        ["bash", str(tmp_path / "run.sh")],
+        capture_output=True, text=True, cwd=tmp_path, timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == "data\n"
+
+
+def test_type_backslash_path_same_as_other_path_commands(convert_bat):
+    """同一脚本、同一个 `\\`：`type` 必须与 mkdir/echo>/copy/del/dir 口径一致。"""
+    out, _ = convert_bat(
+        "@echo off\n"
+        'set "W=%~dp0sub"\n'
+        'mkdir "%W%"\n'
+        'echo data>"%W%\\f.txt"\n'
+        'copy /y "%W%\\f.txt" "%W%\\g.txt"\n'
+        'type "%W%\\f.txt"\n'
+        'del "%W%\\f.txt"\n'
+        'if exist "%W%\\f.txt" echo yes\n'
+        'dir /b "%W%"\n',
+        bash_check=False,
+    )
+    assert "\\" not in out.split('W="${SCRIPT_DIR}/sub"', 1)[1]
+
+
+def test_type_multiple_targets_keeps_each_converted(convert_bat):
+    """`type a b` 是多参数：逐 token 转换，但不加引号、不合并。"""
+    out, report = convert_bat(
+        '@echo off\nset "D=%~dp0d"\ntype "%D%\\a.txt" "%D%\\b.txt"\n',
+        bash_check=False,
+    )
+    assert report.todo_count == 0
+    assert 'cat "${D}/a.txt" "${D}/b.txt"' in out
+
+
 def test_nul_redirect_still_devnull(convert_bat):
     out, _ = convert_bat("@echo off\necho hi >nul\n")
     assert ">/dev/null" in out

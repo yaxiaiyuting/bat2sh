@@ -3355,7 +3355,11 @@ class BatchConverter:
                 category="command",
             )
             return ":"
-        return ("cat " + args).strip()
+        # `type` 同时登记在 BATCH_SIMPLE_MAP 与 BATCH_HANDLER_MAP，**handler 优先** ⇒ 本分支
+        # 必须自己转路径，否则会绕开 `_convert_simple_no_pipe` 里 `BATCH_SIMPLE_MAP` 那条的
+        # `convert_backslashes(rest)`。口径与该条逐字一致（不改成 `_convert_path_token`：
+        # `type a.txt b.txt` 是多参数，单 token 处理会误加引号）。
+        return ("cat " + convert_backslashes(args)).strip()
 
     def cmd_pause(self, lineno: int, args: str, original: str) -> str:
         return guard_read('read -rp "Press Enter to continue..."', self.settings.strict_mode)
