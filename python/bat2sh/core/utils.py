@@ -145,6 +145,34 @@ def tokenize_args(text: str) -> list[str]:
     return tokens
 
 
+def _is_substitution(text: str, index: int) -> bool:
+    """``index`` 处的反斜杠是否紧跟一个「变量展开插入的替换」。
+
+    变量展开把 ``%VAR%`` / ``%%i`` / ``%~dp0`` 变成 ``${VAR}`` / ``$(cmd)``，
+    于是原本紧跟变量名的反斜杠变成紧跟 ``$``，被 :func:`convert_backslashes`
+    误判为转义序列而**保留**：``%D%\\%NAME%`` 展开成 ``${D}\\${NAME}`` ⇒
+    产物里是**字面反斜杠**（bash 里反斜杠是合法文件名字符）。
+
+    A1 块内冻结的占位符（``\\x00A1:<id>:<name>\\x00``）同理：它在
+    ``_a1_resolve`` 之前就已经参与 ``convert_backslashes``，最终也替换成
+    ``${...}`` / ``${__bat2sh_snap_*}``。
+
+    三类**显式排除**（保守，均有实测理由）：
+    * **反斜杠连写**（``\\\\``）—— UNC/字面反斜杠，交给原有规则整体保留，不在此拆分；
+    * **Windows 扩展长度前缀 ``\\\\?\\\\`` / 设备前缀 ``\\\\.\\\\``** —— Linux 无对应物，
+      剥掉前缀后剩下的 ``?`` 会变成 bash 通配符（``rm -rf \\/?/`` 会误删根下单字符目录），
+      属"不做映射"（同盘符/UNC），维持既有行为；
+    * **单个 ``$``**（如 ``\\$5``）—— 不是替换，维持原样。
+    """
+    if index > 0 and text[index - 1] == "\\":
+        return False
+    if index >= 2 and text[index - 2] == "\\" and text[index - 1] in "?.":
+        return False
+    if text.startswith("\x00A1:", index + 1):
+        return True
+    return text.startswith("\\${", index) or text.startswith("\\$(", index)
+
+
 def convert_backslashes(text: str) -> str:
     """把 Windows 路径中的反斜杠替换为正斜杠。
 
@@ -170,6 +198,8 @@ def convert_backslashes(text: str) -> str:
                     result.append("/")
                 elif nxt and (nxt in path_next or nxt.isalnum()):
                     result.append("/")
+                elif _is_substitution(text, i):
+                    result.append("/")
                 else:
                     result.append(c)
                 i += 1
@@ -187,6 +217,8 @@ def convert_backslashes(text: str) -> str:
             if not nxt:
                 result.append("/")
             elif nxt in path_next or nxt.isalnum():
+                result.append("/")
+            elif _is_substitution(text, i):
                 result.append("/")
             else:
                 result.append(c)

@@ -50,3 +50,79 @@ def test_posix_keep_path_backslashes_converted(convert_bat):
 def test_redirect_target_backslashes_converted(convert_bat):
     out, _ = convert_bat('@echo off\n>"%temp%\\d~.vbs" echo hi\n')
     assert '"${TMPDIR:-/tmp}/d~.vbs"' in out
+
+
+# ----------------------------------------------------------------------
+# F5（oracle 未报，诊断期发现；= F3-a 的全量面）：
+# 反斜杠紧跟**变量展开插入的替换**时未转换为路径分隔符
+#
+# 机制：`convert_backslashes` 在 `_expand_vars` **之后**运行。源里 `\` 紧跟变量名，
+# 展开后紧跟 `$`，于是被判为"转义序列"而保留 ⇒ 产物是**字面反斜杠文件名**。
+# 151 语料实测 14 文件 / 48 处（如 `}"${destination}\${name_log}_log.log"`）。
+# ----------------------------------------------------------------------
+def test_substitution_detection_unit():
+    """单元口径：只认 `${` / `$(` / A1 占位符，且排除连写与 `\\?\\` 前缀。"""
+    from bat2sh.core.utils import convert_backslashes as cb
+
+    # 命中：展开插入的替换
+    assert cb("${D}\\${N}") == "${D}/${N}"
+    assert cb('"${D}\\${N}"') == '"${D}/${N}"'
+    assert cb("${D}\\$(basename x)") == "${D}/$(basename x)"
+    assert cb('"a\\${b}\\${c}"') == '"a/${b}/${c}"'
+    # 命中：A1 块内冻结占位符（合成期替换为 ${...}）
+    assert cb("${D}\\\x00A1:1:n\x00") == "${D}/\x00A1:1:n\x00"
+    # 不命中：反斜杠连写（UNC / 字面反斜杠）——交给原有规则整体保留
+    assert cb("\\\\${N}") == "\\\\${N}"
+    # 不命中：Windows 扩展长度 / 设备前缀 —— `\${N}` 必须原样保留。
+    # （前缀里的 `\?` / `\.` 由**既有**规则转成 `/?` `/\.`，F5 不改那部分；
+    #   F5 只保证**不**把紧邻的 `\${N}` 变成 `/${N}`，否则
+    #   `_convert_path_token` 的通配符回退会把它变成活通配符。）
+    assert cb("\\\\?\\${N}").endswith("\\${N}")
+    assert cb("\\\\.\\${N}").endswith("\\${N}")
+    # 不命中：单个 `$`（不是替换）
+    assert cb("\\$5") == "\\$5"
+    # 原有行为不变
+    assert cb('"C:\\dir\\file.txt"') == '"C:/dir/file.txt"'
+
+
+def test_var_to_var_path_actually_resolves(convert_bat, tmp_path):
+    """运行语义：`%D%\\%N%` 必须落到子目录，而不是字面反斜杠文件名。"""
+    import subprocess
+
+    out, report = convert_bat(
+        "@echo off\n"
+        'set "D=%~dp0d"\n'
+        'set "N=x"\n'
+        'mkdir "%D%"\n'
+        'echo hi>"%D%\\%N%.txt"\n',
+        bash_check=False,
+    )
+    assert report.todo_count == 0
+    (tmp_path / "run.sh").write_text(out, encoding="utf-8")
+    proc = subprocess.run(
+        ["bash", str(tmp_path / "run.sh")], capture_output=True, text=True,
+        cwd=tmp_path, timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert (tmp_path / "d" / "x.txt").read_text(encoding="utf-8") == "hi\n"
+    assert not any("\\" in p.name for p in tmp_path.rglob("*"))
+
+
+def test_redirect_and_non_redirect_both_converted(convert_bat):
+    """重定向目标与普通参数走**同一条**规则（旧窄修只覆盖重定向）。"""
+    out, _ = convert_bat(
+        '@echo off\nset "D=%~dp0d"\nset "N=x"\ncopy /y "%D%\\%N%" "%D%\\%N%.bak"\n',
+        bash_check=False,
+    )
+    assert "\\" not in out.split('D="${SCRIPT_DIR}/d"', 1)[1]
+
+
+def test_windows_extended_prefix_left_untouched(convert_bat):
+    """`\\\\?\\%1` 属"不做映射"（同盘符/UNC），不得被改写成活通配符。
+
+    若转换，`_convert_path_token` 的通配符回退会产出未加引号的
+    `rm -rf \\/?/${1:-}`（`?` 成为活通配符，可能误删根下单字符目录）。
+    """
+    out, _ = convert_bat("@echo off\nDEL /F /A /Q \\\\?\\%1\n", bash_check=False)
+    assert "\\${1:-}" in out
+    assert "/${1:-}" not in out
