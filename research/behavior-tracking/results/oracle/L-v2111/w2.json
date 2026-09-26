@@ -1,0 +1,207 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect_linux.py",
+    "version": "1.0.0",
+    "git_head": "faee2f784cd3557abd34a94f019709b6bb91fe5d",
+    "invocation": [
+      "tools/collect_linux.py",
+      "--script",
+      "tools/samples-v2/w2-redir-glob.bat",
+      "--guest-name",
+      "w2.bat",
+      "--output",
+      "results/oracle/L-v2111/w2.json",
+      "--bat2sh",
+      "/tmp/b2s-bin/bat2sh"
+    ],
+    "convert_argv": [
+      "/tmp/b2s-bin/bat2sh",
+      "--cli",
+      "-q",
+      "-o",
+      "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples/w2.bat",
+      "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w2-redir-glob.bat"
+    ],
+    "convert_tool": {
+      "argv0": "/tmp/b2s-bin/bat2sh",
+      "resolved": "/tmp/b2s-bin/bat2sh",
+      "version": "bat2sh 2.11.0"
+    },
+    "side": "L"
+  },
+  "script": {
+    "name": "w2-redir-glob.bat",
+    "sha256": "B796AA7D5CBD7D2B1E91A5163CB85850C7C87501D2AAD8E2C20B496886A65E73",
+    "size": 70,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w2-redir-glob.bat",
+    "guest_path": "<WORK>/w2.bat",
+    "guest_name": "w2.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Linux (bwrap)",
+    "kernel_release": "7.2.7-1-cachyos",
+    "machine": "x86_64",
+    "console_codepage": 65001,
+    "timezone": "Asia/Shanghai",
+    "locale": "C.UTF-8",
+    "clock_fixed": false
+  },
+  "rollback": {
+    "method": "tmpdir-recreate",
+    "run_dir": "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples",
+    "kept": false
+  },
+  "execution": {
+    "argv": [
+      "bwrap",
+      "--unshare-all",
+      "--die-with-parent",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples",
+      "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples",
+      "--chdir",
+      "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples",
+      "/bin/bash",
+      "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples/w2.bat"
+    ],
+    "stdin": "/dev/null",
+    "exit_code": 0,
+    "signal": null,
+    "duration_ms": 6,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "ZG9uZQo=",
+    "text": "done\n"
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-linux-v1",
+    "scope": [
+      "<WORK>"
+    ],
+    "baseline_manifest_hash": "sha256:43dad6503520a08aa09f3df7705ecf990dc0c868a3b4250b0a9ac0054645eda9",
+    "baseline_manifest": {
+      "w2.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples/w2.bat",
+        "Length": 231,
+        "Hash": "AB268B2D64A971184C229F4AE80614459ADA98820D784C216C92B95E0C2900E3",
+        "hash_lf_to_crlf": "8605B656BB3CCE470888FD4F79F34E2ED1EC5F7F6217EFD46E9C6CA7A49A6890",
+        "hash_cp936_crlf": "3EF1AB675F7883B8B963E9EF07398390DBCE57E2CFD9783F70CE6B80688FF3E8"
+      }
+    },
+    "before_count": 1,
+    "after_count": 2,
+    "created": [
+      "log1.txt"
+    ],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 1,
+    "known_artifacts": [
+      {
+        "path": "w2.bat",
+        "reason": "harness artifact"
+      }
+    ],
+    "created_raw": [
+      "log1.txt"
+    ],
+    "after_manifest": {
+      "log1.txt": {
+        "FullName": "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples/log1.txt",
+        "Length": 9,
+        "Hash": "E2208F01E42B2CAB0FEF975B55DC70D39579DD3D0C5D0758C499BAA5109EF187",
+        "hash_lf_to_crlf": "B426DF25816FE2469E0F058F78860620479140EDDF569CB09E500D8C84CA4FA1",
+        "hash_cp936_crlf": "B426DF25816FE2469E0F058F78860620479140EDDF569CB09E500D8C84CA4FA1"
+      },
+      "w2.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w2-redir-glob-1790442045108/samples/w2.bat",
+        "Length": 231,
+        "Hash": "AB268B2D64A971184C229F4AE80614459ADA98820D784C216C92B95E0C2900E3",
+        "hash_lf_to_crlf": "8605B656BB3CCE470888FD4F79F34E2ED1EC5F7F6217EFD46E9C6CA7A49A6890",
+        "hash_cp936_crlf": "3EF1AB675F7883B8B963E9EF07398390DBCE57E2CFD9783F70CE6B80688FF3E8"
+      }
+    },
+    "dirs_method": "walk",
+    "baseline_dirs": [],
+    "after_dirs": [],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "registry-not-collected",
+      "process-not-collected",
+      "network-not-collected"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "bwrap-unshare-all",
+    "attempted": null,
+    "attempted_basis": "unshare-all：无网络命名空间，无出网路径（结构性零）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0
+  },
+  "env_checks": [
+    {
+      "check": "bwrap 存在",
+      "ok": true,
+      "detail": "/usr/bin/bwrap (bubblewrap 0.13.0)"
+    },
+    {
+      "check": "bat2sh 存在",
+      "ok": true,
+      "detail": "/tmp/b2s-bin/bat2sh"
+    }
+  ],
+  "execution_workdir": "<WORK>",
+  "notes": [
+    "clock_not_fixed: L 侧无法固定时钟（bwrap 不能设 CAP_SYS_TIME）；含 %date%/%time% 的样本只能靠规则 N8 形状化（D7）",
+    "artifact 沿用 W 侧 guest 文件名（含 .bat）—— 见 oracle-design §3.2.1"
+  ],
+  "timings": {
+    "convert": 107,
+    "before_manifest": 1,
+    "execute": 6,
+    "after_manifest": 0,
+    "total_ms": 216
+  }
+}

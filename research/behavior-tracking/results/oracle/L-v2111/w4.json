@@ -1,0 +1,202 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect_linux.py",
+    "version": "1.0.0",
+    "git_head": "faee2f784cd3557abd34a94f019709b6bb91fe5d",
+    "invocation": [
+      "tools/collect_linux.py",
+      "--script",
+      "tools/samples-v2/w4-for-r-dotted.bat",
+      "--guest-name",
+      "w4.bat",
+      "--output",
+      "results/oracle/L-v2111/w4.json",
+      "--bat2sh",
+      "/tmp/b2s-bin/bat2sh"
+    ],
+    "convert_argv": [
+      "/tmp/b2s-bin/bat2sh",
+      "--cli",
+      "-q",
+      "-o",
+      "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples/w4.bat",
+      "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w4-for-r-dotted.bat"
+    ],
+    "convert_tool": {
+      "argv0": "/tmp/b2s-bin/bat2sh",
+      "resolved": "/tmp/b2s-bin/bat2sh",
+      "version": "bat2sh 2.11.0"
+    },
+    "side": "L"
+  },
+  "script": {
+    "name": "w4-for-r-dotted.bat",
+    "sha256": "300243839BFC8FEA2922C929445260BAE093209F049BD6D28F8E1B983FB3B508",
+    "size": 110,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w4-for-r-dotted.bat",
+    "guest_path": "<WORK>/w4.bat",
+    "guest_name": "w4.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Linux (bwrap)",
+    "kernel_release": "7.2.7-1-cachyos",
+    "machine": "x86_64",
+    "console_codepage": 65001,
+    "timezone": "Asia/Shanghai",
+    "locale": "C.UTF-8",
+    "clock_fixed": false
+  },
+  "rollback": {
+    "method": "tmpdir-recreate",
+    "run_dir": "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples",
+    "kept": false
+  },
+  "execution": {
+    "argv": [
+      "bwrap",
+      "--unshare-all",
+      "--die-with-parent",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples",
+      "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples",
+      "--chdir",
+      "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples",
+      "/bin/bash",
+      "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples/w4.bat"
+    ],
+    "stdin": "/dev/null",
+    "exit_code": 0,
+    "signal": null,
+    "duration_ms": 9,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "c2FtcGxlcwpkb25lCg==",
+    "text": "samples\ndone\n"
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-linux-v1",
+    "scope": [
+      "<WORK>"
+    ],
+    "baseline_manifest_hash": "sha256:bfcbc089b5dfc50338c0a8c2b33d209e13d2b81639badc443dd4d152e210637b",
+    "baseline_manifest": {
+      "w4.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples/w4.bat",
+        "Length": 380,
+        "Hash": "4D10375B9A3AF1F705F8ACB292DA8AA8EB49C6A426C86AB2B3BF3D1A61DDD3C9",
+        "hash_lf_to_crlf": "73EC4020B039574BD6EF1904C408934C20A9CC12827DE89E915460D737063A74",
+        "hash_cp936_crlf": "7A2BFF776D305DC863579B6DD16ABD785A7C012656F80E930E501D87548F1F69"
+      }
+    },
+    "before_count": 1,
+    "after_count": 1,
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 1,
+    "known_artifacts": [
+      {
+        "path": "w4.bat",
+        "reason": "harness artifact"
+      }
+    ],
+    "created_raw": [],
+    "after_manifest": {
+      "w4.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w4-for-r-dotted-1790442045821/samples/w4.bat",
+        "Length": 380,
+        "Hash": "4D10375B9A3AF1F705F8ACB292DA8AA8EB49C6A426C86AB2B3BF3D1A61DDD3C9",
+        "hash_lf_to_crlf": "73EC4020B039574BD6EF1904C408934C20A9CC12827DE89E915460D737063A74",
+        "hash_cp936_crlf": "7A2BFF776D305DC863579B6DD16ABD785A7C012656F80E930E501D87548F1F69"
+      }
+    },
+    "dirs_method": "walk",
+    "baseline_dirs": [],
+    "after_dirs": [
+      "my.project",
+      "my.project/samples"
+    ],
+    "created_dirs": [
+      "my.project",
+      "my.project/samples"
+    ],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "registry-not-collected",
+      "process-not-collected",
+      "network-not-collected"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "bwrap-unshare-all",
+    "attempted": null,
+    "attempted_basis": "unshare-all：无网络命名空间，无出网路径（结构性零）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0
+  },
+  "env_checks": [
+    {
+      "check": "bwrap 存在",
+      "ok": true,
+      "detail": "/usr/bin/bwrap (bubblewrap 0.13.0)"
+    },
+    {
+      "check": "bat2sh 存在",
+      "ok": true,
+      "detail": "/tmp/b2s-bin/bat2sh"
+    }
+  ],
+  "execution_workdir": "<WORK>",
+  "notes": [
+    "clock_not_fixed: L 侧无法固定时钟（bwrap 不能设 CAP_SYS_TIME）；含 %date%/%time% 的样本只能靠规则 N8 形状化（D7）",
+    "artifact 沿用 W 侧 guest 文件名（含 .bat）—— 见 oracle-design §3.2.1"
+  ],
+  "timings": {
+    "convert": 115,
+    "before_manifest": 0,
+    "execute": 9,
+    "after_manifest": 0,
+    "total_ms": 225
+  }
+}

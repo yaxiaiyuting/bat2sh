@@ -1,0 +1,241 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect.py",
+    "version": "1.2.0",
+    "git_head": "faee2f784cd3557abd34a94f019709b6bb91fe5d",
+    "invocation": [
+      "--sample",
+      "samples/poc-01-stdout.bat",
+      "--guest-name",
+      "poc01.bat",
+      "--output",
+      "results/oracle/W-v2111/poc01.json",
+      "--scope",
+      "C:\\poc\\samples",
+      "--network",
+      "isolated"
+    ]
+  },
+  "script": {
+    "name": "poc-01-stdout.bat",
+    "sha256": "77a1f5091bb846ea8c704fa9bc44d4ebb8354c63de1148126f96cdb670f9691a",
+    "size": 214,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/samples/poc-01-stdout.bat",
+    "guest_path": "C:\\poc\\samples\\poc01.bat",
+    "guest_name": "poc01.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Windows 10 Pro",
+    "guest_version": "Microsoft Windows 11",
+    "kernel_release": "29599",
+    "machine": "x86_64",
+    "guest_agent_version": "110.2.3",
+    "guest_agent_commands": 37,
+    "console_codepage": 936
+  },
+  "rollback": {
+    "method": "overlay-qcow2",
+    "stop_mode": "destroy",
+    "stop_ms": 0,
+    "revert_op_ms": 78,
+    "base_ident_before": {
+      "size": 68730224640,
+      "mtime": 1790425638,
+      "inode": 1418147
+    },
+    "overlay": "/var/lib/libvirt/images/win-behavior.qcow2",
+    "base": "/var/lib/libvirt/images/win-behavior.base.qcow2",
+    "agent_ready_ms": 56927,
+    "base_intact": {
+      "unchanged": true,
+      "before": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "after": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "note": "qcow2 以只读方式打开 backing file，写入只落覆盖层"
+    },
+    "cycle_ms": 79309,
+    "final_stop_ms": 244
+  },
+  "execution": {
+    "argv": [
+      "cmd.exe",
+      "/c",
+      "cd /d C:\\poc\\samples && C:\\poc\\samples\\poc01.bat < nul"
+    ],
+    "pid": 6992,
+    "duration_ms": 358,
+    "exit_code": 7,
+    "signal": null,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "UE9DLTAxLVNUQVJUDQpwbGFpbiBsaW5lDQp0YWIJc2VwYXJhdGVkDQpjYXJldCAmIGFtcGVyc2FuZA0KcGVyY2VudCAlIGxpdGVyYWwNClBPQy0wMS1FTkQNCg==",
+    "text": "POC-01-START\r\nplain line\r\ntab\tseparated\r\ncaret & ampersand\r\npercent % literal\r\nPOC-01-END\r\n"
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-v2",
+    "scope": [
+      "C:\\poc\\samples"
+    ],
+    "baseline_manifest_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline_manifest": {},
+    "before_count": 0,
+    "after_count": 1,
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 0,
+    "known_artifacts": [
+      {
+        "path": "C:\\poc\\samples\\poc01.bat",
+        "reason": "harness upload"
+      }
+    ],
+    "created_raw": [
+      "C:\\poc\\samples\\poc01.bat"
+    ],
+    "after_manifest": {
+      "C:\\poc\\samples\\poc01.bat": {
+        "FullName": "C:\\poc\\samples\\poc01.bat",
+        "Length": 214,
+        "Hash": "77A1F5091BB846EA8C704FA9BC44D4EBB8354C63DE1148126F96CDB670F9691A"
+      }
+    },
+    "dirs_method": "recurse-directory-listing",
+    "baseline_dirs": [],
+    "after_dirs": [],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "cwd-if-workdir-unset"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "nic-link-down",
+    "network_name": "default",
+    "link_state": "down",
+    "iface": "virbr0",
+    "attempted": null,
+    "attempted_basis": "link-down：guest 的帧不进入宿主网桥，因此无法观测连接尝试（只能证明没有出网）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0,
+    "capture": {
+      "method": "af_packet-header-only",
+      "iface": "virbr0",
+      "guest_mac": "52:54:00:c4:73:fd",
+      "window_ms": 1011,
+      "frames_seen": 0,
+      "frames_guest": 0,
+      "frames_other": 0,
+      "frames_unparsed": 0,
+      "frames_non_ip": 0,
+      "frames_at_max_len": 0,
+      "max_frame_bytes": 192,
+      "payload_read": false
+    },
+    "notes": [
+      "egress_frames=0 —— 隔离的硬证据"
+    ],
+    "setup": {
+      "mode": "isolated",
+      "requested": {
+        "network": "default",
+        "link_state": "down"
+      },
+      "before": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "after": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "bridge": "virbr0"
+    }
+  },
+  "timings": {
+    "env_check": 239,
+    "revert": 164,
+    "network_apply": 911,
+    "agent_wait": 57192,
+    "fixed_time": 96,
+    "environment": 584,
+    "baseline_manifest": 14677,
+    "upload": 89,
+    "capture": 279,
+    "execute": 1024,
+    "after_manifest": 5499,
+    "total_ms": 80875
+  },
+  "notes": [],
+  "env_checks": [
+    {
+      "check": "sudo(免密)",
+      "ok": true,
+      "detail": "sudo -n 可用"
+    },
+    {
+      "check": "域存在/可查询",
+      "ok": true,
+      "detail": "win-behavior @ qemu:///system → shut off"
+    },
+    {
+      "check": "ufw 放行 virbr0",
+      "ok": true,
+      "detail": "virbr0 已放行（in + route）"
+    },
+    {
+      "check": "DHCP 未被丢弃",
+      "ok": true,
+      "detail": "**本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）"
+    },
+    {
+      "check": "基线存在/无 backing",
+      "ok": true,
+      "detail": "/var/lib/libvirt/images/win-behavior.base.qcow2"
+    },
+    {
+      "check": "域磁盘非基线",
+      "ok": true,
+      "detail": "域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2"
+    }
+  ],
+  "fixed_time": {
+    "target_utc": "2026-06-01T04:00:00Z",
+    "target_utc_epoch": 1780286400,
+    "target_local": "2026-06-01 12:00:00",
+    "local_timezone": "Asia/Shanghai (UTC+8)",
+    "rtc_start_epoch": 1780315200,
+    "action": "set",
+    "before_offset_s": 10139249.929,
+    "after_offset_s": 0.031,
+    "tolerance_s": 2.0,
+    "ok": true
+  },
+  "execution_workdir": "C:\\poc\\samples"
+}

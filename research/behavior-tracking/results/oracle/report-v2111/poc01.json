@@ -1,0 +1,67 @@
+{
+  "sample": "poc-01-stdout.bat",
+  "w_head": "faee2f78",
+  "l_head": "faee2f78",
+  "class": "一致",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 7,
+      "l": 7,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'POC-01-START\\r\\nplain line\\r\\ntab\\tseparated\\r\\ncaret & ampersand\\r\\npercent % literal\\r\\nPOC-01-END\\r\\n'",
+      "l_repr": "'POC-01-START\\nplain line\\ntab\\tseparated\\ncaret & ampersand\\npercent % literal\\nPOC-01-END\\n'",
+      "w_norm": "'POC-01-START\\nplain line\\ntab\\tseparated\\ncaret & ampersand\\npercent % literal\\nPOC-01-END\\n'",
+      "l_norm": "'POC-01-START\\nplain line\\ntab\\tseparated\\ncaret & ampersand\\npercent % literal\\nPOC-01-END\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

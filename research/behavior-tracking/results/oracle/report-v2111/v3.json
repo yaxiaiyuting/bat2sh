@@ -1,0 +1,93 @@
+{
+  "sample": "poc-02-fileops.bat",
+  "w_head": "f7e6c864",
+  "l_head": "faee2f78",
+  "class": "可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'beta\\r\\n'",
+      "l_repr": "'beta\\n'",
+      "w_norm": "'beta\\n'",
+      "l_norm": "'beta\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/work/a.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/work/a.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": true,
+      "rules": [
+        "N10"
+      ],
+      "compared": 2,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [
+    {
+      "rule": "N10",
+      "channel": "fs_content",
+      "desc": "文件内容：行尾归一后哈希",
+      "masked": "文本产物行尾 CRLF vs LF",
+      "d_items": [
+        "D2"
+      ]
+    }
+  ],
+  "d_items": [
+    "D2"
+  ],
+  "d_desc": {
+    "D2": "行尾"
+  },
+  "unattributed": [],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

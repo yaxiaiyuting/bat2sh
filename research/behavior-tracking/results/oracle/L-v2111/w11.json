@@ -1,0 +1,196 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect_linux.py",
+    "version": "1.0.0",
+    "git_head": "faee2f784cd3557abd34a94f019709b6bb91fe5d",
+    "invocation": [
+      "tools/collect_linux.py",
+      "--script",
+      "/home/duanjb666/下载/非常批处理/指定每天运行的程序.bat",
+      "--guest-name",
+      "w11.bat",
+      "--output",
+      "results/oracle/L-v2111/w11.json",
+      "--bat2sh",
+      "/tmp/b2s-bin/bat2sh"
+    ],
+    "convert_argv": [
+      "/tmp/b2s-bin/bat2sh",
+      "--cli",
+      "-q",
+      "-o",
+      "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples/w11.bat",
+      "/home/duanjb666/下载/非常批处理/指定每天运行的程序.bat"
+    ],
+    "convert_tool": {
+      "argv0": "/tmp/b2s-bin/bat2sh",
+      "resolved": "/tmp/b2s-bin/bat2sh",
+      "version": "bat2sh 2.11.0"
+    },
+    "side": "L"
+  },
+  "script": {
+    "name": "指定每天运行的程序.bat",
+    "sha256": "89BB318AF0D3E08ECE8A18BF51BC6597BC9A1B4E01352BB754CEA4ADF259B828",
+    "size": 245,
+    "local_path": "/home/duanjb666/下载/非常批处理/指定每天运行的程序.bat",
+    "guest_path": "<WORK>/w11.bat",
+    "guest_name": "w11.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Linux (bwrap)",
+    "kernel_release": "7.2.7-1-cachyos",
+    "machine": "x86_64",
+    "console_codepage": 65001,
+    "timezone": "Asia/Shanghai",
+    "locale": "C.UTF-8",
+    "clock_fixed": false
+  },
+  "rollback": {
+    "method": "tmpdir-recreate",
+    "run_dir": "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples",
+    "kept": false
+  },
+  "execution": {
+    "argv": [
+      "bwrap",
+      "--unshare-all",
+      "--die-with-parent",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples",
+      "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples",
+      "--chdir",
+      "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples",
+      "/bin/bash",
+      "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples/w11.bat"
+    ],
+    "stdin": "/dev/null",
+    "exit_code": 0,
+    "signal": null,
+    "duration_ms": 5,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "",
+    "text": ""
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-linux-v1",
+    "scope": [
+      "<WORK>"
+    ],
+    "baseline_manifest_hash": "sha256:b63f1e1924fd3a28ef470d9f3aca7b47ae41b19330654a30d216d1fd47d5ee86",
+    "baseline_manifest": {
+      "w11.bat": {
+        "FullName": "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples/w11.bat",
+        "Length": 1234,
+        "Hash": "A0A4ECC80321900445D92BFE54F9EEAD03ED7A81CE51CDB6FA6547F337B338E0",
+        "hash_lf_to_crlf": "AFF2BF90BC8D3E79984633E861F6624E42960FA27F476F9CC5D96AB2EA402296",
+        "hash_cp936_crlf": "465F4DCA00410A6F720FFEA83152DAD0C64E9A8C678655F7371043082633177C"
+      }
+    },
+    "before_count": 1,
+    "after_count": 1,
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 1,
+    "known_artifacts": [
+      {
+        "path": "w11.bat",
+        "reason": "harness artifact"
+      }
+    ],
+    "created_raw": [],
+    "after_manifest": {
+      "w11.bat": {
+        "FullName": "/tmp/bat2sh-oracle/指定每天运行的程序-1790442048326/samples/w11.bat",
+        "Length": 1234,
+        "Hash": "A0A4ECC80321900445D92BFE54F9EEAD03ED7A81CE51CDB6FA6547F337B338E0",
+        "hash_lf_to_crlf": "AFF2BF90BC8D3E79984633E861F6624E42960FA27F476F9CC5D96AB2EA402296",
+        "hash_cp936_crlf": "465F4DCA00410A6F720FFEA83152DAD0C64E9A8C678655F7371043082633177C"
+      }
+    },
+    "dirs_method": "walk",
+    "baseline_dirs": [],
+    "after_dirs": [],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "registry-not-collected",
+      "process-not-collected",
+      "network-not-collected"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "bwrap-unshare-all",
+    "attempted": null,
+    "attempted_basis": "unshare-all：无网络命名空间，无出网路径（结构性零）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0
+  },
+  "env_checks": [
+    {
+      "check": "bwrap 存在",
+      "ok": true,
+      "detail": "/usr/bin/bwrap (bubblewrap 0.13.0)"
+    },
+    {
+      "check": "bat2sh 存在",
+      "ok": true,
+      "detail": "/tmp/b2s-bin/bat2sh"
+    }
+  ],
+  "execution_workdir": "<WORK>",
+  "notes": [
+    "clock_not_fixed: L 侧无法固定时钟（bwrap 不能设 CAP_SYS_TIME）；含 %date%/%time% 的样本只能靠规则 N8 形状化（D7）",
+    "artifact 沿用 W 侧 guest 文件名（含 .bat）—— 见 oracle-design §3.2.1"
+  ],
+  "timings": {
+    "convert": 119,
+    "before_manifest": 0,
+    "execute": 5,
+    "after_manifest": 0,
+    "total_ms": 229
+  }
+}

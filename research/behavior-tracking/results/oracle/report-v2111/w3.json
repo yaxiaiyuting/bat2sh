@@ -1,0 +1,94 @@
+{
+  "sample": "w3-dollar-literal.bat",
+  "w_head": "faee2f78",
+  "l_head": "faee2f78",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'done\\r\\n'",
+      "l_repr": "'done\\n'",
+      "w_norm": "'done\\n'",
+      "l_norm": "'done\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/out3.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/out3.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "compared": 1,
+      "differs": [
+        {
+          "path": "<WORK>/out3.txt",
+          "w_hash": "1B6D380AFDE8C4431F8FC9B9A080D93F02D31F6A3249DE01EFD09FD3517FC094",
+          "l_hash": "EF80044752E0389B690FCA3B2310193D51AAC7622B2E65958357E266C45B88B5",
+          "w_len": 18,
+          "l_len": 9
+        }
+      ],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "fs_content",
+      "differs": [
+        {
+          "path": "<WORK>/out3.txt",
+          "w_hash": "1B6D380AFDE8C4431F8FC9B9A080D93F02D31F6A3249DE01EFD09FD3517FC094",
+          "l_hash": "EF80044752E0389B690FCA3B2310193D51AAC7622B2E65958357E266C45B88B5",
+          "w_len": 18,
+          "l_len": 9
+        }
+      ],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

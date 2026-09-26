@@ -1,0 +1,99 @@
+{
+  "sample": "w2-redir-glob.bat",
+  "w_head": "faee2f78",
+  "l_head": "faee2f78",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'done\\r\\n'",
+      "l_repr": "'done\\n'",
+      "w_norm": "'done\\n'",
+      "l_norm": "'done\\n'"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'文件名、目录名或卷标语法不正确。\\r\\n'",
+      "l_repr": "''",
+      "w_norm": "'文件名、目录名或卷标语法不正确。\\n'",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/log1.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/log1.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "compared": 1,
+      "differs": [
+        {
+          "path": "<WORK>/log1.txt",
+          "w_hash": "0A768024BF362B5C0DF2F5AD3D371B516C26A8106760768F6EDAEB5926BF2EA0",
+          "l_hash": "E2208F01E42B2CAB0FEF975B55DC70D39579DD3D0C5D0758C499BAA5109EF187",
+          "w_len": 10,
+          "l_len": 9
+        }
+      ],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "stderr",
+      "w": "'文件名、目录名或卷标语法不正确。\\r\\n'",
+      "l": "''"
+    },
+    {
+      "channel": "fs_content",
+      "differs": [
+        {
+          "path": "<WORK>/log1.txt",
+          "w_hash": "0A768024BF362B5C0DF2F5AD3D371B516C26A8106760768F6EDAEB5926BF2EA0",
+          "l_hash": "E2208F01E42B2CAB0FEF975B55DC70D39579DD3D0C5D0758C499BAA5109EF187",
+          "w_len": 10,
+          "l_len": 9
+        }
+      ],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

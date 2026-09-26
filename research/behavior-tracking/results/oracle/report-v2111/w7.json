@@ -1,0 +1,109 @@
+{
+  "sample": "w7-tree-copy.bat",
+  "w_head": "faee2f78",
+  "l_head": "faee2f78",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'src\\\\a.txt\\r\\nsrc\\\\deep\\\\b.txt\\r\\n复制了 2 个文件\\r\\ndone\\r\\n'",
+      "l_repr": "'done\\n'",
+      "w_norm": "'src\\\\a.txt\\nsrc\\\\deep\\\\b.txt\\n复制了 2 个文件\\ndone\\n'",
+      "l_norm": "'done\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/dst/a.txt",
+          "<WORK>/dst/deep/b.txt",
+          "<WORK>/src/a.txt",
+          "<WORK>/src/deep/b.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/dst",
+          "<WORK>/dst/deep",
+          "<WORK>/src",
+          "<WORK>/src/deep"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/dst/a.txt",
+          "<WORK>/dst/deep/b.txt",
+          "<WORK>/src/a.txt",
+          "<WORK>/src/deep/b.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/dst",
+          "<WORK>/dst/deep",
+          "<WORK>/src",
+          "<WORK>/src/deep"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": true,
+      "rules": [
+        "N10"
+      ],
+      "compared": 4,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [
+    {
+      "rule": "N10",
+      "channel": "fs_content",
+      "desc": "文件内容：行尾归一后哈希",
+      "masked": "文本产物行尾 CRLF vs LF",
+      "d_items": [
+        "D2"
+      ]
+    }
+  ],
+  "d_items": [
+    "D2"
+  ],
+  "d_desc": {
+    "D2": "行尾"
+  },
+  "unattributed": [
+    {
+      "channel": "stdout",
+      "w": "'src\\\\a.txt\\r\\nsrc\\\\deep\\\\b.txt\\r\\n复制了 2 个文件\\r\\ndone\\r\\n'",
+      "l": "'done\\n'"
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

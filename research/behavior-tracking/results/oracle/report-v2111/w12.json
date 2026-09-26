@@ -1,0 +1,82 @@
+{
+  "sample": "提取两个文件内容的不同之处.cmd",
+  "w_head": "faee2f78",
+  "l_head": "faee2f78",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": false,
+      "attributed": false,
+      "w": 1,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'FINDSTR: 无法打开 1.txt\\r\\n'",
+      "l_repr": "'grep: 1.txt: No such file or directory\\n'",
+      "w_norm": "'FINDSTR: 无法打开 1.txt\\n'",
+      "l_norm": "'grep: 1.txt: No such file or directory\\n'"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/3.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/3.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 1,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "rc",
+      "w": 1,
+      "l": 0
+    },
+    {
+      "channel": "stderr",
+      "w": "'FINDSTR: 无法打开 1.txt\\r\\n'",
+      "l": "'grep: 1.txt: No such file or directory\\n'"
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

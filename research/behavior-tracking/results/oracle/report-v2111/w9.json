@@ -1,0 +1,73 @@
+{
+  "sample": "卸载瑞星杀毒软件2008批处理版.bat",
+  "w_head": "faee2f78",
+  "l_head": "faee2f78",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'卸载成功\\r\\n'",
+      "l_repr": "'卸载成功\\n'",
+      "w_norm": "'卸载成功\\n'",
+      "l_norm": "'卸载成功\\n'"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'系统找不到指定的文件。\\r\\n系统找不到指定的文件。\\r\\n系统找不到指定的文件。\\r\\n'",
+      "l_repr": "''",
+      "w_norm": "'系统找不到指定的文件。\\n系统找不到指定的文件。\\n系统找不到指定的文件。\\n'",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "stderr",
+      "w": "'系统找不到指定的文件。\\r\\n系统找不到指定的文件。\\r\\n系统找不到指定的文件。\\r\\n'",
+      "l": "''"
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}
