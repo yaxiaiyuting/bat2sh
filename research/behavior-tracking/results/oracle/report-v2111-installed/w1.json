@@ -1,0 +1,106 @@
+{
+  "sample": "w1-findstr-errorlevel.bat",
+  "w_head": "faee2f78",
+  "l_head": "d8d7cebb",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'done\\r\\n'",
+      "l_repr": "'done\\n'",
+      "w_norm": "'done\\n'",
+      "l_norm": "'done\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/haystack.txt",
+          "<WORK>/keep.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/haystack.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": false,
+      "rules": [
+        "N10"
+      ],
+      "compared": 1,
+      "differs": [],
+      "only_in_w": [
+        "<WORK>/keep.txt"
+      ],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [
+    {
+      "rule": "N10",
+      "channel": "fs_content",
+      "desc": "文件内容：行尾归一后哈希",
+      "masked": "文本产物行尾 CRLF vs LF",
+      "d_items": [
+        "D2"
+      ]
+    }
+  ],
+  "d_items": [
+    "D2"
+  ],
+  "d_desc": {
+    "D2": "行尾"
+  },
+  "unattributed": [
+    {
+      "channel": "fs_names",
+      "only_in_w": [
+        "<WORK>/keep.txt"
+      ],
+      "only_in_l": []
+    },
+    {
+      "channel": "fs_content",
+      "differs": [],
+      "only_in_w": [
+        "<WORK>/keep.txt"
+      ],
+      "only_in_l": []
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

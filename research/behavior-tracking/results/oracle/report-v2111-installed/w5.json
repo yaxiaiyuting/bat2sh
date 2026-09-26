@@ -1,0 +1,96 @@
+{
+  "sample": "w5-del-recurse.bat",
+  "w_head": "faee2f78",
+  "l_head": "d8d7cebb",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'删除文件 - C:\\\\poc\\\\samples\\\\root.tmp\\r\\n删除文件 - C:\\\\poc\\\\samples\\\\sub\\\\x.tmp\\r\\ndone\\r\\n'",
+      "l_repr": "'done\\n'",
+      "w_norm": "'删除文件 - <WORK>\\\\root.tmp\\n删除文件 - <WORK>\\\\sub\\\\x.tmp\\ndone\\n'",
+      "l_norm": "'done\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/sub"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/sub/x.tmp"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/sub"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/sub/x.tmp"
+      ]
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "stdout",
+      "w": "'删除文件 - C:\\\\poc\\\\samples\\\\root.tmp\\r\\n删除文件 - C:\\\\poc\\\\samples\\\\sub\\\\x.tmp\\r\\ndone\\r\\n'",
+      "l": "'done\\n'"
+    },
+    {
+      "channel": "fs_names",
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/sub/x.tmp"
+      ]
+    },
+    {
+      "channel": "fs_content",
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/sub/x.tmp"
+      ]
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

@@ -260,3 +260,39 @@ FAILED tests/test_batch_string_ops.py::test_tilde_n0_not_misparsed_as_string_op
 | 7 | 只 commit 自己的改动 | ✅ 逐路径 `git add`，未用 `-A` / `.` |
 | 8 | 门有不可解释的红 ⇒ 回滚 | ✅ 未触发（D1–D4 全绿；D4 的 2 行产物差异已解释） |
 | 9 | 测试断言必须验证语义 | ✅ 6 条全部语义化 + 6 条含点路径新测试 + 旧代码真红证明 |
+
+---
+
+## 9. 主 session 核验（纪律 9）
+
+> 本修复由 subagent 执行。按纪律 9「Subagent 输出必须主 session 核验」，
+> 主 session **不采信其自报结果**，逐项独立复核如下。
+
+| # | 核验项 | 方法 | 结果 |
+| :-: | :--- | :--- | :--- |
+| 1 | 产品改动面 | `git show --stat faee2f7` + `git show … -- batch.py` | ✅ **恰好 2 行**，与诊断 §5.1 逐字符一致，**无夹带** |
+| 2 | 缺陷真的修好了吗 | 用**主 session 自己**的 Phase C 复现用例（含点祖先 `my.project/samples` + 无扩展名脚本）重跑 | ✅ `samples`/`sub`、`[norext]`（修前为 `my`/`my`、`[my]`） |
+| 3 | 是否引入回归 | 同上用例的**无点路径对照** | ✅ 输出不变 |
+| 4 | D2 条数 | 主 session 独立跑全量 `pytest -q` | ✅ **1631 passed**，与自报一致 |
+| 5 | D4 examples 披露 | 逐文件 diff 提交的 `.sh` vs 基线/修复后产物 | ⚠️ **部分更正**，见下 |
+| 6 | 6 条断言是否真语义化 | 逐条读 diff + 主 session 跑 D1 定向集 | ✅ 确为真跑断言；`test_basename_runtime_with_spaces` 范式已被复用 |
+
+### 9.1 对 §7 披露第 2 条的**更正**
+
+subagent 报告「examples 有 **2 处** 1 行漂移」。主 session 逐文件复核结果：
+
+| 文件 | 实际 |
+| :--- | :--- |
+| `examples/stress_test.sh` | ✅ 确实漂移，但**只有 1 行来自本补丁**（`:450` 的 `%~n0` 行）；**另有 5 行与本补丁无关的历史陈旧**（`:523-527` 的 `for /f` 块，在基线 `0535cac` 上就已漂移） |
+| `examples/deepseek_bat_20260913_faa286.bat` | ❌ **该文件根本没有配对的 `.sh`**（`examples/` 下只有 `.bat`）⇒ **不存在"漂移"** |
+
+⇒ 准确表述：**1 个** paired example 漂移 **1** 行（本补丁所致）+ **5** 行历史陈旧。
+
+**处置：不重生成**（维持 subagent 的决定），依据是 `tests/test_examples.py` 的模块 docstring 明示：
+「**不要求生成结果与已提交的 examples/\*.sh 字节一致**（它们仅单独做语法校验）」。
+该依据由主 session 独立查证，并写入 release notes 的「已知限制」L6。
+
+### 9.2 核验结论
+
+**6/6 项通过；1 项披露被更正（范围收窄，非加重）。**
+未发现 subagent 有任何虚报、漏报或未披露的产品代码改动。

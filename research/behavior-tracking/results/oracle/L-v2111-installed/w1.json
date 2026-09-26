@@ -1,0 +1,207 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect_linux.py",
+    "version": "1.0.0",
+    "git_head": "d8d7cebbee44d6695a574e3064fcbc6a4fcc3852",
+    "invocation": [
+      "tools/collect_linux.py",
+      "--script",
+      "tools/samples-v2/w1-findstr-errorlevel.bat",
+      "--guest-name",
+      "w1.bat",
+      "--output",
+      "results/oracle/L-v2111-installed/w1.json",
+      "--bat2sh",
+      "/usr/bin/bat2sh"
+    ],
+    "convert_argv": [
+      "/usr/bin/bat2sh",
+      "--cli",
+      "-q",
+      "-o",
+      "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples/w1.bat",
+      "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w1-findstr-errorlevel.bat"
+    ],
+    "convert_tool": {
+      "argv0": "/usr/bin/bat2sh",
+      "resolved": "/usr/bin/bat2sh",
+      "version": "bat2sh 2.11.1"
+    },
+    "side": "L"
+  },
+  "script": {
+    "name": "w1-findstr-errorlevel.bat",
+    "sha256": "1952925E1B1EDECC7DD142F912E538DD85B94351EB4B7ECA888E2CAA6565E3B8",
+    "size": 136,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w1-findstr-errorlevel.bat",
+    "guest_path": "<WORK>/w1.bat",
+    "guest_name": "w1.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Linux (bwrap)",
+    "kernel_release": "7.2.7-1-cachyos",
+    "machine": "x86_64",
+    "console_codepage": 65001,
+    "timezone": "Asia/Shanghai",
+    "locale": "C.UTF-8",
+    "clock_fixed": false
+  },
+  "rollback": {
+    "method": "tmpdir-recreate",
+    "run_dir": "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples",
+    "kept": false
+  },
+  "execution": {
+    "argv": [
+      "bwrap",
+      "--unshare-all",
+      "--die-with-parent",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples",
+      "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples",
+      "--chdir",
+      "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples",
+      "/bin/bash",
+      "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples/w1.bat"
+    ],
+    "stdin": "/dev/null",
+    "exit_code": 0,
+    "signal": null,
+    "duration_ms": 6,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "ZG9uZQo=",
+    "text": "done\n"
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-linux-v1",
+    "scope": [
+      "<WORK>"
+    ],
+    "baseline_manifest_hash": "sha256:27509f8544e82a3426bdd01d506b9c767c99588d8b07cdae30a98b18ee4a0b2e",
+    "baseline_manifest": {
+      "w1.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples/w1.bat",
+        "Length": 370,
+        "Hash": "A25FD47E768BFCF216C51F0C8A3EDADD9775CF649B1BA17F1BA0EFDD0FD77E97",
+        "hash_lf_to_crlf": "7AC2B2745C1E86CE88607F4546E17ABBCA6390EE199C1C0548313A300FAB8022",
+        "hash_cp936_crlf": "979D608F4017C1B7618CD0E7212D1CBB7142F70B5329E66895F89C6852D2A931"
+      }
+    },
+    "before_count": 1,
+    "after_count": 2,
+    "created": [
+      "haystack.txt"
+    ],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 1,
+    "known_artifacts": [
+      {
+        "path": "w1.bat",
+        "reason": "harness artifact"
+      }
+    ],
+    "created_raw": [
+      "haystack.txt"
+    ],
+    "after_manifest": {
+      "haystack.txt": {
+        "FullName": "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples/haystack.txt",
+        "Length": 7,
+        "Hash": "D29210777777DAC0B3D12F6A656A073C9BA717CF6932DBC01B0CC6DC1E7779B8",
+        "hash_lf_to_crlf": "C7FD49B8C5EE14DEE0541B01055C3C648BB00C6E4EC8A6D03D3B9427FF4F3956",
+        "hash_cp936_crlf": "C7FD49B8C5EE14DEE0541B01055C3C648BB00C6E4EC8A6D03D3B9427FF4F3956"
+      },
+      "w1.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w1-findstr-errorlevel-1790442711744/samples/w1.bat",
+        "Length": 370,
+        "Hash": "A25FD47E768BFCF216C51F0C8A3EDADD9775CF649B1BA17F1BA0EFDD0FD77E97",
+        "hash_lf_to_crlf": "7AC2B2745C1E86CE88607F4546E17ABBCA6390EE199C1C0548313A300FAB8022",
+        "hash_cp936_crlf": "979D608F4017C1B7618CD0E7212D1CBB7142F70B5329E66895F89C6852D2A931"
+      }
+    },
+    "dirs_method": "walk",
+    "baseline_dirs": [],
+    "after_dirs": [],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "registry-not-collected",
+      "process-not-collected",
+      "network-not-collected"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "bwrap-unshare-all",
+    "attempted": null,
+    "attempted_basis": "unshare-all：无网络命名空间，无出网路径（结构性零）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0
+  },
+  "env_checks": [
+    {
+      "check": "bwrap 存在",
+      "ok": true,
+      "detail": "/usr/bin/bwrap (bubblewrap 0.13.0)"
+    },
+    {
+      "check": "bat2sh 存在",
+      "ok": true,
+      "detail": "/usr/bin/bat2sh"
+    }
+  ],
+  "execution_workdir": "<WORK>",
+  "notes": [
+    "clock_not_fixed: L 侧无法固定时钟（bwrap 不能设 CAP_SYS_TIME）；含 %date%/%time% 的样本只能靠规则 N8 形状化（D7）",
+    "artifact 沿用 W 侧 guest 文件名（含 .bat）—— 见 oracle-design §3.2.1"
+  ],
+  "timings": {
+    "convert": 197,
+    "before_manifest": 0,
+    "execute": 6,
+    "after_manifest": 0,
+    "total_ms": 389
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "sample": "w6-set-a-percent.bat",
+  "w_head": "faee2f78",
+  "l_head": "d8d7cebb",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": false,
+      "attributed": false,
+      "w": 0,
+      "l": 1,
+      "rules": []
+    },
+    "stdout": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'5120\\r\\ndone\\r\\n'",
+      "l_repr": "''",
+      "w_norm": "'5120\\ndone\\n'",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "'/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat: line 7: %n1024 : arithmetic syntax error: operand expected (error token is \"%n1024 \")\\n/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat: line 8: size: unbound variable\\n'",
+      "w_norm": "''",
+      "l_norm": "'<WORK>/w6.bat: line 7: %n1024 : arithmetic syntax error: operand expected (error token is \"%n1024 \")\\n<WORK>/w6.bat: line 8: size: unbound variable\\n'"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "rc",
+      "w": 0,
+      "l": 1
+    },
+    {
+      "channel": "stdout",
+      "w": "'5120\\r\\ndone\\r\\n'",
+      "l": "''"
+    },
+    {
+      "channel": "stderr",
+      "w": "''",
+      "l": "'/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat: line 7: %n1024 : arithmetic syntax error: operand expected (error token is \"%n1024 \")\\n/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat: line 8: size: unbound variable\\n'"
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

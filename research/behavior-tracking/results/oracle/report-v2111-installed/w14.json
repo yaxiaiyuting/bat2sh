@@ -1,0 +1,82 @@
+{
+  "sample": "w14-for-r-rd-self.bat",
+  "w_head": "faee2f78",
+  "l_head": "d8d7cebb",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 1,
+      "l": 1,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'另一个程序正在使用此文件，进程无法访问。\\r\\n找不到批处理文件。\\r\\n'",
+      "l_repr": "\"rm: cannot remove '/tmp/bat2sh-oracle/w14-for-r-rd-self-1790442718200/samples': Device or resource busy\\n\"",
+      "w_norm": "'另一个程序正在使用此文件，进程无法访问。\\n找不到批处理文件。\\n'",
+      "l_norm": "\"rm: cannot remove '<WORK>': Device or resource busy\\n\""
+    },
+    "fs_names": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [],
+        "modified": [],
+        "deleted": [
+          "<WORK>/w14.bat"
+        ],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "stderr",
+      "w": "'另一个程序正在使用此文件，进程无法访问。\\r\\n找不到批处理文件。\\r\\n'",
+      "l": "\"rm: cannot remove '/tmp/bat2sh-oracle/w14-for-r-rd-self-1790442718200/samples': Device or resource busy\\n\""
+    },
+    {
+      "channel": "fs_names",
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/w14.bat"
+      ]
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

@@ -1,0 +1,196 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect_linux.py",
+    "version": "1.0.0",
+    "git_head": "d8d7cebbee44d6695a574e3064fcbc6a4fcc3852",
+    "invocation": [
+      "tools/collect_linux.py",
+      "--script",
+      "tools/samples-v2/w6-set-a-percent.bat",
+      "--guest-name",
+      "w6.bat",
+      "--output",
+      "results/oracle/L-v2111-installed/w6.json",
+      "--bat2sh",
+      "/usr/bin/bat2sh"
+    ],
+    "convert_argv": [
+      "/usr/bin/bat2sh",
+      "--cli",
+      "-q",
+      "-o",
+      "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat",
+      "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w6-set-a-percent.bat"
+    ],
+    "convert_tool": {
+      "argv0": "/usr/bin/bat2sh",
+      "resolved": "/usr/bin/bat2sh",
+      "version": "bat2sh 2.11.1"
+    },
+    "side": "L"
+  },
+  "script": {
+    "name": "w6-set-a-percent.bat",
+    "sha256": "2D095EB6BAA7C06C2638D95091B2133A9E7DE3664C6D50D176F1A196DF050753",
+    "size": 61,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples-v2/w6-set-a-percent.bat",
+    "guest_path": "<WORK>/w6.bat",
+    "guest_name": "w6.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Linux (bwrap)",
+    "kernel_release": "7.2.7-1-cachyos",
+    "machine": "x86_64",
+    "console_codepage": 65001,
+    "timezone": "Asia/Shanghai",
+    "locale": "C.UTF-8",
+    "clock_fixed": false
+  },
+  "rollback": {
+    "method": "tmpdir-recreate",
+    "run_dir": "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples",
+    "kept": false
+  },
+  "execution": {
+    "argv": [
+      "bwrap",
+      "--unshare-all",
+      "--die-with-parent",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples",
+      "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples",
+      "--chdir",
+      "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples",
+      "/bin/bash",
+      "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat"
+    ],
+    "stdin": "/dev/null",
+    "exit_code": 1,
+    "signal": null,
+    "duration_ms": 5,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "",
+    "text": ""
+  },
+  "stderr": {
+    "b64": "L3RtcC9iYXQyc2gtb3JhY2xlL3c2LXNldC1hLXBlcmNlbnQtMTc5MDQ0MjcxNDE5Ny9zYW1wbGVzL3c2LmJhdDogbGluZSA3OiAlbjEwMjQgOiBhcml0aG1ldGljIHN5bnRheCBlcnJvcjogb3BlcmFuZCBleHBlY3RlZCAoZXJyb3IgdG9rZW4gaXMgIiVuMTAyNCAiKQovdG1wL2JhdDJzaC1vcmFjbGUvdzYtc2V0LWEtcGVyY2VudC0xNzkwNDQyNzE0MTk3L3NhbXBsZXMvdzYuYmF0OiBsaW5lIDg6IHNpemU6IHVuYm91bmQgdmFyaWFibGUK",
+    "text": "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat: line 7: %n1024 : arithmetic syntax error: operand expected (error token is \"%n1024 \")\n/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat: line 8: size: unbound variable\n"
+  },
+  "filesystem": {
+    "method": "manifest-diff-linux-v1",
+    "scope": [
+      "<WORK>"
+    ],
+    "baseline_manifest_hash": "sha256:fbdeeaca8c28594572162911f5b198ccc039b5d9ff548b8f1876713784bcc0a7",
+    "baseline_manifest": {
+      "w6.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat",
+        "Length": 224,
+        "Hash": "F08B537BE97F285858218EF842436EBC17AFFF1C16D22119A191E449D717D0C3",
+        "hash_lf_to_crlf": "48D90BACA0B8EA9351118E6DF4A144BF3FB62DF683596D1BF32EF4C59294E96A",
+        "hash_cp936_crlf": "111E300AE511E983BBCC3228EFAAA2AADEFC6930BA85B2DC00DBD6D19F9172B9"
+      }
+    },
+    "before_count": 1,
+    "after_count": 1,
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 1,
+    "known_artifacts": [
+      {
+        "path": "w6.bat",
+        "reason": "harness artifact"
+      }
+    ],
+    "created_raw": [],
+    "after_manifest": {
+      "w6.bat": {
+        "FullName": "/tmp/bat2sh-oracle/w6-set-a-percent-1790442714197/samples/w6.bat",
+        "Length": 224,
+        "Hash": "F08B537BE97F285858218EF842436EBC17AFFF1C16D22119A191E449D717D0C3",
+        "hash_lf_to_crlf": "48D90BACA0B8EA9351118E6DF4A144BF3FB62DF683596D1BF32EF4C59294E96A",
+        "hash_cp936_crlf": "111E300AE511E983BBCC3228EFAAA2AADEFC6930BA85B2DC00DBD6D19F9172B9"
+      }
+    },
+    "dirs_method": "walk",
+    "baseline_dirs": [],
+    "after_dirs": [],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "registry-not-collected",
+      "process-not-collected",
+      "network-not-collected"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "bwrap-unshare-all",
+    "attempted": null,
+    "attempted_basis": "unshare-all：无网络命名空间，无出网路径（结构性零）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0
+  },
+  "env_checks": [
+    {
+      "check": "bwrap 存在",
+      "ok": true,
+      "detail": "/usr/bin/bwrap (bubblewrap 0.13.0)"
+    },
+    {
+      "check": "bat2sh 存在",
+      "ok": true,
+      "detail": "/usr/bin/bat2sh"
+    }
+  ],
+  "execution_workdir": "<WORK>",
+  "notes": [
+    "clock_not_fixed: L 侧无法固定时钟（bwrap 不能设 CAP_SYS_TIME）；含 %date%/%time% 的样本只能靠规则 N8 形状化（D7）",
+    "artifact 沿用 W 侧 guest 文件名（含 .bat）—— 见 oracle-design §3.2.1"
+  ],
+  "timings": {
+    "convert": 194,
+    "before_manifest": 0,
+    "execute": 5,
+    "after_manifest": 0,
+    "total_ms": 388
+  }
+}

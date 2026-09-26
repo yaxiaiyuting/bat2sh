@@ -1,0 +1,73 @@
+{
+  "sample": "w4-for-r-dotted.bat",
+  "w_head": "faee2f78",
+  "l_head": "d8d7cebb",
+  "class": "一致",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'samples\\r\\ndone\\r\\n'",
+      "l_repr": "'samples\\ndone\\n'",
+      "w_norm": "'samples\\ndone\\n'",
+      "l_norm": "'samples\\ndone\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/my.project",
+          "<WORK>/my.project/samples"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/my.project",
+          "<WORK>/my.project/samples"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

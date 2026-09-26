@@ -1,0 +1,83 @@
+{
+  "sample": "运行a.txt中的程序.bat",
+  "w_head": "faee2f78",
+  "l_head": "d8d7cebb",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": false,
+      "attributed": false,
+      "w": 2,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'\\r\\nC:\\\\poc\\\\samples>for /F \"delims==\" %a in (a.txt) do start %a \\r\\n'",
+      "l_repr": "''",
+      "w_norm": "'\\n<WORK>>for /F \"delims==\" %a in (a.txt) do start %a\\n'",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'系统找不到文件 a.txt。\\r\\n'",
+      "l_repr": "''",
+      "w_norm": "'系统找不到文件 a.txt。\\n'",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "rc",
+      "w": 2,
+      "l": 0
+    },
+    {
+      "channel": "stdout",
+      "w": "'\\r\\nC:\\\\poc\\\\samples>for /F \"delims==\" %a in (a.txt) do start %a \\r\\n'",
+      "l": "''"
+    },
+    {
+      "channel": "stderr",
+      "w": "'系统找不到文件 a.txt。\\r\\n'",
+      "l": "''"
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}
