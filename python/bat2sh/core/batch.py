@@ -31,6 +31,9 @@ from .utils import (
 )
 
 _DOLLAR_PLACEHOLDER = "\ue000"
+#: `start` 的裸程序名（无路径分隔符）以这些后缀结尾时，视为"要启动的本地程序"——
+#: 它在 Windows 上是否存在**无法静态判断**，而 `start` 找不到目标会弹模态框并卡住（实测）。
+_START_EXEC_SUFFIXES = (".exe", ".com", ".bat", ".cmd")
 _REG_COMMANDS = frozenset({"reg", "regedit", "reg.exe"})
 _REG_VERB_OPS = {
     "query": "read",
@@ -3505,6 +3508,40 @@ class BatchConverter:
             or target_inner.endswith((".txt", ".pdf", ".html", ".url", ".lnk"))
         )
         self._warn(lineno, "start 的语义与 xdg-open/后台执行不完全一致，请检查", original, category="command")
+        # ---- 模态框风险（实测，research/behavior-tracking/batch-result.md §4.2）----
+        # Windows 上 `start` **找不到目标**时会弹模态错误框；非交互环境里没人点"确定"
+        # ⇒ 批处理**永不退出**（s13/s16 实测卡到 150 s+ 超时，且它们不含 pause/set /p，
+        # 静态"非交互"筛选抓不到）。
+        #
+        # bat2sh 在 Linux 侧**无法**检查 Windows 目标是否存在 ⇒ 只声明"无法验证 + 失败方式不同"，
+        # **不猜**目标在不在（保守优先，纪律 #1）。这里刻意用**警告而非 TODO**：
+        # "无法确认存在"不等于"需要人工改写"，而 TODO 会改变 CLI 退出码与批量报告口径。
+        has_var = "%" in tokens[0] or "$" in target_inner
+        if is_path or (not has_var and target_inner.lower().endswith(_START_EXEC_SUFFIXES)):
+            if has_var:
+                self._warn(
+                    lineno,
+                    "start 的目标含变量，静态无法判断它在 Windows 上是否存在；"
+                    "实测目标不存在时 start 会弹模态框并一直卡住（转换后不会卡住，行为不同）",
+                    original,
+                    category="command",
+                )
+            elif is_path:
+                self._warn(
+                    lineno,
+                    f"start 的目标是字面量路径 {target}，bat2sh 无法在 Linux 侧确认它在 Windows 上是否存在；"
+                    "实测目标不存在时 start 会弹模态框并一直卡住（转换后 xdg-open 只会立即报错）",
+                    original,
+                    category="command",
+                )
+            else:
+                self._warn(
+                    lineno,
+                    f"start 的目标是裸程序名 {target_inner}（无路径），bat2sh 无法确认它在 Windows 上是否存在；"
+                    "实测目标不存在时 start 会弹模态框并一直卡住（转换后只会立即报错）",
+                    original,
+                    category="command",
+                )
         target_cmd = target.strip("\"'").lower().rstrip(".")
         if not is_path and _is_windows_only_command(target_cmd):
             self._todo(
