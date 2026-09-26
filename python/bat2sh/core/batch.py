@@ -1247,7 +1247,7 @@ class BatchConverter:
                 if "f" in mods:
                     return f'$(readlink -f "${{{var}}}")'
                 if "n" in mods:
-                    return f'$(basename "${{{var}%.*}}")'
+                    return f'$(__bat2sh_b="$(basename "${{{var}}}")"; printf %s "${{__bat2sh_b%.*}}")'
                 if "x" in mods:
                     return f'$(echo ".${{{var}##*.}}")'
                 return f"${{{var}}}"
@@ -1262,7 +1262,7 @@ class BatchConverter:
             if "n" in mods and "x" in mods:
                 return '$(basename "$0")'
             if "n" in mods:
-                return '$(basename "${0%.*}")'
+                return '$(__bat2sh_b="$(basename "$0")"; printf %s "${__bat2sh_b%.*}")'
             if "x" in mods:
                 return '$(echo ".${0##*.}")'
             return '"$0"'

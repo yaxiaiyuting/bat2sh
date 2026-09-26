@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 
 import pytest
@@ -1086,25 +1087,68 @@ def test_percent_replacement(convert_bat):
 # ----------------------------------------------------------------------
 # basename 转义（%~nI / %~n0 无多余 \"）
 # ----------------------------------------------------------------------
-def test_basename_modifier_no_extra_escaping(convert_bat, bash_check):
+def test_basename_modifier_no_extra_escaping(convert_bat, bash_check, tmp_path, bash_run):
+    """语义：``%%~ni`` 赋给变量时**不得引入多余转义**，且真实取值 = 去扩展名的文件名。
+
+    不再钉死实现串（``$(basename ...)`` 的具体形态可自由变），改为运行产物断言行为：
+    以**含空格**的文件名运行，取值仍正确 ⇒ 引号/转义正确（``\\"`` 出现过即错）。
+    """
     out, _ = convert_bat('for %%i in (*.txt) do set "base=%%~ni"\n')
-    assert 'base="$(basename "${i%.*}")"' in out
-    assert '\\"' not in out
     bash_check(out)
+    assert "\\" + '"' not in out
+    (tmp_path / "my file.txt").write_text("x", encoding="utf-8")
+    proc = bash_run('cd "%s"\n%s\necho "[${base:-${i}}]"\n' % (tmp_path, out))
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "[my file]"
 
 
-def test_del_basename_quoted(convert_bat, bash_check):
+def test_del_basename_quoted(convert_bat, bash_check, tmp_path, bash_run):
+    """语义：``del "%%~ni"`` 必须真的删除**去扩展名**后的目标，且不动同名 ``.txt``。
+
+    cmd 语义：``%%~ni`` 去掉扩展名 ⇒ 删的是 ``a`` 而非 ``a.txt``。
+    缺陷形态（末段无点、祖先段含点）下旧映射会删**错名字**且完全静默 —— 见
+    ``test_batch_tilde_n_dotted_path.py`` 的含点路径回归。
+    """
     out, _ = convert_bat('for %%i in (*.txt) do del "%%~ni"\n')
-    assert 'rm -f "$(basename "${i%.*}")"' in out
     bash_check(out)
+    assert "\\" + '"' not in out
+    (tmp_path / "a").write_text("x", encoding="utf-8")
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    proc = bash_run('cd "%s"\n%s' % (tmp_path, out))
+    assert proc.returncode == 0, proc.stderr
+    assert not (tmp_path / "a").exists(), "去扩展名目标未被删除"
+    assert (tmp_path / "a.txt").exists(), "不应删除带扩展名的同名文件"
 
 
-def test_script_name_modifiers(convert_bat, bash_check):
-    out, _ = convert_bat("echo %~n0\necho %~x0\necho %~nx0\n")
-    assert '$(basename "${0%.*}")' in out
-    assert '$(echo ".${0##*.}")' in out
-    assert '$(basename "$0")' in out
+def test_script_name_n0_runtime(convert_bat, bash_check, tmp_path):
+    """语义：``%~n0`` 真实取值 = 脚本名去扩展；``%~nx0`` 有值时须含完整脚本名。
+
+    以**文件方式**执行产物（``$0`` 才会是脚本路径），断言运行输出而非实现串。
+    脚本文件名故意**不含点**（``scriptsrc``）：``basename($0)`` 含点时 ``${0%.*}``
+    恰好只吃掉扩展名，会把 ``%~n0`` 的缺陷（顺序倒置）掩盖掉。
+
+    本用例路径**不含点**，故对 ``%~n0`` 只是对照（真缺陷面与真值见
+    ``test_batch_tilde_n_dotted_path.py::test_script_name_n0_dotted_ancestor``）。
+    ``%~x0`` / ``%~nx0`` 在含点路径下**仍错**（``%%~x`` 同根因，本轮无 cmd 真机指纹、
+    按纪律不修），故这里只在无点路径上作烟雾断言、不钉死其形态。
+    """
+    out, _ = convert_bat("echo %~n0\necho %~nx0\n", source_name="a.txt")
     bash_check(out)
+    work = tmp_path / "samples"
+    work.mkdir()
+    script = work / "scriptsrc"
+    script.write_text(out, encoding="utf-8")
+    proc = subprocess.run(
+        [shutil.which("bash") or "bash", str(script)],
+        capture_output=True,
+        text=True,
+        cwd=work,
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    n0, nx0 = proc.stdout.splitlines()
+    assert n0 == "scriptsrc"
+    assert nx0 == "scriptsrc"
 
 
 def test_basename_runtime_with_spaces(convert_bat, tmp_path, bash_run):

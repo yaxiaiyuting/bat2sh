@@ -29,9 +29,9 @@ def test_loop_var_nx_basename(convert_bat, tmp_path):
 
 
 def test_loop_var_n_without_extension(convert_bat, tmp_path):
+    """语义：``%%~nF`` 取去扩展名的文件名（不再钉死实现串）。"""
     (tmp_path / "a.txt").write_text("x", encoding="utf-8")
     out, _ = convert_bat("@echo off\nfor %%F in (*.txt) do echo %%~nF\n")
-    assert 'echo "$(basename "${f%.*}")"' in out
     proc = _run(tmp_path, out)
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout == "a\n"
