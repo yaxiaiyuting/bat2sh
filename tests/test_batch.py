@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
 from bat2sh.core.types import SourceKind
@@ -699,6 +701,61 @@ def test_for_r_todo(convert_bat):
 def test_for_d(convert_bat):
     out, _ = convert_bat("@echo off\nfor /d %%d in (sub\\*) do echo %%d\n")
     assert "for d in sub/*/; do" in out
+
+
+# ----------------------------------------------------------------------
+# F2（oracle V1）：`for /d` 集合的**末元素**被当成通配符
+#
+# 旧实现 `items.rstrip(" *") + "/*"` 作用在 `_convert_for_set` 拼好的**单个字符串**上
+# ⇒ 只能命中最后一个 token；配合 `shopt -s nullglob`，末元素在没有匹配目录时
+# **静默消失**（rc=0、stderr 空、无 TODO）。
+# 断言**运行语义**（真机建出几个目录），不编码产物字符串。
+# ----------------------------------------------------------------------
+def test_for_d_literal_list_keeps_every_element(convert_bat, tmp_path):
+    """真机口径：`for /d %%i in (aa,bb,cc) do md %%i` 在 cmd 下建出 **3** 个目录。"""
+    out, report = convert_bat("@echo off\nfor /d %%i in (aa,bb,cc) do md %%i\n")
+    assert report.todo_count == 0
+    proc = subprocess.run(
+        ["bash"], input=out, capture_output=True, text=True, cwd=tmp_path, timeout=30
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["aa", "bb", "cc"]
+
+
+def test_for_d_literal_elements_are_not_globs(convert_bat):
+    """字面元素不得被追加 `/*`（那会枚举其**子目录**而非产出它本身）。"""
+    out, _ = convert_bat("@echo off\nfor /d %%i in (aa,bb,cc) do echo %%i\n")
+    header = next(l for l in out.splitlines() if l.strip().startswith("for "))
+    assert header.strip() == "for i in aa bb cc; do"
+    # 字面集合不含通配符 ⇒ 不该被误判为需要 nullglob
+    assert "nullglob" not in out
+
+
+def test_for_d_single_literal_element_is_itself(convert_bat, tmp_path):
+    out, _ = convert_bat("@echo off\nfor /d %%i in (aa) do md %%i\n")
+    header = next(l for l in out.splitlines() if l.strip().startswith("for "))
+    assert header.strip() == "for i in aa; do"
+    proc = subprocess.run(
+        ["bash"], input=out, capture_output=True, text=True, cwd=tmp_path, timeout=30
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert [p.name for p in tmp_path.iterdir()] == ["aa"]
+
+
+def test_for_d_wildcard_element_still_matches_directories(convert_bat, tmp_path):
+    """含通配符的元素仍按**目录**匹配（尾 `/`），且逐元素判定而非只改末元素。"""
+    out, report = convert_bat("@echo off\nfor /d %%i in (a*,b*) do echo %%i\n")
+    assert report.todo_count == 0
+    header = next(l for l in out.splitlines() if l.strip().startswith("for "))
+    assert header.strip() == "for i in a*/ b*/; do"
+    (tmp_path / "ax").mkdir()
+    (tmp_path / "by").mkdir()
+    (tmp_path / "a_file.txt").write_text("x", encoding="utf-8")
+    proc = subprocess.run(
+        ["bash"], input=out, capture_output=True, text=True, cwd=tmp_path, timeout=30
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert sorted(proc.stdout.split()) == ["ax/", "by/"]
 
 
 def test_for_empty_glob_protected_by_nullglob(convert_bat):

@@ -2263,9 +2263,18 @@ class BatchConverter:
             else:
                 items = "$(seq %s)" % nums[0]
         elif "/d" in opts_lower:
-            if not items.endswith("*"):
-                items = items.rstrip(" *") + "/*"
-            items += "/"
+            # cmd `for /d`：**只有含通配符的元素**才做目录匹配，不含通配符的元素按字面
+            # 产出（既不查存在性、也不得被当成通配符前缀）。真机实测（oracle V1）：
+            # `for /d %%i in (樱野,王子变青蛙,其他) do md %%i` 在 cmd 下建出 **3 个**目录，
+            # 而这三个目录在循环开始时都不存在。
+            # bash 侧：含通配符的元素追加尾 `/`（= 只匹配目录），字面元素原样保留。
+            # 旧实现是 `items.rstrip(" *") + "/*"` —— `items` 是 `_convert_for_set` 拼好的
+            # **单个字符串**，所以那是"字符串尾部追加"，只会命中**最后一个** token（纯位置性，
+            # 与随机无关）；配合 `shopt -s nullglob`，末元素被静默删除。
+            items = " ".join(
+                (t + "/") if ("*" in t or "?" in t) and not t.endswith("/") else t
+                for t in tokenize_args(items)
+            )
 
         self._note_glob(lineno, items, text)
         header = self._indent + f"for {var} in {items}; do"
