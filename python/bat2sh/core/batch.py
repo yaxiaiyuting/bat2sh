@@ -2360,7 +2360,20 @@ class BatchConverter:
             target = '"${%s:-.}"' % simple_var.group(1)
         else:
             target = f'"{root}"' if root else "."
-        close_word = f"done < <(find {target} -type d)"
+        # 用 `cd <root> && find "$PWD"` 而不是 `find "$PWD"/<root>`：后者在 root 本身是
+        # **绝对路径**时会退化成 `<cwd>/<绝对路径>`（cmd 完全允许绝对 root）。cd 发生在
+        # 进程替换的子壳里，不污染主壳 cwd；两条形式对相对/绝对 root 都正确。
+        #
+        # 产出**绝对路径**同时修好两件事：
+        # 1. cmd 的 `for /r` 给的本来就是完整路径（`C:\poc\samples\sub`），绝对路径更接近真机；
+        # 2. `%%~n`/`%%~nx` 映射成 `basename "${v%.*}"` / `basename "${v}"`，而
+        #    `find .` 的值域是 `.` 与 `./sub` —— **每个值都带前导点**，`${v%.*}` 会被
+        #    剥成空串（oracle V5：`%%~ni` 产出空 ⇒ 建出字面文件 `.\.txt`）。
+        #    绝对路径无前导 `./`，这两个映射才成立。
+        if target in (".", '""'):
+            close_word = 'done < <(find "$PWD" -type d)'
+        else:
+            close_word = f'done < <(cd {target} && find "$PWD" -type d)'
         header = self._indent + f"while IFS= read -r {var}; do"
         self._loop_vars.append(var)
         block = _Block("for", close_word, var)
