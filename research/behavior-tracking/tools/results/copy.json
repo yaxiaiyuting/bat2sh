@@ -1,0 +1,251 @@
+{
+  "schema_version": 2,
+  "harness": {
+    "tool": "collect.py",
+    "version": "1.0.0",
+    "git_head": "e1f8fb41e15421766276ba2da73f34ea4b0fe42e",
+    "invocation": [
+      "--sample",
+      "samples/copy.bat",
+      "--output",
+      "results/copy.json",
+      "--scope",
+      "C:\\poc",
+      "--scope",
+      "C:\\iso-probe"
+    ]
+  },
+  "script": {
+    "name": "copy.bat",
+    "sha256": "7cf5462660e2677276451962cb0c98f3dcac2f5f9a8da51d7fd1b8831edec32d",
+    "size": 483,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples/copy.bat",
+    "guest_path": "C:\\poc\\samples\\copy.bat"
+  },
+  "environment": {
+    "guest_os": "Windows 10 Pro",
+    "guest_version": "Microsoft Windows 11",
+    "kernel_release": "29599",
+    "machine": "x86_64",
+    "guest_agent_version": "110.2.3",
+    "guest_agent_commands": 37,
+    "console_codepage": 936
+  },
+  "rollback": {
+    "method": "overlay-qcow2",
+    "stop_mode": "destroy",
+    "stop_ms": 0,
+    "revert_op_ms": 77,
+    "base_ident_before": {
+      "size": 68730224640,
+      "mtime": 1790425638,
+      "inode": 1418147
+    },
+    "overlay": "/var/lib/libvirt/images/win-behavior.qcow2",
+    "base": "/var/lib/libvirt/images/win-behavior.base.qcow2",
+    "agent_ready_ms": 16288,
+    "base_intact": {
+      "unchanged": true,
+      "before": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "after": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "note": "qcow2 以只读方式打开 backing file，写入只落覆盖层"
+    },
+    "cycle_ms": 32333,
+    "final_stop_ms": 246
+  },
+  "execution": {
+    "argv": [
+      "cmd.exe",
+      "/c",
+      "C:\\poc\\samples\\copy.bat < nul"
+    ],
+    "pid": 4332,
+    "duration_ms": 693,
+    "exit_code": 0,
+    "signal": null,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "c291cmNlLWFscGhhDQo=",
+    "text": "source-alpha\r\n"
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-v2",
+    "scope": [
+      "C:\\poc",
+      "C:\\iso-probe"
+    ],
+    "baseline_manifest_hash": "sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df",
+    "baseline_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      }
+    },
+    "before_count": 6,
+    "after_count": 10,
+    "created": [
+      "C:\\iso-probe\\from-a.txt",
+      "C:\\poc\\samples\\work\\a.txt",
+      "C:\\poc\\samples\\work\\c.txt"
+    ],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 6,
+    "known_artifacts": [
+      {
+        "path": "C:\\poc\\samples\\copy.bat",
+        "reason": "harness upload"
+      }
+    ],
+    "created_raw": [
+      "C:\\iso-probe\\from-a.txt",
+      "C:\\poc\\samples\\copy.bat",
+      "C:\\poc\\samples\\work\\a.txt",
+      "C:\\poc\\samples\\work\\c.txt"
+    ],
+    "after_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      },
+      "C:\\poc\\samples\\copy.bat": {
+        "FullName": "C:\\poc\\samples\\copy.bat",
+        "Length": 483,
+        "Hash": "7CF5462660E2677276451962CB0C98F3DCAC2F5F9A8DA51D7FD1B8831EDEC32D"
+      },
+      "C:\\poc\\samples\\work\\a.txt": {
+        "FullName": "C:\\poc\\samples\\work\\a.txt",
+        "Length": 14,
+        "Hash": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F"
+      },
+      "C:\\poc\\samples\\work\\c.txt": {
+        "FullName": "C:\\poc\\samples\\work\\c.txt",
+        "Length": 14,
+        "Hash": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F"
+      },
+      "C:\\iso-probe\\from-a.txt": {
+        "FullName": "C:\\iso-probe\\from-a.txt",
+        "Length": 15,
+        "Hash": "83D2E683721894EAA9FA610EDFFB7231608A960CE5E3D2A3151F8AE1DF1C7835"
+      }
+    },
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes"
+    ]
+  },
+  "process": [],
+  "network": [],
+  "timings": {
+    "env_check": 5300,
+    "revert": 165,
+    "agent_wait": 16522,
+    "environment": 534,
+    "baseline_manifest": 3725,
+    "upload": 131,
+    "execute": 873,
+    "after_manifest": 10494,
+    "total_ms": 38054
+  },
+  "notes": [],
+  "env_checks": [
+    {
+      "check": "sudo(免密)",
+      "ok": true,
+      "detail": "sudo -n 可用"
+    },
+    {
+      "check": "域存在/可查询",
+      "ok": true,
+      "detail": "win-behavior @ qemu:///system → shut off"
+    },
+    {
+      "check": "ufw 放行 virbr0",
+      "ok": true,
+      "detail": "virbr0 已放行（in + route）"
+    },
+    {
+      "check": "DHCP 未被丢弃",
+      "ok": true,
+      "detail": "udp dport 67 drop 计数静止（64 → 64）"
+    },
+    {
+      "check": "基线存在/无 backing",
+      "ok": true,
+      "detail": "/var/lib/libvirt/images/win-behavior.base.qcow2"
+    },
+    {
+      "check": "域磁盘非基线",
+      "ok": true,
+      "detail": "域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2"
+    }
+  ]
+}
