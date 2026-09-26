@@ -1,0 +1,116 @@
+{
+  "sample": "copy.bat",
+  "w_head": "f7e6c864",
+  "l_head": "f7e6c864",
+  "class": "可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "'source-alpha\\r\\n'",
+      "l_repr": "'source-alpha\\n'",
+      "w_norm": "'source-alpha\\n'",
+      "l_norm": "'source-alpha\\n'"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": false,
+      "attributed": true,
+      "rules": [
+        "N15"
+      ],
+      "w": {
+        "created": [
+          "<WORK>/work/a.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/work/a.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": true,
+      "rules": [
+        "N10",
+        "N15"
+      ],
+      "compared": 2,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [
+    {
+      "rule": "N15",
+      "channel": "fs_names",
+      "desc": "盘符绝对路径 → 工作根内字面目录（D15：不映射盘符）",
+      "masked": "**盘符未映射**这一产品决定本身：会掩盖「本该写到工作根之外、却以**其它**形态落进工作根」的写入 —— 只放行首段恰为单字母 `X:` 的路径",
+      "d_items": [
+        "D15"
+      ]
+    },
+    {
+      "rule": "N10",
+      "channel": "fs_content",
+      "desc": "文件内容：行尾归一后哈希",
+      "masked": "文本产物行尾 CRLF vs LF",
+      "d_items": [
+        "D2"
+      ]
+    },
+    {
+      "rule": "N15",
+      "channel": "fs_content",
+      "desc": "盘符绝对路径 → 工作根内字面目录（D15：不映射盘符）",
+      "masked": "**盘符未映射**这一产品决定本身：会掩盖「本该写到工作根之外、却以**其它**形态落进工作根」的写入 —— 只放行首段恰为单字母 `X:` 的路径",
+      "d_items": [
+        "D15"
+      ]
+    }
+  ],
+  "d_items": [
+    "D15",
+    "D2"
+  ],
+  "d_desc": {
+    "D15": "盘符绝对路径不映射（**已决定的产品行为**；docs/2.x-roadmap-research.md:137,371）",
+    "D2": "行尾"
+  },
+  "unattributed": [],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

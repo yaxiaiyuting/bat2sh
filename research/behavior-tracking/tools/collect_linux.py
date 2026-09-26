@@ -59,6 +59,10 @@ from pathlib import Path
 SCHEMA_VERSION = 4                    # 与 W 侧 collect.py 的 SCHEMA_VERSION 对齐
 COLLECTOR_VERSION = "1.0.0"
 DEFAULT_BWRAP = "bwrap"
+
+#: 转换器可执行文件（`--bat2sh` 可覆盖）。默认取 PATH 上的 `bat2sh`；
+#: 验证**工作树**（而非已安装包）时指向包装脚本，并把解析结果记入指纹。
+DEFAULT_BAT2SH = "bat2sh"
 HASH_MAX_BYTES = 8 << 20              # 超过 8 MiB 只记 size（语料样本都远小于此）
 FIXED_TZ = "Asia/Shanghai"            # 与 W 侧 fixed_time 的 UTC+8 对齐
 LOCALE = "C.UTF-8"                    # 确定性排序；顺序差异由 D4 归因，不预先抹平
@@ -158,14 +162,26 @@ def diff(before: dict, after: dict) -> dict:
 # --------------------------------------------------------------------------
 
 
-def convert(src: Path, out: Path) -> tuple[bool, str, list[str]]:
+def bat2sh_identity(exe: str) -> dict:
+    """记录**实际使用**的转换器（路径 + `--version`），堵住"用哪个 bat2sh"的复现缺口。"""
+    resolved = shutil.which(exe) or exe
+    try:
+        proc = subprocess.run([resolved, "--version"], capture_output=True,
+                              text=True, timeout=60)
+        version = (proc.stdout or proc.stderr).strip().splitlines()[0]
+    except Exception as exc:  # noqa: BLE001
+        version = f"<取版本失败: {exc}>"
+    return {"argv0": exe, "resolved": resolved, "version": version}
+
+
+def convert(src: Path, out: Path, exe: str = DEFAULT_BAT2SH) -> tuple[bool, str, list[str]]:
     """调 bat2sh **CLI**（产品门面，而非内部 API），argv 记入指纹以便复现。
 
     口径说明：CLI 默认 `bash_check=True`（= 用户实际拿到的产物）。
     语料统计用的是"原始转换口径 `bash_check=False`"（`measure.py`），
     但本 oracle 要回答的是"**用户拿到的东西**跑起来对不对"，故用 CLI 默认。
     """
-    argv = ["bat2sh", "--cli", "-q", "-o", str(out), str(src)]
+    argv = [exe, "--cli", "-q", "-o", str(out), str(src)]
     proc = subprocess.run(argv, capture_output=True, text=True, timeout=180)
     if not out.is_file():
         return False, (proc.stderr or proc.stdout or "").strip(), argv
@@ -216,12 +232,12 @@ def bwrap_argv(run_dir: Path, script: Path) -> list[str]:
     ]
 
 
-def check_env() -> list[dict]:
+def check_env(bat2sh_exe: str = DEFAULT_BAT2SH) -> list[dict]:
     checks = []
     bw = shutil.which(DEFAULT_BWRAP)
     checks.append({"check": "bwrap 存在", "ok": bool(bw),
                    "detail": f"{bw} ({subprocess.run([DEFAULT_BWRAP,'--version'],capture_output=True,text=True).stdout.strip()})" if bw else "未找到"})
-    b2s = shutil.which("bat2sh")
+    b2s = shutil.which(bat2sh_exe) or (bat2sh_exe if Path(bat2sh_exe).is_file() else None)
     checks.append({"check": "bat2sh 存在", "ok": bool(b2s), "detail": str(b2s)})
     ok = all(c["ok"] for c in checks)
     if not ok:
@@ -230,12 +246,13 @@ def check_env() -> list[dict]:
 
 
 def collect(script: Path, output: Path, *, guest_name: str | None = None,
+            bat2sh_exe: str = DEFAULT_BAT2SH,
             artifact: Path | None = None, keep: bool = False,
             timeout: int = 180, workroot: Path | None = None,
             run_name: str = "samples", neutralize_errexit_flag: bool = False) -> dict:
     t0 = time.time()
     timings: dict = {}
-    checks = check_env()
+    checks = check_env(bat2sh_exe)
 
     src = script.resolve()
     src_bytes = src.read_bytes()
@@ -259,7 +276,7 @@ def collect(script: Path, output: Path, *, guest_name: str | None = None,
         conv_ok, conv_err, conv_argv = True, "", []
         shutil.copy2(artifact, run_dir / gname)
     else:
-        conv_ok, conv_err, conv_argv = convert(src, run_dir / gname)
+        conv_ok, conv_err, conv_argv = convert(src, run_dir / gname, bat2sh_exe)
     timings["convert"] = int((time.time() - t) * 1000)
     if not conv_ok:
         print(f"转换失败: {conv_err}", file=sys.stderr)
@@ -316,6 +333,7 @@ def collect(script: Path, output: Path, *, guest_name: str | None = None,
             "git_head": git_head(),
             "invocation": sys.argv,
             "convert_argv": conv_argv,
+            "convert_tool": bat2sh_identity(bat2sh_exe),
             "side": "L",
         },
         "script": {
@@ -433,6 +451,10 @@ def main() -> int:
     ap.add_argument("--workroot", default=None)
     ap.add_argument("--run-name", default="samples",
                     help="沙箱工作根目录名；**必须与 W 侧 C:\\poc\\samples 的 basename 一致**")
+    ap.add_argument("--bat2sh", default=DEFAULT_BAT2SH,
+                    help="转换器可执行文件（默认 PATH 上的 bat2sh）。验证**工作树**时"
+                         "指向包装脚本；解析结果与 --version 会记入指纹的 "
+                         "harness.convert_tool，避免'用哪个 bat2sh'不可复现")
     ap.add_argument("--keep", action="store_true", help="保留沙箱目录（调试）")
     ap.add_argument("--neutralize-errexit", action="store_true",
                     help="**诊断**（规则 N13）：中和 set -euo pipefail 后执行，用于归因 D5")
@@ -444,6 +466,7 @@ def main() -> int:
             print(f"源文件不存在: {src}", file=sys.stderr)
             return 4
         fp = collect(src, Path(args.output), guest_name=args.guest_name,
+                     bat2sh_exe=args.bat2sh,
                      artifact=Path(args.artifact), keep=args.keep,
                      timeout=args.timeout, workroot=args.workroot,
                      run_name=args.run_name,
@@ -454,6 +477,7 @@ def main() -> int:
             print(f"样本不存在: {src}", file=sys.stderr)
             return 4
         fp = collect(src, Path(args.output), guest_name=args.guest_name,
+                     bat2sh_exe=args.bat2sh,
                      keep=args.keep, timeout=args.timeout, workroot=args.workroot,
                      run_name=args.run_name,
                      neutralize_errexit_flag=args.neutralize_errexit)

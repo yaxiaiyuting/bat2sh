@@ -1,0 +1,87 @@
+{
+  "sample": "生成指定内容的文本文件.bat",
+  "w_head": "f7e6c864",
+  "l_head": "f7e6c864",
+  "class": "可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/a.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/a.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": true,
+      "rules": [
+        "N11"
+      ],
+      "compared": 1,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [
+    {
+      "rule": "N11",
+      "channel": "fs_content",
+      "desc": "文件内容：CP936+行尾归一后哈希",
+      "masked": "产物**编码** CP936 vs UTF-8（可能掩盖编码缺陷）",
+      "d_items": [
+        "D3"
+      ]
+    }
+  ],
+  "d_items": [
+    "D3"
+  ],
+  "d_desc": {
+    "D3": "控制台代码页 vs UTF-8"
+  },
+  "unattributed": [],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

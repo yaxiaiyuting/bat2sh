@@ -1,0 +1,75 @@
+{
+  "sample": "快速创建文件夹.bat",
+  "w_head": "f7e6c864",
+  "l_head": "f7e6c864",
+  "class": "一致",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/其他",
+          "<WORK>/樱野",
+          "<WORK>/王子变青蛙"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/其他",
+          "<WORK>/樱野",
+          "<WORK>/王子变青蛙"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": []
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

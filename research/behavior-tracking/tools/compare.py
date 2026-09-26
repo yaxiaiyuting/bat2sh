@@ -32,7 +32,7 @@ from pathlib import Path
 # --------------------------------------------------------------------------
 
 STRICT_RULES = {"N1", "N5", "N6", "N7"}    # 严格档：表示层差异
-ATTRIBUTED_RULES = {"N2", "N3", "N8", "N9", "N12", "N10", "N11"}
+ATTRIBUTED_RULES = {"N2", "N3", "N8", "N9", "N12", "N10", "N11", "N15"}
 
 # ⚠️ **设计修正 A1（相对 oracle-design.md §5 的偏离，必须披露）**
 # 原设计把 N6（路径分隔符）放在**归因档**。实测发现：W 的清单键恒用 `\`、
@@ -42,6 +42,14 @@ ATTRIBUTED_RULES = {"N2", "N3", "N8", "N9", "N12", "N10", "N11"}
 # 不改变"指向哪个文件"这一行为事实），故升入严格档。
 # 保留的判别力：N6 **只对 `<WORK>` 前缀内的路径生效**，工作根之外的差异
 # （如 `C:\iso-probe\x` vs `<WORK>/C:/iso-probe/x`）**仍然暴露**（见 norm_path）。
+
+# ⚠️ **本 session 新增 N15（相对 oracle-design.md §5 的扩充，必须披露）**
+# 上一轮（`oracle-result.md` §3.4/§5）已把 F4「盘符绝对路径 → 工作根内字面相对路径」
+# **裁定为已知行为**并声明"补入 D-list 作 D15"，依据是仓库文档里明确的"不做"决定
+# （`docs/2.x-roadmap-research.md:137,371`），但当时**未接进本工具**。
+# 本 session 按 `oracle-design.md` §4.3「是新的已知差异 → 补充 D-list」补完。
+# **刻意放在归因档（不是严格档）**：F4 是**语义**分歧（写到工作根之外 vs 之内），
+# 不是表示层差异，绝不能被判成"一致"；它只应把 V4 从"不可归因"降为"可归因(D15)"。
 
 RULE_DESC = {
     "N1": "行尾归一 CRLF→LF",
@@ -56,12 +64,14 @@ RULE_DESC = {
     "N10": "文件内容：行尾归一后哈希",
     "N11": "文件内容：CP936+行尾归一后哈希",
     "N12": "退出码宽度（32 位 vs 8 位）",
+    "N15": "盘符绝对路径 → 工作根内字面目录（D15：不映射盘符）",
 }
 
 # 规则 → 已知差异条目（D-list）。空 = 纯表示层，不对应 D 条目。
 RULE_TO_D = {
     "N2": [], "N3": ["D10"], "N6": ["D1", "D8"], "N8": ["D7"], "N9": [],
     "N10": ["D2"], "N11": ["D3"], "N12": ["D6"], "N1": ["D2"],
+    "N15": ["D15"],
 }
 
 # 规则"掩盖了什么" —— 报告必须显式写出，否则规则变成静默的抹平
@@ -75,6 +85,8 @@ RULE_MASKS = {
     "N10": "文本产物行尾 CRLF vs LF",
     "N11": "产物**编码** CP936 vs UTF-8（可能掩盖编码缺陷）",
     "N12": "退出码宽度",
+    "N15": "**盘符未映射**这一产品决定本身：会掩盖「本该写到工作根之外、"
+           "却以**其它**形态落进工作根」的写入 —— 只放行首段恰为单字母 `X:` 的路径",
 }
 
 D_DESC = {
@@ -84,6 +96,7 @@ D_DESC = {
     "D8": "%~dp0 结尾分隔符", "D9": "自读产物", "D10": "目录列举格式",
     "D11": "不存在的外部命令", "D12": "大小写敏感性", "D13": "不存在的设备/伪文件",
     "D14": "ping 作延时惯用法",
+    "D15": "盘符绝对路径不映射（**已决定的产品行为**；docs/2.x-roadmap-research.md:137,371）",
 }
 
 WORK = "<WORK>"
@@ -128,6 +141,20 @@ def norm_text(text: str, rules: set[str], *, side: str, work_root: str = "") -> 
     if "N3" in rules:
         t = "\n".join(ln.rstrip() for ln in t.split("\n"))
     return t
+
+
+_DRIVE_SEG_RE = re.compile(r"^[A-Za-z]:$")
+
+
+def is_drive_designator_path(p: str) -> bool:
+    """``<WORK>/X:/…``（X 为单字母盘符）—— 盘符未映射的产物（D15 / 规则 N15）。
+
+    窄判据：`<WORK>` 下**第一段恰为** `X:`。不匹配 `C:foo`、`X:/` 之外的形态。
+    """
+    if not p.startswith(WORK + "/"):
+        return False
+    seg = p[len(WORK) + 1:].split("/", 1)[0]
+    return bool(_DRIVE_SEG_RE.match(seg))
 
 
 def norm_path(p: str, rules: set[str], *, side: str) -> str:
@@ -181,7 +208,12 @@ def load(p: str) -> dict:
 
 def fs_sets(fp: dict, rules: set[str], *, side: str) -> dict:
     fs = fp.get("filesystem", {})
-    g = lambda key: sorted({norm_path(x, rules, side=side) for x in fs.get(key, [])})  # noqa: E731
+
+    def g(key: str) -> list[str]:
+        vals = {norm_path(x, rules, side=side) for x in fs.get(key, [])}
+        if "N15" in rules:
+            vals = {v for v in vals if not is_drive_designator_path(v)}
+        return sorted(vals)
     return {
         "created": g("created"),
         "modified": g("modified"),
@@ -193,8 +225,11 @@ def fs_sets(fp: dict, rules: set[str], *, side: str) -> dict:
 
 def content_map(fp: dict, rules: set[str], *, side: str) -> dict:
     fs = fp.get("filesystem", {})
-    return {norm_path(k, rules, side=side): v
-            for k, v in (fs.get("after_manifest") or {}).items()}
+    out = {norm_path(k, rules, side=side): v
+           for k, v in (fs.get("after_manifest") or {}).items()}
+    if "N15" in rules:
+        out = {k: v for k, v in out.items() if not is_drive_designator_path(k)}
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -313,11 +348,20 @@ def compare(W: dict, L: dict, *, source_text: str | None = None,
     names_strict = ws == ls
     names_attr = names_strict
     if not names_strict:
-        ws6, ls6 = fs_sets(W, STRICT_RULES | {"N6"}, side="W"), fs_sets(L, STRICT_RULES | {"N6"}, side="L")
-        if ws6 == ls6:
-            name_rules.add("N6")
-            names_attr = True
-            ws, ls = ws6, ls6
+        # **最小规则集**：逐条单选尝试（N6 表示层优先，再 attr 里的每条，如 N15 = D15）。
+        # 只有**单条**规则就足以判等时才登记它 —— 否则报告会堆积无关规则、失去判别力。
+        for cand in ["N6"] + sorted(attr):
+            wt, lt = fs_sets(W, STRICT_RULES | {cand}, side="W"), \
+                     fs_sets(L, STRICT_RULES | {cand}, side="L")
+            if wt == lt:
+                name_rules = {cand}
+                names_attr = True
+                ws, ls = wt, lt
+                break
+        if not names_attr:
+            # 单条都不够 ⇒ 用最大集合并**如实列出**全部参与规则（不假装最小）
+            full = STRICT_RULES | attr
+            ws, ls = fs_sets(W, full, side="W"), fs_sets(L, full, side="L")
     channels["fs_names"] = {"strict": names_strict, "attributed": names_attr,
                             "rules": sorted(name_rules),
                             "w": ws, "l": ls}
@@ -329,11 +373,27 @@ def compare(W: dict, L: dict, *, source_text: str | None = None,
                                                  {x for k in ws for x in ws[k]})})
 
     # ---- fs 内容 ----
+    # 与 fs_names 同款：逐条尝试归因档规则（N10 → N11 → … → N15），每级留痕。
     cr = cmp_fs_content(W, L, STRICT_RULES)
+    content_rules: set[str] = set()
+    if not cr["equal"]:
+        # 最小规则集：N10/N11（内容哈希）优先，再 attr 里的其它条目（如 N15）
+        for cand in ["N10", "N11"] + sorted(attr):
+            attempt = cmp_fs_content(W, L, STRICT_RULES | {cand})
+            if attempt["equal"]:
+                content_rules = {cand}
+                cr = attempt
+                break
+        else:
+            full = STRICT_RULES | attr
+            attempt = cmp_fs_content(W, L, full)
+            used = set(attempt["rules_used"]) | (attr - {"N10", "N11"} if attempt["equal"] else set())
+            cr = attempt
+            content_rules = used if attempt["equal"] else set()
     channels["fs_content"] = {
-        "strict": cr["equal"] and not cr["rules_used"],
+        "strict": cr["equal"] and not (cr["rules_used"] | content_rules),
         "attributed": cr["equal"],
-        "rules": sorted(cr["rules_used"]),
+        "rules": sorted(cr["rules_used"] | content_rules),
         "compared": cr["compared"], "differs": cr["differs"],
         "only_in_w": cr["only_in_w"], "only_in_l": cr["only_in_l"],
     }
