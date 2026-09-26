@@ -1,0 +1,205 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect_linux.py",
+    "version": "1.0.0",
+    "git_head": "a2cb531362303fd05675731fe33edf7562dec454",
+    "invocation": [
+      "tools/collect_linux.py",
+      "--script",
+      "/home/duanjb666/下载/非常批处理/生成指定内容的文本文件.bat",
+      "--guest-name",
+      "v2.bat",
+      "--output",
+      "results/oracle/L-v2110-installed/v2.json"
+    ],
+    "convert_argv": [
+      "bat2sh",
+      "--cli",
+      "-q",
+      "-o",
+      "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples/v2.bat",
+      "/home/duanjb666/下载/非常批处理/生成指定内容的文本文件.bat"
+    ],
+    "convert_tool": {
+      "argv0": "bat2sh",
+      "resolved": "/usr/bin/bat2sh",
+      "version": "bat2sh 2.11.0"
+    },
+    "side": "L"
+  },
+  "script": {
+    "name": "生成指定内容的文本文件.bat",
+    "sha256": "CEA637ECFA394C576DCF7F85B963B657CF06AC44841A919BF83EF25C569C0FCD",
+    "size": 150,
+    "local_path": "/home/duanjb666/下载/非常批处理/生成指定内容的文本文件.bat",
+    "guest_path": "<WORK>/v2.bat",
+    "guest_name": "v2.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Linux (bwrap)",
+    "kernel_release": "7.2.7-1-cachyos",
+    "machine": "x86_64",
+    "console_codepage": 65001,
+    "timezone": "Asia/Shanghai",
+    "locale": "C.UTF-8",
+    "clock_fixed": false
+  },
+  "rollback": {
+    "method": "tmpdir-recreate",
+    "run_dir": "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples",
+    "kept": false
+  },
+  "execution": {
+    "argv": [
+      "bwrap",
+      "--unshare-all",
+      "--die-with-parent",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples",
+      "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples",
+      "--chdir",
+      "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples",
+      "/bin/bash",
+      "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples/v2.bat"
+    ],
+    "stdin": "/dev/null",
+    "exit_code": 0,
+    "signal": null,
+    "duration_ms": 5,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "",
+    "text": ""
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-linux-v1",
+    "scope": [
+      "<WORK>"
+    ],
+    "baseline_manifest_hash": "sha256:045038323f0e7da5a2fecdf228e02abafb73c7512c5531fe77fae25023470ec5",
+    "baseline_manifest": {
+      "v2.bat": {
+        "FullName": "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples/v2.bat",
+        "Length": 403,
+        "Hash": "75D87162F293894A95C5FF67314E48DB5C57B9E784B0BCA8E3E9AD3747803F26",
+        "hash_lf_to_crlf": "16CFAF50056D346778E77C3957F6C2D4BFF65C0723FAFB344F1CA02E7F1414C6",
+        "hash_cp936_crlf": "D4562F66994C3E80C1992A443931E7E2FD8D0D2A4BB59E45838CA889F18E0941"
+      }
+    },
+    "before_count": 1,
+    "after_count": 2,
+    "created": [
+      "a.txt"
+    ],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 1,
+    "known_artifacts": [
+      {
+        "path": "v2.bat",
+        "reason": "harness artifact"
+      }
+    ],
+    "created_raw": [
+      "a.txt"
+    ],
+    "after_manifest": {
+      "a.txt": {
+        "FullName": "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples/a.txt",
+        "Length": 202,
+        "Hash": "A6074FE06557D1F868EEFD93C0B88FD4DB9527D386514338D81677ABF25DA953",
+        "hash_lf_to_crlf": "8E18B4AAA0F3EDBE7D9D56C21B2968491E3F08E69A28832FBA63DB6725D7BC14",
+        "hash_cp936_crlf": "49F6850A61E0D3CDC52D765948E5E0650EB208A43092EB8764761E14558C7F5B"
+      },
+      "v2.bat": {
+        "FullName": "/tmp/bat2sh-oracle/生成指定内容的文本文件-1790439260581/samples/v2.bat",
+        "Length": 403,
+        "Hash": "75D87162F293894A95C5FF67314E48DB5C57B9E784B0BCA8E3E9AD3747803F26",
+        "hash_lf_to_crlf": "16CFAF50056D346778E77C3957F6C2D4BFF65C0723FAFB344F1CA02E7F1414C6",
+        "hash_cp936_crlf": "D4562F66994C3E80C1992A443931E7E2FD8D0D2A4BB59E45838CA889F18E0941"
+      }
+    },
+    "dirs_method": "walk",
+    "baseline_dirs": [],
+    "after_dirs": [],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "registry-not-collected",
+      "process-not-collected",
+      "network-not-collected"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "bwrap-unshare-all",
+    "attempted": null,
+    "attempted_basis": "unshare-all：无网络命名空间，无出网路径（结构性零）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0
+  },
+  "env_checks": [
+    {
+      "check": "bwrap 存在",
+      "ok": true,
+      "detail": "/usr/bin/bwrap (bubblewrap 0.13.0)"
+    },
+    {
+      "check": "bat2sh 存在",
+      "ok": true,
+      "detail": "/usr/bin/bat2sh"
+    }
+  ],
+  "execution_workdir": "<WORK>",
+  "notes": [
+    "clock_not_fixed: L 侧无法固定时钟（bwrap 不能设 CAP_SYS_TIME）；含 %date%/%time% 的样本只能靠规则 N8 形状化（D7）",
+    "artifact 沿用 W 侧 guest 文件名（含 .bat）—— 见 oracle-design §3.2.1"
+  ],
+  "timings": {
+    "convert": 245,
+    "before_manifest": 0,
+    "execute": 5,
+    "after_manifest": 0,
+    "total_ms": 484
+  }
+}
