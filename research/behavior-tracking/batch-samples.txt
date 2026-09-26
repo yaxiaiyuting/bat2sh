@@ -1,0 +1,23 @@
+# bat2sh 批量采集样本清单（Phase 2）
+# 格式：<guest_name>\t<local_path>\t<tags>
+#
+# ⚠️ 语料来自 ~/下载/（**无许可**，见 poc-samples.md §2）⇒ 只引用路径，**不入仓**。
+#    guest_name 用 ASCII 短名：QGA 传引号是坏的，且避免中文文件名的不确定性。
+#    原名/哈希/来源都记录在本文件与指纹里（可追溯）。
+
+s01.bat	/home/duanjb666/下载/deepseek_bat_20260914_735127.bat	file:write-csv+txt(%~dp0)	sha256:09a86f92ed294c23
+s02.bat	/home/duanjb666/下载/deepseek_bat_20260914_67345f.bat	process+env+text:FOR-family,read-only	sha256:7b5dec0a44d33ed9
+s03.bat	/home/duanjb666/下载/非常批处理/快速创建文件夹.bat	dir:mkdir-only(created_dirs)	sha256:c0b4c9ac78357d87
+s04.bat	/home/duanjb666/下载/非常批处理/生成指定内容的文本文件.bat	file:echo>a.txt	sha256:cea637ecfa394c57
+s05.bat	/home/duanjb666/下载/非常批处理/每隔2秒新建一个txt文件，文件名由1~10.bat	file+process:loop+delay	sha256:14fb5ada2779dac5
+s06.bat	/home/duanjb666/下载/非常批处理/同一目录下同一类型的文件名改成连续的数字名.bat	file+process:for/f dir+ren(no jpg)	sha256:d015261e94560f57
+s07.bat	/home/duanjb666/下载/非常批处理/查找最新的文件.bat	file+process:dir/s+sort+md	sha256:6067503b35b7e43e
+s08.bat	/home/duanjb666/下载/非常批处理/注册表/导出注册表的键值.bat	system+file:reg export	sha256:71a1cf74650a08ba
+s09.bat	/home/duanjb666/下载/bat-master/精确延迟2秒.bat	env:time-arithmetic loop	sha256:357d300dd494ac32
+s10.bat	/home/duanjb666/下载/bat-master/汉字横排变竖排---转置.bat	text:read a.txt(missing)	sha256:c347b35eaafd0f68
+s11.bat	/home/duanjb666/下载/非常批处理/合并同名的图片和rar文件.bat	file:nested-for(no match)	sha256:1ec33b2bdb7dea76
+s12.bat	/home/duanjb666/下载/非常批处理/用日期管理你的文件/每天自动创建文件夹.bat	env-dep:E:\ missing	sha256:34d75999209e113a
+s13.cmd	/home/duanjb666/下载/非常批处理/第三方工具/CMDOW/HOTFIX.CMD	env-dep:CMDOW+E:\ missing	sha256:11de06c682f0fdc6
+s14.cmd	/home/duanjb666/下载/非常批处理/改名复制文件.cmd	env-dep:C:\Wing missing	sha256:d60a81df9dfb8798
+s15.bat	/home/duanjb666/下载/非常批处理/第三方工具/图片处理/批量将jpg变为bmp.bat	env-dep:nconvert missing	sha256:ea3a2c461b0aee9d
+s16.bat	/home/duanjb666/下载/非常批处理/第三方工具/批处理气泡程序BalloonTip/范例.bat	env-dep:BalloonTip.exe missing	sha256:c8fcb917a3d4b53d

@@ -16,6 +16,7 @@ bat2sh 行为采集 —— CLI 入口
   2  VM / 宿主层故障
   3  Guest / QGA 层故障
   4  用法错误
+  5  网络策略失败（**硬失败** —— 姿态没生效会产出"看起来正常的错误数据"）
 """
 
 from __future__ import annotations
@@ -33,11 +34,14 @@ from vm import (  # noqa: E402
     EnvCheckError, GuestError, Qga, Vm, VmError,
     check_env, decode, diff, manifest_hash, sha256_file,
 )
+from net import MODES as NET_MODES, NetPolicy, NetPolicyError  # noqa: E402
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_SAMPLES = os.path.normpath(os.path.join(TOOLS_DIR, "..", "samples"))
-SCHEMA_VERSION = 2
-HARNESS_VERSION = "1.0.0"
+#: v3：`network` 由**列表**改为**对象**（破坏性变更，见 network-policy.md §7 第 3 条）。
+#: 旧版（v2）指纹的 `network: []` 是占位符，**不代表"没有网络行为"**。
+SCHEMA_VERSION = 3
+HARNESS_VERSION = "1.1.0"
 
 
 # --------------------------------------------------------------------------
@@ -140,6 +144,28 @@ def build_parser() -> argparse.ArgumentParser:
                          rf"把探针目录放在 C:\poc 之外可验证**整盘**回滚")
     ap.add_argument("--timeout", type=int, default=180,
                     help="guest 内样本执行超时秒数（默认 180；超时**记录并继续**）")
+    ap.add_argument("--workdir", default=GUEST_SAMPLES,
+                    help=rf"样本的工作目录（默认 {GUEST_SAMPLES}）。"
+                         rf"**必须**在某个 --scope 之内，否则样本的相对路径写入不可见。"
+                         rf"实测：不设时 guest-exec 的 cwd 是 C:\Windows\System32")
+    ap.add_argument("--no-workdir", action="store_true",
+                    help="不切换工作目录（恢复旧行为：cwd=System32；"
+                         "相对路径写入将**落在清单范围之外**）")
+    ap.add_argument("--guest-name", default=None,
+                    help="上传到 guest 时使用的文件名（默认沿用原名）。"
+                         "**原名含空格时必须指定**：QGA 的引号转义会让 `cmd /c` 收到 "
+                         r"`\"` 而失败（实测）。用它可以给语料里的中文/含空格文件名"
+                         "换一个安全的 ASCII 名，原名仍记入指纹")
+
+    ap.add_argument("--network", choices=list(NET_MODES), default="isolated",
+                    help="网络姿态（默认 isolated）。"
+                         "isolated=vNIC 链路 down，报文发不出去（零外部性）；"
+                         "recording=接无转发的专用网络 bat2sh-rec，可记录连接尝试但出不去；"
+                         "nat=接 default(NAT)，⚠️ **显式放弃隔离，外部性不可撤回**。"
+                         "详见 network-policy.md")
+    ap.add_argument("--capture-window", choices=["exec", "cycle"], default="exec",
+                    help="嗅探窗口（默认 exec）：exec=只覆盖样本执行；"
+                         "cycle=覆盖启动到执行结束（含 DHCP 等环境噪声）")
 
     ap.add_argument("--no-revert", action="store_true",
                     help="跳过回滚（调试用；**会破坏样本间隔离**）")
@@ -168,10 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
 # --------------------------------------------------------------------------
 
 
-def run_checks(vm: Vm, *, require_agent: bool) -> list[dict]:
+def run_checks(vm: Vm, *, require_agent: bool,
+               dhcp_relevant: bool = True) -> list[dict]:
     """环境检查 —— 硬失败（设计 §6.4）。"""
     print("== check_env ==", flush=True)
-    checks = check_env(vm, require_agent=require_agent)
+    checks = check_env(vm, require_agent=require_agent, dhcp_relevant=dhcp_relevant)
     bad = []
     for c in checks:
         mark = "ok  " if c["ok"] else "FAIL"
@@ -187,16 +214,38 @@ def run_checks(vm: Vm, *, require_agent: bool) -> list[dict]:
     return checks
 
 
-def cmdline_for(guest_path: str) -> str:
+def cmdline_for(guest_path: str, workdir: str | None = None) -> str:
     r"""构造 `cmd /c` 的命令串。
 
-    PoC §5.3：`cmd /c` 对**以引号开头**的命令串有剥离规则，路径无空格时**不加引号**；
-    含空格时用 `cmd /c ""<path>" < nul"` 形式。
     `< nul` 让 stdin 处于 EOF，`pause` 立即返回（wine 预验证已证）。
+
+    ⚠️ **本函数不再产生任何引号 —— 因为通过 QGA 传引号是坏的**（本 session 实测）：
+
+        cmd /c echo "hello world"            → 输出 `\"hello world\"`
+        cmd /c cd /d "C:\Program Files"      → rc=1 文件名、目录名或卷标语法不正确
+        cmd /c ""C:\poc\x y.bat" < nul"      → rc=1 指定的网络名不再可用
+
+    QGA 的 `guest-exec` 在拼 CreateProcess 命令行时会给参数里的 `"` **加反斜杠转义**，
+    而 `cmd.exe` 不认识 `\"`（它用 `""` 转义）。结论：**含空格的路径根本无法通过
+    `guest-exec` 传给 `cmd /c`**。
+
+    所以本函数的两个调用前提由调用方**硬保证**（见 `collect()` 里的检查）：
+      1. `guest_path` 不含空格（用 `--guest-name` 改名）
+      2. `workdir` 不含空格
+    含空格时**硬失败**而不是"尽力而为" —— 旧版会静默跑出 `rc=1`，
+    看起来像"样本执行失败"，实际是**采集器的引号 bug**。
+
+    `workdir`（Phase 2 实测驱动）：`guest-exec` 继承 qemu-ga 的工作目录 =
+    **`C:\Windows\System32`**（实测）。语料绝大多数用**相对路径**（本来是被
+    "在文件夹里双击"运行的），于是 `echo x>a.txt` 会写进 System32 —— 而清单范围是
+    `C:\poc`，**这些文件行为完全不可见**。所以用 `cd /d <workdir> &&` 把样本放进
+    一个受控且在范围内的目录里跑。命令串以 `cd` 开头（不是引号）⇒ 不触发
+    `cmd /c` 的引号剥离规则。
     """
-    if " " in guest_path:
-        return f'""{guest_path}" < nul"'
-    return f"{guest_path} < nul"
+    base = f"{guest_path} < nul"
+    if workdir:
+        return f"cd /d {workdir} && {base}"
+    return base
 
 
 def collect(args) -> dict:
@@ -228,7 +277,19 @@ def collect(args) -> dict:
 
     t_total0 = time.monotonic() * 1000.0
     name = os.path.basename(sample_local)
-    guest_path = GUEST_SAMPLES + "\\" + name
+    # `--guest-name`：QGA 传引号是坏的（见 cmdline_for），所以 guest 侧文件名必须无空格。
+    # 语料里的中文名/含空格名在这里换成安全的 ASCII 名；**原名与 sha256 仍进指纹**。
+    guest_name = args.guest_name or name
+    guest_path = GUEST_SAMPLES + "\\" + guest_name
+    workdir = None if args.no_workdir else args.workdir
+    for label, val in (("guest 侧样本路径", guest_path), ("workdir", workdir or "")):
+        if " " in val:
+            raise SystemExit(
+                f"用法错误：{label} 含空格 → `{val}`\n"
+                f"  QGA 的 `guest-exec` 会给参数里的引号加反斜杠转义，而 cmd.exe 不认 `\\\"`，\n"
+                f"  所以**含空格路径无法通过 guest-exec 传给 cmd /c**（本 session 实测）。\n"
+                f"  解决：用 --guest-name 指定一个不含空格的 guest 侧文件名，"
+                f"或把样本放到不含空格的路径下。")
     scopes = normalize_scopes(args.scope)
     clk = Clock()
     fp: dict = {
@@ -241,10 +302,12 @@ def collect(args) -> dict:
             "size": os.path.getsize(sample_local),
             "local_path": sample_local,
             "guest_path": guest_path,
+            "guest_name": guest_name,
+            "renamed": guest_name != name,
         },
         "environment": {}, "rollback": {}, "execution": {},
         "stdout": {}, "stderr": {},
-        "filesystem": {}, "process": [], "network": [],
+        "filesystem": {}, "process": [], "network": {},
         "timings": {}, "notes": [],
     }
 
@@ -256,7 +319,8 @@ def collect(args) -> dict:
         fp["env_checks"] = []
     else:
         clk.tic("env_check")
-        fp["env_checks"] = run_checks(vm, require_agent=vm.is_running())
+        fp["env_checks"] = run_checks(vm, require_agent=vm.is_running(),
+                                      dhcp_relevant=(args.network != "isolated"))
         clk.toc("env_check")
 
     # ---- 2. 回滚 ----
@@ -274,6 +338,28 @@ def collect(args) -> dict:
         print(f"  **纯回滚操作 revert_op_ms = {rb['revert_op_ms']} ms**  "
               f"(判据 < 30000 ms)", flush=True)
         fp["rollback"] = rb
+
+    # ---- 2.5 网络姿态（**必须在冷启动之前**，network-policy.md §7 第 2 条）----
+    net = NetPolicy(vm, args.network)
+    if args.no_start or args.no_revert:
+        # 调试路径：域可能正在运行，改域定义会引入竞态 ⇒ 拒不声称隔离
+        net_applied = False
+        print(f"== network == ⚠️ **未施加**（--no-start/--no-revert）："
+              f"请求 {args.network}，但无法保证生效\n", flush=True)
+        fp["notes"].append(
+            f"network policy NOT applied (requested={args.network}); "
+            f"isolation NOT claimed")
+    else:
+        print(f"== network == mode={args.network}", flush=True)
+        clk.tic("network_apply")
+        st = net.apply()
+        clk.toc("network_apply")
+        net_applied = True
+        print(f"  {st['before']['network']}/{st['before']['link_state']} → "
+              f"{st['after']['network']}/{st['after']['link_state']}  "
+              f"bridge={st['bridge']}", flush=True)
+        if args.network == "nat":
+            print("  ⚠️ **nat 模式：外部性真实存在，出网不可撤回**", flush=True)
 
     # ---- 3. 启动 + 等 agent（轮询，非 sleep）----
     t_cycle0 = time.monotonic() * 1000.0
@@ -294,6 +380,23 @@ def collect(args) -> dict:
         print("== boot == 已跳过（--no-start）", flush=True)
 
     qga = vm.qga
+
+    # recording 模式：`forward mode='none'` 下 libvirt **不通告默认网关**，
+    # guest 有 IP 却没有默认路由 ⇒ 样本连"尝试"都发不出（假阴性）。
+    # 这里补一条默认路由 + 一个 DNS 地址；安全性由"无 NAT 规则"保证（net.py 有详解）。
+    if net_applied and args.network == "recording":
+        print("== network: guest egress ==", flush=True)
+        clk.tic("guest_egress")
+        ge = net.configure_guest_egress()
+        clk.toc("guest_egress")
+        print(f"  ifIndex={ge['guest_ifindex']} gw={ge['requested_gateway']} "
+              f"route_ok={ge['route_ok']} dns_ok={ge['dns_ok']}", flush=True)
+
+    # `cycle` 窗口：覆盖启动→执行（会把 DHCP 等**环境噪声**一起记进指纹）
+    if net_applied and args.capture_window == "cycle":
+        r = net.start_capture()
+        fp["notes"].append(f"capture window = cycle (含启动期环境噪声); "
+                           f"sniffer ready in {r['ready_ms']} ms")
 
     # ---- 4. 环境快照 ----
     print("== environment ==", flush=True)
@@ -324,6 +427,7 @@ def collect(args) -> dict:
     print("== baseline manifest ==", flush=True)
     clk.tic("baseline_manifest")
     before = qga.manifest(scopes)
+    before_dirs = qga.dirs(scopes)
     clk.toc("baseline_manifest")
     bh = manifest_hash(before)
     print(f"  {len(before)} 项，baseline_manifest_hash = {bh}", flush=True)
@@ -339,8 +443,23 @@ def collect(args) -> dict:
 
     # ---- 7. 执行 ----
     print("== execute ==", flush=True)
-    cl = cmdline_for(guest_path)
+    cl = cmdline_for(guest_path, workdir)
+    fp["execution_workdir"] = workdir
+    if workdir:
+        # 工作目录必须在清单范围内，否则样本的相对路径写入**看不见**
+        in_scope = any(workdir.lower().startswith(s.lower().rstrip("\\") + "\\")
+                       or workdir.lower() == s.lower().rstrip("\\") for s in scopes)
+        if not in_scope:
+            fp["notes"].append(
+                f"⚠️ workdir {workdir} 不在任何 --scope {scopes} 之内 —— "
+                f"样本的相对路径写入将不可见")
+            print(f"  ⚠️ workdir {workdir} **不在清单范围** {scopes} 内 —— "
+                  f"相对路径写入不可见", flush=True)
     timed_out = False
+    # 嗅探窗口：**紧贴执行**。就绪握手保证不漏掉最早的帧（netsniff.py 实测坑）。
+    if net_applied and args.capture_window == "exec":
+        r = net.start_capture()
+        print(f"  嗅探已就绪 {r['ready_ms']} ms (iface={r['iface']})", flush=True)
     clk.tic("execute")
     try:
         res = qga.exec_wait("cmd.exe", ["/c", cl], timeout=args.timeout)
@@ -353,6 +472,11 @@ def collect(args) -> dict:
                "duration_ms": args.timeout * 1000, "exit_code": None, "signal": None,
                "out_truncated": False, "err_truncated": False,
                "stdout_b64": "", "stderr_b64": ""}
+    finally:
+        if net_applied:
+            clk.tic("capture")
+            cap = net.stop_capture()
+            clk.toc("capture")
 
     clk.toc("execute")
     fp["execution"] = {
@@ -371,12 +495,45 @@ def collect(args) -> dict:
     print(f"  stderr = {fp['stderr']['text']!r}", flush=True)
     print(flush=True)
 
+    # ---- 7.5 网络指纹（network-policy.md §4.1）----
+    if net_applied:
+        nf = net.fingerprint()
+        nf["setup"] = net.setup
+        fp["network"] = nf
+        print("== network fingerprint ==", flush=True)
+        print(f"  mode={nf['mode']} isolated={nf['isolated']} "
+              f"method={nf['isolation_method']}", flush=True)
+        print(f"  attempted={nf['attempted']}  "
+              f"egress_frames={nf['egress_frames']}  "
+              f"bytes_sent={nf['bytes_sent']} bytes_recv={nf['bytes_recv']}", flush=True)
+        for c in nf["connections"][:20]:
+            print(f"    [{c['first_seen_ms']:>7}ms] {c['proto']:5s} "
+                  f"{c['dst']:<28s} {c['result']}", flush=True)
+        if len(nf["connections"]) > 20:
+            print(f"    … 另有 {len(nf['connections']) - 20} 条", flush=True)
+        for n in nf["notes"]:
+            print(f"  note: {n}", flush=True)
+        print(flush=True)
+    else:
+        fp["network"] = {
+            "mode": args.network, "isolated": False, "applied": False,
+            "isolation_method": None,
+            "attempted": None,
+            "attempted_basis": "网络姿态未施加 —— **不声称任何隔离**",
+            "connections": [], "bytes_sent": 0, "bytes_recv": 0,
+            "egress_frames": None,
+            "notes": ["⚠️ --no-start/--no-revert 调试路径：网络隔离**不成立**"],
+        }
+
     # ---- 8. 事后清单 + 差分（判据 J2：保留绝对清单）----
     print("== after manifest ==", flush=True)
     clk.tic("after_manifest")
     after = qga.manifest(scopes)
+    after_dirs = qga.dirs(scopes)
     clk.toc("after_manifest")
     d = diff(before, after)
+    created_dirs = sorted(set(after_dirs) - set(before_dirs))
+    deleted_dirs = sorted(set(before_dirs) - set(after_dirs))
     print(f"  {len(after)} 项", flush=True)
 
     # 采集器自身写入的产物与**行为**产物分离（设计 §7.3：分离是为了可读，不是隐藏）
@@ -401,12 +558,21 @@ def collect(args) -> dict:
         "created_raw": d["created"],
         # 判据 J2：绝对状态（差分自归一化，必须留全量）
         "after_manifest": after,
+        # 目录行为（**不进 J1 哈希**，见 vm.dirs() 的说明）：
+        # `md` 类样本若只看文件差分会被误判成"什么都没做"
+        "dirs_method": "recurse-directory-listing",
+        "baseline_dirs": before_dirs,
+        "after_dirs": after_dirs,
+        "created_dirs": created_dirs,
+        "deleted_dirs": deleted_dirs,
         # 判据 J3 的素材：created 非空即证明本样本**确实有效**
-        "blind_spots": ["reads", "transient-effects", "metadata-only-writes"],
+        "blind_spots": ["reads", "transient-effects", "metadata-only-writes",
+                        "cwd-if-workdir-unset"],
     }
     print(f"  created  = {created_behav}", flush=True)
     print(f"  modified = {modified_behav}", flush=True)
     print(f"  deleted  = {d['deleted']}", flush=True)
+    print(f"  created_dirs = {created_dirs}", flush=True)
     print(f"  known_artifacts = {known_hit}", flush=True)
     print(flush=True)
 
@@ -438,6 +604,10 @@ def collect(args) -> dict:
     print(f"  exit_code   : {fp['execution']['exit_code']}", flush=True)
     print(f"  stdout      : {fp['stdout']['text']!r}", flush=True)
     print(f"  created     : {created_behav}", flush=True)
+    print(f"  network     : mode={fp['network'].get('mode')} "
+          f"isolated={fp['network'].get('isolated')} "
+          f"egress_frames={fp['network'].get('egress_frames')} "
+          f"conns={len(fp['network'].get('connections') or [])}", flush=True)
     print(f"  revert_op_ms: {fp['rollback'].get('revert_op_ms')}", flush=True)
     print(f"  agent_ready : {fp['rollback'].get('agent_ready_ms')}", flush=True)
     print(f"  cycle_ms    : {fp['rollback'].get('cycle_ms')}", flush=True)
@@ -456,6 +626,10 @@ def main(argv=None) -> int:
     except EnvCheckError as e:
         print(f"\n❌ 环境检查失败：\n{e}", file=sys.stderr)
         return 1
+    except NetPolicyError as e:
+        print(f"\n❌ 网络策略失败（**拒绝继续**，否则指纹会静默失真）：\n{e}",
+              file=sys.stderr)
+        return 5
     except VmError as e:
         print(f"\n❌ VM/宿主层故障：\n{e}", file=sys.stderr)
         return 2

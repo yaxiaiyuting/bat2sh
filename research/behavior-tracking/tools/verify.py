@@ -46,6 +46,7 @@ def load(paths):
             "baseline_hash": fs.get("baseline_manifest_hash"),
             "baseline_n": fs.get("before_count"),
             "created": list(fs.get("created") or []),
+            "created_dirs": list(fs.get("created_dirs") or []),
             "after": set((fs.get("after_manifest") or {}).keys()),
             "known": {a["path"] for a in (fs.get("known_artifacts") or [])},
             "exit_code": (d.get("execution") or {}).get("exit_code"),
@@ -127,15 +128,21 @@ def main(argv=None) -> int:
     j3_bad = 0
     for r in runs:
         missing = [p for p in r["created"] if p not in r["after"]]
-        if not r["created"]:
+        # ⚠️ 目录也算产物：`md`/`mkdir` 类样本只建目录、不建文件
+        # （`快速创建文件夹.bat` 正是这类）。只看 `created` 会把它们误判成"未生效"。
+        # 目录不进 J1 哈希（见 vm.dirs()），但**是** J3 意义上的有效产物。
+        n_art = len(r["created"]) + len(r.get("created_dirs") or [])
+        if not n_art:
             j3_bad += 1
-            print(f"  ❌ {r['label']}：created 为空 —— 样本**未生效**，"
+            print(f"  ❌ {r['label']}：created/created_dirs 均为空 —— 样本**未生效**，"
                   f"它的隔离结论不构成证据")
         elif missing:
             j3_bad += 1
             print(f"  ❌ {r['label']}：created 中有路径不在 after_manifest 里：{missing}")
         else:
-            print(f"  ✅ {r['label']}：{len(r['created'])} 项产物，且全部在 after 绝对清单中")
+            print(f"  ✅ {r['label']}：{len(r['created'])} 个文件 + "
+                  f"{len(r.get('created_dirs') or [])} 个目录产物，"
+                  f"文件全部在 after 绝对清单中")
     if j3_bad:
         failures.append("J3")
 

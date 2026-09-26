@@ -1,0 +1,509 @@
+{
+  "schema_version": 3,
+  "harness": {
+    "tool": "collect.py",
+    "version": "1.1.0",
+    "git_head": "04f0dd4aa5a0efb9d40b39411edd43a08495ef3d",
+    "invocation": [
+      "--sample",
+      "samples/net-probe.bat",
+      "--output",
+      "results/t0-nat.json",
+      "--network=nat"
+    ]
+  },
+  "script": {
+    "name": "net-probe.bat",
+    "sha256": "e958817a133fd17642d54c4d1de7b27a591443a810c509c69bff2d9df62331c5",
+    "size": 953,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/samples/net-probe.bat",
+    "guest_path": "C:\\poc\\samples\\net-probe.bat"
+  },
+  "environment": {
+    "guest_os": "Windows 10 Pro",
+    "guest_version": "Microsoft Windows 11",
+    "kernel_release": "29599",
+    "machine": "x86_64",
+    "guest_agent_version": "110.2.3",
+    "guest_agent_commands": 37,
+    "console_codepage": 936
+  },
+  "rollback": {
+    "method": "overlay-qcow2",
+    "stop_mode": "destroy",
+    "stop_ms": 0,
+    "revert_op_ms": 80,
+    "base_ident_before": {
+      "size": 68730224640,
+      "mtime": 1790425638,
+      "inode": 1418147
+    },
+    "overlay": "/var/lib/libvirt/images/win-behavior.qcow2",
+    "base": "/var/lib/libvirt/images/win-behavior.base.qcow2",
+    "agent_ready_ms": 16249,
+    "base_intact": {
+      "unchanged": true,
+      "before": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "after": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "note": "qcow2 以只读方式打开 backing file，写入只落覆盖层"
+    },
+    "cycle_ms": 35238,
+    "final_stop_ms": 245
+  },
+  "execution": {
+    "argv": [
+      "cmd.exe",
+      "/c",
+      "C:\\poc\\samples\\net-probe.bat < nul"
+    ],
+    "pid": 4312,
+    "duration_ms": 10942,
+    "exit_code": 0,
+    "signal": null,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "TkVULVBST0JFLVNUQVJUDQpbMV0gSUNNUCA4LjguOC44DQoNCtX91NogUGluZyA4LjguOC44IL7f09AgMzIg19a92rXEyv2+3ToNCsC019QgOC44LjguOCC1xLvYuLQ6INfWvdo9MzIgyrG85D05M21zIFRUTD0xMDkNCg0KOC44LjguOCC1xCBQaW5nIM2zvMbQxc+iOg0KICAgIMr9vt2w/Dog0tG3osvNID0gMaOs0tG908rVID0gMaOstqrKpyA9IDAgKDAlILaqyqcpo6wNCs35t7XQ0LPMtcS5wLzGyrG85CjS1LrBw+vOqrWlzrspOg0KICAgINfutswgPSA5M21zo6zX7rOkID0gOTNtc6Osxr2++SA9IDkzbXMNClsyXSBETlMgd3d3LmV4YW1wbGUuY29tDQq3/s7xxvc6ICAxOTIuMTY4LjEyMi4xDQpBZGRyZXNzOiAgMTkyLjE2OC4xMjIuMQ0KDQrD+7PGOiAgICB3d3cuZXhhbXBsZS5jb20NCkFkZHJlc3NlczogIDI2MDY6NDcwMDoxMDo6NjgxNDoxNzlhDQoJICAyNjA2OjQ3MDA6MTA6OmFjNDI6OTNmMw0KCSAgMTA0LjIwLjIzLjE1NA0KCSAgMTcyLjY2LjE0Ny4yNDMNCg0KWzNdIFRDUCAxLjEuMS4xOjgwDQp0Y3A9Y29ubmVjdGVkDQpORVQtUFJPQkUtRU5EDQo=",
+    "text": "NET-PROBE-START\r\n[1] ICMP 8.8.8.8\r\n\r\n正在 Ping 8.8.8.8 具有 32 字节的数据:\r\n来自 8.8.8.8 的回复: 字节=32 时间=93ms TTL=109\r\n\r\n8.8.8.8 的 Ping 统计信息:\r\n    数据包: 已发送 = 1，已接收 = 1，丢失 = 0 (0% 丢失)，\r\n往返行程的估计时间(以毫秒为单位):\r\n    最短 = 93ms，最长 = 93ms，平均 = 93ms\r\n[2] DNS www.example.com\r\n服务器:  192.168.122.1\r\nAddress:  192.168.122.1\r\n\r\n名称:    www.example.com\r\nAddresses:  2606:4700:10::6814:179a\r\n\t  2606:4700:10::ac42:93f3\r\n\t  104.20.23.154\r\n\t  172.66.147.243\r\n\r\n[3] TCP 1.1.1.1:80\r\ntcp=connected\r\nNET-PROBE-END\r\n"
+  },
+  "stderr": {
+    "b64": "t8fIqM3+06a08DoNDQo=",
+    "text": "非权威应答:\r\r\n"
+  },
+  "filesystem": {
+    "method": "manifest-diff-v2",
+    "scope": [
+      "C:\\poc"
+    ],
+    "baseline_manifest_hash": "sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df",
+    "baseline_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      }
+    },
+    "before_count": 6,
+    "after_count": 7,
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 6,
+    "known_artifacts": [
+      {
+        "path": "C:\\poc\\samples\\net-probe.bat",
+        "reason": "harness upload"
+      }
+    ],
+    "created_raw": [
+      "C:\\poc\\samples\\net-probe.bat"
+    ],
+    "after_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      },
+      "C:\\poc\\samples\\net-probe.bat": {
+        "FullName": "C:\\poc\\samples\\net-probe.bat",
+        "Length": 953,
+        "Hash": "E958817A133FD17642D54C4D1DE7B27A591443A810C509C69BFF2D9DF62331C5"
+      }
+    },
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "nat",
+    "isolated": false,
+    "isolation_method": "explicit-nat-optin",
+    "network_name": "default",
+    "link_state": "up",
+    "iface": "virbr0",
+    "attempted": true,
+    "attempted_basis": "宿主侧观察到连接尝试（头部级）",
+    "connections": [
+      {
+        "dst": "8.8.8.8",
+        "proto": "icmp",
+        "result": "established",
+        "first_seen_ms": 466,
+        "bytes_sent": 40,
+        "bytes_recv": 40
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 800,
+        "bytes_sent": 52,
+        "bytes_recv": 79
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 806,
+        "bytes_sent": 41,
+        "bytes_recv": 73
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 838,
+        "bytes_sent": 41,
+        "bytes_recv": 97
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 1356,
+        "bytes_sent": 285,
+        "bytes_recv": 1295
+      },
+      {
+        "dst": "4.145.79.81:443",
+        "proto": "tcp",
+        "result": "established",
+        "first_seen_ms": 1380,
+        "bytes_sent": 2875,
+        "bytes_recv": 7209
+      },
+      {
+        "dst": "239.255.255.250:1900",
+        "proto": "udp",
+        "result": "sent",
+        "first_seen_ms": 1579,
+        "bytes_sent": 290,
+        "bytes_recv": 0
+      },
+      {
+        "dst": "ff02::1:2:547",
+        "proto": "udp",
+        "result": "sent",
+        "first_seen_ms": 7377,
+        "bytes_sent": 66,
+        "bytes_recv": 0
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 8980,
+        "bytes_sent": 47,
+        "bytes_recv": 251
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 8980,
+        "bytes_sent": 47,
+        "bytes_recv": 210
+      },
+      {
+        "dst": "150.171.22.17:443",
+        "proto": "tcp",
+        "result": "refused",
+        "first_seen_ms": 9015,
+        "bytes_sent": 1811,
+        "bytes_recv": 609
+      },
+      {
+        "dst": "150.171.22.17:443",
+        "proto": "tcp",
+        "result": "refused",
+        "first_seen_ms": 9163,
+        "bytes_sent": 3669,
+        "bytes_recv": 11724
+      },
+      {
+        "dst": "40.126.35.134:443",
+        "proto": "tcp",
+        "result": "no-reply",
+        "first_seen_ms": 9210,
+        "bytes_sent": 64,
+        "bytes_recv": 0
+      },
+      {
+        "dst": "150.171.22.17:443",
+        "proto": "tcp",
+        "result": "refused",
+        "first_seen_ms": 9281,
+        "bytes_sent": 1811,
+        "bytes_recv": 748
+      },
+      {
+        "dst": "150.171.22.17:443",
+        "proto": "tcp",
+        "result": "refused",
+        "first_seen_ms": 9409,
+        "bytes_sent": 1875,
+        "bytes_recv": 728
+      },
+      {
+        "dst": "52.110.15.73:443",
+        "proto": "tcp",
+        "result": "established",
+        "first_seen_ms": 9967,
+        "bytes_sent": 2199,
+        "bytes_recv": 11047
+      },
+      {
+        "dst": "1.1.1.1:80",
+        "proto": "tcp",
+        "result": "established",
+        "first_seen_ms": 10401,
+        "bytes_sent": 112,
+        "bytes_recv": 72
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10478,
+        "bytes_sent": 38,
+        "bytes_recv": 198
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10480,
+        "bytes_sent": 38,
+        "bytes_recv": 147
+      },
+      {
+        "dst": "202.89.233.101:443",
+        "proto": "tcp",
+        "result": "established",
+        "first_seen_ms": 10509,
+        "bytes_sent": 3879,
+        "bytes_recv": 18825
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10559,
+        "bytes_sent": 40,
+        "bytes_recv": 138
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10559,
+        "bytes_sent": 40,
+        "bytes_recv": 113
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10560,
+        "bytes_sent": 39,
+        "bytes_recv": 136
+      },
+      {
+        "dst": "192.168.122.1:53",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10561,
+        "bytes_sent": 39,
+        "bytes_recv": 111
+      },
+      {
+        "dst": "111.12.215.79:443",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10606,
+        "bytes_sent": 2948,
+        "bytes_recv": 9404
+      },
+      {
+        "dst": "111.12.215.79:443",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10607,
+        "bytes_sent": 2963,
+        "bytes_recv": 9352
+      },
+      {
+        "dst": "111.51.158.194:443",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10609,
+        "bytes_sent": 2951,
+        "bytes_recv": 9426
+      },
+      {
+        "dst": "111.51.158.194:443",
+        "proto": "udp",
+        "result": "established",
+        "first_seen_ms": 10610,
+        "bytes_sent": 2855,
+        "bytes_recv": 9353
+      },
+      {
+        "dst": "52.110.15.73:443",
+        "proto": "tcp",
+        "result": "established",
+        "first_seen_ms": 10884,
+        "bytes_sent": 1758,
+        "bytes_recv": 6253
+      }
+    ],
+    "bytes_sent": 32913,
+    "bytes_recv": 97638,
+    "egress_frames": 327,
+    "capture": {
+      "method": "af_packet-header-only",
+      "iface": "virbr0",
+      "guest_mac": "52:54:00:c4:73:fd",
+      "window_ms": 11209,
+      "frames_seen": 327,
+      "frames_guest": 327,
+      "frames_other": 0,
+      "frames_unparsed": 0,
+      "frames_non_ip": 0,
+      "frames_at_max_len": 96,
+      "max_frame_bytes": 192,
+      "payload_read": false
+    },
+    "notes": [
+      "⚠️ nat 模式：**外部性真实存在**，出网不可撤回（network-policy.md §3 / §6.3 R3）",
+      "96 帧达到读取上限 192B —— payload 按设计未读，头部解析不受影响"
+    ],
+    "setup": {
+      "mode": "nat",
+      "requested": {
+        "network": "default",
+        "link_state": "up"
+      },
+      "before": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "after": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "up"
+      },
+      "bridge": "virbr0"
+    }
+  },
+  "timings": {
+    "env_check": 5294,
+    "revert": 166,
+    "network_apply": 961,
+    "agent_wait": 16480,
+    "environment": 510,
+    "baseline_manifest": 4043,
+    "upload": 113,
+    "capture": 47,
+    "execute": 11202,
+    "after_manifest": 2744,
+    "total_ms": 41915
+  },
+  "notes": [],
+  "env_checks": [
+    {
+      "check": "sudo(免密)",
+      "ok": true,
+      "detail": "sudo -n 可用"
+    },
+    {
+      "check": "域存在/可查询",
+      "ok": true,
+      "detail": "win-behavior @ qemu:///system → shut off"
+    },
+    {
+      "check": "ufw 放行 virbr0",
+      "ok": true,
+      "detail": "virbr0 已放行（in + route）"
+    },
+    {
+      "check": "DHCP 未被丢弃",
+      "ok": true,
+      "detail": "udp dport 67 drop 计数静止（65 → 65）"
+    },
+    {
+      "check": "基线存在/无 backing",
+      "ok": true,
+      "detail": "/var/lib/libvirt/images/win-behavior.base.qcow2"
+    },
+    {
+      "check": "域磁盘非基线",
+      "ok": true,
+      "detail": "域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2"
+    }
+  ]
+}

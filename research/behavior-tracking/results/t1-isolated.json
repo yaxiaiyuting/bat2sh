@@ -1,0 +1,275 @@
+{
+  "schema_version": 3,
+  "harness": {
+    "tool": "collect.py",
+    "version": "1.1.0",
+    "git_head": "04f0dd4aa5a0efb9d40b39411edd43a08495ef3d",
+    "invocation": [
+      "--sample",
+      "samples/net-probe.bat",
+      "--output",
+      "results/t1-isolated.json",
+      "--network=isolated"
+    ]
+  },
+  "script": {
+    "name": "net-probe.bat",
+    "sha256": "e958817a133fd17642d54c4d1de7b27a591443a810c509c69bff2d9df62331c5",
+    "size": 953,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/samples/net-probe.bat",
+    "guest_path": "C:\\poc\\samples\\net-probe.bat"
+  },
+  "environment": {
+    "guest_os": "Windows 10 Pro",
+    "guest_version": "Microsoft Windows 11",
+    "kernel_release": "29599",
+    "machine": "x86_64",
+    "guest_agent_version": "110.2.3",
+    "guest_agent_commands": 37,
+    "console_codepage": 936
+  },
+  "rollback": {
+    "method": "overlay-qcow2",
+    "stop_mode": "destroy",
+    "stop_ms": 0,
+    "revert_op_ms": 80,
+    "base_ident_before": {
+      "size": 68730224640,
+      "mtime": 1790425638,
+      "inode": 1418147
+    },
+    "overlay": "/var/lib/libvirt/images/win-behavior.qcow2",
+    "base": "/var/lib/libvirt/images/win-behavior.base.qcow2",
+    "agent_ready_ms": 16313,
+    "base_intact": {
+      "unchanged": true,
+      "before": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "after": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "note": "qcow2 以只读方式打开 backing file，写入只落覆盖层"
+    },
+    "cycle_ms": 35190,
+    "final_stop_ms": 243
+  },
+  "execution": {
+    "argv": [
+      "cmd.exe",
+      "/c",
+      "C:\\poc\\samples\\net-probe.bat < nul"
+    ],
+    "pid": 3820,
+    "duration_ms": 10680,
+    "exit_code": 0,
+    "signal": null,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "TkVULVBST0JFLVNUQVJUDQpbMV0gSUNNUCA4LjguOC44DQoNCtX91NogUGluZyA4LjguOC44IL7f09AgMzIg19a92rXEyv2+3ToNClBJTkejurSryuTKp7DcoaOzo7z7ucrVz6GjIA0KDQo4LjguOC44ILXEIFBpbmcgzbO8xtDFz6I6DQogICAgyv2+3bD8OiDS0beiy80gPSAxo6zS0b3TytUgPSAwo6y2qsqnID0gMSAoMTAwJSC2qsqnKaOsDQpbMl0gRE5TIHd3dy5leGFtcGxlLmNvbQ0Kt/7O8cb3OiAgVW5Lbm93bg0KQWRkcmVzczogIDEyNy4wLjAuMQ0KDQpbM10gVENQIDEuMS4xLjE6ODANCnRjcD1lcnJvcjogt6LJ+tK7uPa78rbguPa07c7zoaMNCk5FVC1QUk9CRS1FTkQNCg==",
+    "text": "NET-PROBE-START\r\n[1] ICMP 8.8.8.8\r\n\r\n正在 Ping 8.8.8.8 具有 32 字节的数据:\r\nPING：传输失败。常见故障。 \r\n\r\n8.8.8.8 的 Ping 统计信息:\r\n    数据包: 已发送 = 1，已接收 = 0，丢失 = 1 (100% 丢失)，\r\n[2] DNS www.example.com\r\n服务器:  UnKnown\r\nAddress:  127.0.0.1\r\n\r\n[3] TCP 1.1.1.1:80\r\ntcp=error: 发生一个或多个错误。\r\nNET-PROBE-END\r\n"
+  },
+  "stderr": {
+    "b64": "KioqIMSsyM+3/s7xxveyu7/J08MNDQoqKiogVW5Lbm93biDV0rK7tb0gd3d3LmV4YW1wbGUuY29tOiBObyByZXNwb25zZSBmcm9tIHNlcnZlcg0NCg==",
+    "text": "*** 默认服务器不可用\r\r\n*** UnKnown 找不到 www.example.com: No response from server\r\r\n"
+  },
+  "filesystem": {
+    "method": "manifest-diff-v2",
+    "scope": [
+      "C:\\poc"
+    ],
+    "baseline_manifest_hash": "sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df",
+    "baseline_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      }
+    },
+    "before_count": 6,
+    "after_count": 7,
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 6,
+    "known_artifacts": [
+      {
+        "path": "C:\\poc\\samples\\net-probe.bat",
+        "reason": "harness upload"
+      }
+    ],
+    "created_raw": [
+      "C:\\poc\\samples\\net-probe.bat"
+    ],
+    "after_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      },
+      "C:\\poc\\samples\\net-probe.bat": {
+        "FullName": "C:\\poc\\samples\\net-probe.bat",
+        "Length": 953,
+        "Hash": "E958817A133FD17642D54C4D1DE7B27A591443A810C509C69BFF2D9DF62331C5"
+      }
+    },
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "nic-link-down",
+    "network_name": "default",
+    "link_state": "down",
+    "iface": "virbr0",
+    "attempted": null,
+    "attempted_basis": "link-down：guest 的帧不进入宿主网桥，因此无法观测连接尝试（只能证明没有出网）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0,
+    "capture": {
+      "method": "af_packet-header-only",
+      "iface": "virbr0",
+      "guest_mac": "52:54:00:c4:73:fd",
+      "window_ms": 10812,
+      "frames_seen": 0,
+      "frames_guest": 0,
+      "frames_other": 0,
+      "frames_unparsed": 0,
+      "frames_non_ip": 0,
+      "frames_at_max_len": 0,
+      "max_frame_bytes": 192,
+      "payload_read": false
+    },
+    "notes": [
+      "egress_frames=0 —— 隔离的硬证据"
+    ],
+    "setup": {
+      "mode": "isolated",
+      "requested": {
+        "network": "default",
+        "link_state": "down"
+      },
+      "before": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "up"
+      },
+      "after": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "bridge": "virbr0"
+    }
+  },
+  "timings": {
+    "env_check": 262,
+    "revert": 176,
+    "network_apply": 950,
+    "agent_wait": 16554,
+    "environment": 545,
+    "baseline_manifest": 4071,
+    "upload": 88,
+    "capture": 81,
+    "execute": 10832,
+    "after_manifest": 2951,
+    "total_ms": 36831
+  },
+  "notes": [],
+  "env_checks": [
+    {
+      "check": "sudo(免密)",
+      "ok": true,
+      "detail": "sudo -n 可用"
+    },
+    {
+      "check": "域存在/可查询",
+      "ok": true,
+      "detail": "win-behavior @ qemu:///system → shut off"
+    },
+    {
+      "check": "ufw 放行 virbr0",
+      "ok": true,
+      "detail": "virbr0 已放行（in + route）"
+    },
+    {
+      "check": "DHCP 未被丢弃",
+      "ok": true,
+      "detail": "**本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）"
+    },
+    {
+      "check": "基线存在/无 backing",
+      "ok": true,
+      "detail": "/var/lib/libvirt/images/win-behavior.base.qcow2"
+    },
+    {
+      "check": "域磁盘非基线",
+      "ok": true,
+      "detail": "域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2"
+    }
+  ]
+}

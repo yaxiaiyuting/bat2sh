@@ -1,0 +1,50 @@
+<!--
+  bat2sh 行为采集 —— recording 模式的承载网络
+
+  设计依据：research/behavior-tracking/network-policy.md §5.5
+  用途：让 guest 有一个**真实的**网络栈（有适配器、有 IP、有网关），
+        但**在结构上**无法把任何报文送出宿主。
+
+  为什么是"结构性"而不是"规则性"：
+    * <forward mode='none'/>  ⇒ libvirt **不建** NAT、不建转发规则。
+      没有任何一处配置把 guest 的流量路由出去。
+    * <dns enable='no'/>      ⇒ dnsmasq 不做递归/转发。
+      即便样本查域名，也不会把域名泄露给上游解析器（隐私，见 §4.3）。
+    * 第二层保险：宿主 ufw 的策略是 `deny (routed)`，且 `ALLOW FWD` **只对 virbr0**。
+      virbr-rec 的转发流量落进 `FORWARD DROP` 默认策略。
+
+  唯一的宿主防火墙开口：`ufw allow in on virbr-rec`（只开 DHCP 入站，**不开转发**）。
+  该规则由 tools/net.py 幂等维护。
+
+  幂等创建：
+    virsh -c qemu:///system net-define  tools/bat2sh-rec.network.xml
+    virsh -c qemu:///system net-start   bat2sh-rec
+-->
+<network>
+  <name>bat2sh-rec</name>
+  <forward mode='none'/>
+  <bridge name='virbr-rec' stp='on' delay='0'/>
+  <ip address='192.168.200.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.200.2' end='192.168.200.254'/>
+    </dhcp>
+    <!--
+      ⚠️ 实测坑（本网络第一版漏了这段，导致 recording 模式**完全观测不到**东西）：
+      `forward mode='none'` 下 libvirt 会在生成的 dnsmasq conf 里写 `dhcp-option=3`
+      —— 那是"**不通告 option 3**"（option 3 = 默认网关）。于是 guest 拿到了 IP
+      （实测 192.168.200.36）却**没有默认路由**，样本连"尝试"都做不到：
+        ping 8.8.8.8      → 立即 "传输失败。常见故障。"（**一个报文都没发出**）
+        TCP 1.1.1.1:80    → 立即 error
+      结果是安全但**毫无观测**（network-policy.md §1 的 R5）。
+      宿主侧嗅探器只看到多播噪声，看起来就像"样本没联网"——正是 §R5 要避免的假阴性。
+
+      解法：用一条**显式默认路由**（classless static route / DHCP option 121）
+      把网关指回宿主。这样 guest 会真的发包，而转发仍然在结构上不可能
+      （libvirt 的 `iif virbr-rec reject` + ufw `deny (routed)`），
+      于是宿主能记录到尝试，并立即回 ICMP unreachable ⇒ result=refused。
+    -->
+    <route address='0.0.0.0' prefix='0' gateway='192.168.200.1'/>
+    <route address='0.0.0.0' prefix='0' gateway='192.168.200.1' metric='100'/>
+  </ip>
+  <dns enable='no'/>
+</network>

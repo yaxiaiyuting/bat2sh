@@ -1,0 +1,79 @@
+$ /usr/bin/python3 /home/duanjb666/bat2sh/research/behavior-tracking/tools/collect.py --sample /home/duanjb666/下载/非常批处理/同一目录下同一类型的文件名改成连续的数字名.bat --guest-name s06.bat --output results/batch/s06.json --network isolated --timeout 120 --domain win-behavior --connect qemu:///system --workdir C:\poc\samples
+
+== check_env ==
+  [ok  ] sudo(免密): sudo -n 可用
+  [ok  ] 域存在/可查询: win-behavior @ qemu:///system → shut off
+  [ok  ] ufw 放行 virbr0: virbr0 已放行（in + route）
+  [ok  ] DHCP 未被丢弃: **本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）
+  [ok  ] 基线存在/无 backing: /var/lib/libvirt/images/win-behavior.base.qcow2
+  [ok  ] 域磁盘非基线: 域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2
+  全部 6 项通过
+
+== revert ==
+  停机(destroy) 0 ms
+  **纯回滚操作 revert_op_ms = 77 ms**  (判据 < 30000 ms)
+== network == mode=isolated
+  default/down → default/down  bridge=virbr0
+== boot ==
+  agent 就绪 16254 ms  (state=connected)
+== environment ==
+  guest_os: Windows 10 Pro
+  guest_version: Microsoft Windows 11
+  kernel_release: 29599
+  machine: x86_64
+  guest_agent_version: 110.2.3
+  guest_agent_commands: 37
+  console_codepage: 936
+
+== baseline manifest ==
+  6 项，baseline_manifest_hash = sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df
+
+== upload ==
+  126 字节 → C:\poc\samples\s06.bat
+
+== execute ==
+  嗅探已就绪 100 ms (iface=virbr0)
+  exit_code = 0  signal = None  duration_ms = 353
+  out_truncated = False  err_truncated = False
+  stdout = ''
+  stderr = '找不到文件\r\n'
+
+== network fingerprint ==
+  mode=isolated isolated=True method=nic-link-down
+  attempted=None  egress_frames=0  bytes_sent=0 bytes_recv=0
+  note: egress_frames=0 —— 隔离的硬证据
+
+== after manifest ==
+  7 项
+  created  = []
+  modified = []
+  deleted  = []
+  created_dirs = []
+  known_artifacts = ['C:\\poc\\samples\\s06.bat']
+
+== base 完整性 == 未被写入 ✅
+
+== stop ==
+
+== report ==
+  样本        : 同一目录下同一类型的文件名改成连续的数字名.bat  sha256=d015261e94560f57…
+  exit_code   : 0
+  stdout      : ''
+  created     : []
+  network     : mode=isolated isolated=True egress_frames=0 conns=0
+  revert_op_ms: 77
+  agent_ready : 16254
+  cycle_ms    : 38816
+  指纹已写入  : /home/duanjb666/bat2sh/research/behavior-tracking/results/batch/s06.json
+  --- 分段计时 (ms) ---
+    env_check            231
+    revert               161
+    network_apply        802
+    agent_wait           16516
+    environment          576
+    baseline_manifest    15112
+    upload               92
+    capture              180
+    execute              784
+    after_manifest       5588
+    total_ms             40260

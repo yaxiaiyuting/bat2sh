@@ -1,0 +1,79 @@
+$ /usr/bin/python3 /home/duanjb666/bat2sh/research/behavior-tracking/tools/collect.py --sample /home/duanjb666/下载/bat-master/精确延迟2秒.bat --guest-name s09.bat --output results/batch/s09.json --network isolated --timeout 120 --domain win-behavior --connect qemu:///system --workdir C:\poc\samples
+
+== check_env ==
+  [ok  ] sudo(免密): sudo -n 可用
+  [ok  ] 域存在/可查询: win-behavior @ qemu:///system → shut off
+  [ok  ] ufw 放行 virbr0: virbr0 已放行（in + route）
+  [ok  ] DHCP 未被丢弃: **本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）
+  [ok  ] 基线存在/无 backing: /var/lib/libvirt/images/win-behavior.base.qcow2
+  [ok  ] 域磁盘非基线: 域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2
+  全部 6 项通过
+
+== revert ==
+  停机(destroy) 0 ms
+  **纯回滚操作 revert_op_ms = 76 ms**  (判据 < 30000 ms)
+== network == mode=isolated
+  default/down → default/down  bridge=virbr0
+== boot ==
+  agent 就绪 16247 ms  (state=connected)
+== environment ==
+  guest_os: Windows 10 Pro
+  guest_version: Microsoft Windows 11
+  kernel_release: 29599
+  machine: x86_64
+  guest_agent_version: 110.2.3
+  guest_agent_commands: 37
+  console_codepage: 936
+
+== baseline manifest ==
+  6 项，baseline_manifest_hash = sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df
+
+== upload ==
+  435 字节 → C:\poc\samples\s09.bat
+
+== execute ==
+  嗅探已就绪 100 ms (iface=virbr0)
+  exit_code = 0  signal = None  duration_ms = 355
+  out_truncated = False  err_truncated = False
+  stdout = '21:24:32.93\r\n'
+  stderr = "'ons' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n'rocDelay' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n'bleExtensions' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n'kens' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n'itloop' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n文件名、目录名或卷标语法不正确。\r\n'/a' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n'LSS' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n"
+
+== network fingerprint ==
+  mode=isolated isolated=True method=nic-link-down
+  attempted=None  egress_frames=0  bytes_sent=0 bytes_recv=0
+  note: egress_frames=0 —— 隔离的硬证据
+
+== after manifest ==
+  7 项
+  created  = []
+  modified = []
+  deleted  = []
+  created_dirs = []
+  known_artifacts = ['C:\\poc\\samples\\s09.bat']
+
+== base 完整性 == 未被写入 ✅
+
+== stop ==
+
+== report ==
+  样本        : 精确延迟2秒.bat  sha256=357d300dd494ac32…
+  exit_code   : 0
+  stdout      : '21:24:32.93\r\n'
+  created     : []
+  network     : mode=isolated isolated=True egress_frames=0 conns=0
+  revert_op_ms: 76
+  agent_ready : 16247
+  cycle_ms    : 37500
+  指纹已写入  : /home/duanjb666/bat2sh/research/behavior-tracking/results/batch/s09.json
+  --- 分段计时 (ms) ---
+    env_check            234
+    revert               160
+    network_apply        826
+    agent_wait           16492
+    environment          505
+    baseline_manifest    14339
+    upload               95
+    capture              230
+    execute              796
+    after_manifest       5125
+    total_ms             38974

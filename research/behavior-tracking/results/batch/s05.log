@@ -1,0 +1,79 @@
+$ /usr/bin/python3 /home/duanjb666/bat2sh/research/behavior-tracking/tools/collect.py --sample /home/duanjb666/下载/非常批处理/每隔2秒新建一个txt文件，文件名由1~10.bat --guest-name s05.bat --output results/batch/s05.json --network isolated --timeout 120 --domain win-behavior --connect qemu:///system --workdir C:\poc\samples
+
+== check_env ==
+  [ok  ] sudo(免密): sudo -n 可用
+  [ok  ] 域存在/可查询: win-behavior @ qemu:///system → shut off
+  [ok  ] ufw 放行 virbr0: virbr0 已放行（in + route）
+  [ok  ] DHCP 未被丢弃: **本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）
+  [ok  ] 基线存在/无 backing: /var/lib/libvirt/images/win-behavior.base.qcow2
+  [ok  ] 域磁盘非基线: 域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2
+  全部 6 项通过
+
+== revert ==
+  停机(destroy) 0 ms
+  **纯回滚操作 revert_op_ms = 77 ms**  (判据 < 30000 ms)
+== network == mode=isolated
+  default/down → default/down  bridge=virbr0
+== boot ==
+  agent 就绪 16242 ms  (state=connected)
+== environment ==
+  guest_os: Windows 10 Pro
+  guest_version: Microsoft Windows 11
+  kernel_release: 29599
+  machine: x86_64
+  guest_agent_version: 110.2.3
+  guest_agent_commands: 37
+  console_codepage: 936
+
+== baseline manifest ==
+  6 项，baseline_manifest_hash = sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df
+
+== upload ==
+  143 字节 → C:\poc\samples\s05.bat
+
+== execute ==
+  嗅探已就绪 100 ms (iface=virbr0)
+  exit_code = 0  signal = None  duration_ms = 5250
+  out_truncated = False  err_truncated = False
+  stdout = ''
+  stderr = ''
+
+== network fingerprint ==
+  mode=isolated isolated=True method=nic-link-down
+  attempted=None  egress_frames=0  bytes_sent=0 bytes_recv=0
+  note: egress_frames=0 —— 隔离的硬证据
+
+== after manifest ==
+  12 项
+  created  = ['C:\\poc\\samples\\1.xls', 'C:\\poc\\samples\\3.xls', 'C:\\poc\\samples\\5.xls', 'C:\\poc\\samples\\7.xls', 'C:\\poc\\samples\\9.xls']
+  modified = []
+  deleted  = []
+  created_dirs = []
+  known_artifacts = ['C:\\poc\\samples\\s05.bat']
+
+== base 完整性 == 未被写入 ✅
+
+== stop ==
+
+== report ==
+  样本        : 每隔2秒新建一个txt文件，文件名由1~10.bat  sha256=14fb5ada2779dac5…
+  exit_code   : 0
+  stdout      : ''
+  created     : ['C:\\poc\\samples\\1.xls', 'C:\\poc\\samples\\3.xls', 'C:\\poc\\samples\\5.xls', 'C:\\poc\\samples\\7.xls', 'C:\\poc\\samples\\9.xls']
+  network     : mode=isolated isolated=True egress_frames=0 conns=0
+  revert_op_ms: 77
+  agent_ready : 16242
+  cycle_ms    : 42348
+  指纹已写入  : /home/duanjb666/bat2sh/research/behavior-tracking/results/batch/s05.json
+  --- 分段计时 (ms) ---
+    env_check            229
+    revert               161
+    network_apply        805
+    agent_wait           16483
+    environment          593
+    baseline_manifest    14512
+    upload               86
+    capture              230
+    execute              5565
+    after_manifest       4963
+    total_ms             43790

@@ -1,0 +1,79 @@
+$ /usr/bin/python3 /home/duanjb666/bat2sh/research/behavior-tracking/tools/collect.py --sample /home/duanjb666/下载/非常批处理/查找最新的文件.bat --guest-name s07.bat --output results/batch/s07.json --network isolated --timeout 120 --domain win-behavior --connect qemu:///system --workdir C:\poc\samples
+
+== check_env ==
+  [ok  ] sudo(免密): sudo -n 可用
+  [ok  ] 域存在/可查询: win-behavior @ qemu:///system → shut off
+  [ok  ] ufw 放行 virbr0: virbr0 已放行（in + route）
+  [ok  ] DHCP 未被丢弃: **本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）
+  [ok  ] 基线存在/无 backing: /var/lib/libvirt/images/win-behavior.base.qcow2
+  [ok  ] 域磁盘非基线: 域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2
+  全部 6 项通过
+
+== revert ==
+  停机(destroy) 0 ms
+  **纯回滚操作 revert_op_ms = 77 ms**  (判据 < 30000 ms)
+== network == mode=isolated
+  default/down → default/down  bridge=virbr0
+== boot ==
+  agent 就绪 16249 ms  (state=connected)
+== environment ==
+  guest_os: Windows 10 Pro
+  guest_version: Microsoft Windows 11
+  kernel_release: 29599
+  machine: x86_64
+  guest_agent_version: 110.2.3
+  guest_agent_commands: 37
+  console_codepage: 936
+
+== baseline manifest ==
+  6 项，baseline_manifest_hash = sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df
+
+== upload ==
+  589 字节 → C:\poc\samples\s07.bat
+
+== execute ==
+  嗅探已就绪 100 ms (iface=virbr0)
+  exit_code = 1  signal = None  duration_ms = 359
+  out_truncated = False  err_truncated = False
+  stdout = '\r\nC:\\poc\\samples>rem  文件更新列表批处理 \r\n\r\nC:\\poc\\samples>cls\r\n\x0c\r\nC:\\poc\\samples>title         YIPINGSOFT CopyRight2006             \r\n\r\nC:\\poc\\samples>rem "==================================================" \r\n\r\nC:\\poc\\samples>For /R %i in (.) DO del %i\\最新文件目录.txt  \r\n\r\nC:\\poc\\samples>del C:\\poc\\samples\\.\\最新文件目录.txt  \r\n\r\nC:\\poc\\samples>del 备查目录.txt \r\n\r\nC:\\poc\\samples>del 完整目录.txt \r\n\r\nC:\\poc\\samples>set homes=2026/09/26 周六     \r\n\r\nC:\\poc\\samples>date/t        1>>完整目录.txt \r\n\r\nC:\\poc\\samples>for /F %A in (完整目录.txt) do set homes=%A      \r\n\r\nC:\\poc\\samples>set homes=2026/09/26      \r\n\r\nC:\\poc\\samples>md  2026/09/26      \r\n\r\nC:\\poc\\samples>dir  /t:c /s   1>完整目录.txt \r\n\r\nC:\\poc\\samples>for /F "tokens=1,4* delims= " %1 in (完整目录.txt) do for /R %a in (%2*) do if %1 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 驱动器 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 驱动器 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 驱动器 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 卷的序列号是 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 卷的序列号是 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 卷的序列号是 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if C:\\poc\\samples == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if C:\\poc\\samples == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if C:\\poc\\samples == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (.*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (..*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (s07.bat*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 2026/09/26 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (完整目录.txt*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 2026/09/26 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 所列文件总数: == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\最新文件目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (可用字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>For /R %i in (*.*) DO echo %~fi  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\s07.bat  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\完整目录.txt  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\最新文件目录.txt  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>copy 最新文件目录.txt   2026/09/26       & \\   \r\n命令语法不正确。\r\n'
+  stderr = "找不到 C:\\poc\\samples\\最新文件目录.txt\r\n找不到 C:\\poc\\samples\\备查目录.txt\r\n找不到 C:\\poc\\samples\\完整目录.txt\r\n命令语法不正确。\r\n'\\' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n"
+
+== network fingerprint ==
+  mode=isolated isolated=True method=nic-link-down
+  attempted=None  egress_frames=0  bytes_sent=0 bytes_recv=0
+  note: egress_frames=0 —— 隔离的硬证据
+
+== after manifest ==
+  10 项
+  created  = ['C:\\poc\\samples\\备查目录.txt', 'C:\\poc\\samples\\完整目录.txt', 'C:\\poc\\samples\\最新文件目录.txt']
+  modified = []
+  deleted  = []
+  created_dirs = []
+  known_artifacts = ['C:\\poc\\samples\\s07.bat']
+
+== base 完整性 == 未被写入 ✅
+
+== stop ==
+
+== report ==
+  样本        : 查找最新的文件.bat  sha256=6067503b35b7e43e…
+  exit_code   : 1
+  stdout      : '\r\nC:\\poc\\samples>rem  文件更新列表批处理 \r\n\r\nC:\\poc\\samples>cls\r\n\x0c\r\nC:\\poc\\samples>title         YIPINGSOFT CopyRight2006             \r\n\r\nC:\\poc\\samples>rem "==================================================" \r\n\r\nC:\\poc\\samples>For /R %i in (.) DO del %i\\最新文件目录.txt  \r\n\r\nC:\\poc\\samples>del C:\\poc\\samples\\.\\最新文件目录.txt  \r\n\r\nC:\\poc\\samples>del 备查目录.txt \r\n\r\nC:\\poc\\samples>del 完整目录.txt \r\n\r\nC:\\poc\\samples>set homes=2026/09/26 周六     \r\n\r\nC:\\poc\\samples>date/t        1>>完整目录.txt \r\n\r\nC:\\poc\\samples>for /F %A in (完整目录.txt) do set homes=%A      \r\n\r\nC:\\poc\\samples>set homes=2026/09/26      \r\n\r\nC:\\poc\\samples>md  2026/09/26      \r\n\r\nC:\\poc\\samples>dir  /t:c /s   1>完整目录.txt \r\n\r\nC:\\poc\\samples>for /F "tokens=1,4* delims= " %1 in (完整目录.txt) do for /R %a in (%2*) do if %1 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 驱动器 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 驱动器 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 驱动器 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 卷的序列号是 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 卷的序列号是 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 卷的序列号是 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if C:\\poc\\samples == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if C:\\poc\\samples == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if C:\\poc\\samples == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (.*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (..*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (s07.bat*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 2026/09/26 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (完整目录.txt*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 2026/09/26 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 所列文件总数: == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\最新文件目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (可用字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>For /R %i in (*.*) DO echo %~fi  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\s07.bat  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\完整目录.txt  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\最新文件目录.txt  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>copy 最新文件目录.txt   2026/09/26       & \\   \r\n命令语法不正确。\r\n'
+  created     : ['C:\\poc\\samples\\备查目录.txt', 'C:\\poc\\samples\\完整目录.txt', 'C:\\poc\\samples\\最新文件目录.txt']
+  network     : mode=isolated isolated=True egress_frames=0 conns=0
+  revert_op_ms: 77
+  agent_ready : 16249
+  cycle_ms    : 37408
+  指纹已写入  : /home/duanjb666/bat2sh/research/behavior-tracking/results/batch/s07.json
+  --- 分段计时 (ms) ---
+    env_check            242
+    revert               168
+    network_apply        826
+    agent_wait           16492
+    environment          547
+    baseline_manifest    14481
+    upload               85
+    capture              78
+    execute              533
+    after_manifest       5123
+    total_ms             38892

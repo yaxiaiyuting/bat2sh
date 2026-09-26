@@ -1,0 +1,292 @@
+{
+  "schema_version": 3,
+  "harness": {
+    "tool": "collect.py",
+    "version": "1.1.0",
+    "git_head": "04f0dd4aa5a0efb9d40b39411edd43a08495ef3d",
+    "invocation": [
+      "--sample",
+      "/tmp/s02_crlf.bat",
+      "--guest-name",
+      "s02b.bat",
+      "--output",
+      "results/batch/s02b-crlf-ab.json",
+      "--network=isolated",
+      "--timeout",
+      "120"
+    ]
+  },
+  "script": {
+    "name": "s02_crlf.bat",
+    "sha256": "7b0d93572cf4dd7c44ea84a01bc1b543c9aac62785a6fa806d91581abc15401f",
+    "size": 1317,
+    "local_path": "/tmp/s02_crlf.bat",
+    "guest_path": "C:\\poc\\samples\\s02b.bat",
+    "guest_name": "s02b.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Windows 10 Pro",
+    "guest_version": "Microsoft Windows 11",
+    "kernel_release": "29599",
+    "machine": "x86_64",
+    "guest_agent_version": "110.2.3",
+    "guest_agent_commands": 37,
+    "console_codepage": 936
+  },
+  "rollback": {
+    "method": "overlay-qcow2",
+    "stop_mode": "destroy",
+    "stop_ms": 0,
+    "revert_op_ms": 78,
+    "base_ident_before": {
+      "size": 68730224640,
+      "mtime": 1790425638,
+      "inode": 1418147
+    },
+    "overlay": "/var/lib/libvirt/images/win-behavior.qcow2",
+    "base": "/var/lib/libvirt/images/win-behavior.base.qcow2",
+    "agent_ready_ms": 16243,
+    "base_intact": {
+      "unchanged": true,
+      "before": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "after": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "note": "qcow2 以只读方式打开 backing file，写入只落覆盖层"
+    },
+    "cycle_ms": 38880,
+    "final_stop_ms": 245
+  },
+  "execution": {
+    "argv": [
+      "cmd.exe",
+      "/c",
+      "cd /d C:\\poc\\samples && C:\\poc\\samples\\s02b.bat < nul"
+    ],
+    "pid": 5632,
+    "duration_ms": 354,
+    "exit_code": 0,
+    "signal": null,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "PT09IEZPUiAvTDogQ291bnQgMSB0byA1ID09PQ0KICBJdGVyYXRpb24gMQ0KICBJdGVyYXRpb24gMg0KICBJdGVyYXRpb24gMw0KICBJdGVyYXRpb24gNA0KICBJdGVyYXRpb24gNQ0KPT09IEZPUiAvTDogQ291bnRkb3duID09PQ0KICBDb3VudGRvd246IDEwDQogIENvdW50ZG93bjogOA0KICBDb3VudGRvd246IDYNCiAgQ291bnRkb3duOiA0DQogIENvdW50ZG93bjogMg0KICBDb3VudGRvd246IDANCj09PSBGT1IgL0Y6IFBhcnNpbmcgY29tbWFuZCBvdXRwdXQgPT09DQogIFRva2VuMT1BcHBsZSBUb2tlbjI9QmFuYW5hIFRva2VuMz1DaGVycnkNCj09PSBGT1IgL0Y6IFNraXAgbGluZXMgPT09DQogIExpbmU6IDo6IEZPUiAvTCAtIOaVsOWAvOiMg+WbtOW+queOPw0KPT09IEZPUiAvRjogdXNlYmFja3EgPT09DQogIFJlc3VsdDogSGVsbG8gZnJvbSB1c2ViYWNrcQ0KPT09IEZPUjogV2lsZGNhcmQgZmlsZXMgPT09DQogIEZvdW5kOiBzeXN0ZW0uaW5pIFNpemU6IDIxOSBieXRlcw0KICBGb3VuZDogd2luLmluaSBTaXplOiA5MiBieXRlcw0KPT09IEZPUiAvRDogRGlyZWN0b3JpZXMgPT09DQogIERpcjogU3lzdGVtDQogIERpcjogU3lzdGVtMzINCiAgRGlyOiBTeXN0ZW1BcHBzDQogIERpcjogU3lzdGVtUmVzb3VyY2VzDQogIERpcjogU3lzdGVtVGVtcA0KICBEaXI6IFN5c1dPVzY0DQo9PT0gRk9SIC9SOiBSZWN1cnNpdmUgPT09DQogIFRvdGFsIC5zeXMgZmlsZXM6IDQxNg0K",
+    "text": "=== FOR /L: Count 1 to 5 ===\r\n  Iteration 1\r\n  Iteration 2\r\n  Iteration 3\r\n  Iteration 4\r\n  Iteration 5\r\n=== FOR /L: Countdown ===\r\n  Countdown: 10\r\n  Countdown: 8\r\n  Countdown: 6\r\n  Countdown: 4\r\n  Countdown: 2\r\n  Countdown: 0\r\n=== FOR /F: Parsing command output ===\r\n  Token1=Apple Token2=Banana Token3=Cherry\r\n=== FOR /F: Skip lines ===\r\n  Line: :: FOR /L - 鏁板�艰寖鍥村惊鐜?\r\n=== FOR /F: usebackq ===\r\n  Result: Hello from usebackq\r\n=== FOR: Wildcard files ===\r\n  Found: system.ini Size: 219 bytes\r\n  Found: win.ini Size: 92 bytes\r\n=== FOR /D: Directories ===\r\n  Dir: System\r\n  Dir: System32\r\n  Dir: SystemApps\r\n  Dir: SystemResources\r\n  Dir: SystemTemp\r\n  Dir: SysWOW64\r\n=== FOR /R: Recursive ===\r\n  Total .sys files: 416\r\n"
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-v2",
+    "scope": [
+      "C:\\poc"
+    ],
+    "baseline_manifest_hash": "sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df",
+    "baseline_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      }
+    },
+    "before_count": 6,
+    "after_count": 7,
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 6,
+    "known_artifacts": [
+      {
+        "path": "C:\\poc\\samples\\s02b.bat",
+        "reason": "harness upload"
+      }
+    ],
+    "created_raw": [
+      "C:\\poc\\samples\\s02b.bat"
+    ],
+    "after_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      },
+      "C:\\poc\\samples\\s02b.bat": {
+        "FullName": "C:\\poc\\samples\\s02b.bat",
+        "Length": 1317,
+        "Hash": "7B0D93572CF4DD7C44EA84A01BC1B543C9AAC62785A6FA806D91581ABC15401F"
+      }
+    },
+    "dirs_method": "recurse-directory-listing",
+    "baseline_dirs": [
+      "C:\\poc\\samples"
+    ],
+    "after_dirs": [
+      "C:\\poc\\samples"
+    ],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "cwd-if-workdir-unset"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "nic-link-down",
+    "network_name": "default",
+    "link_state": "down",
+    "iface": "virbr0",
+    "attempted": null,
+    "attempted_basis": "link-down：guest 的帧不进入宿主网桥，因此无法观测连接尝试（只能证明没有出网）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0,
+    "capture": {
+      "method": "af_packet-header-only",
+      "iface": "virbr0",
+      "guest_mac": "52:54:00:c4:73:fd",
+      "window_ms": 529,
+      "frames_seen": 0,
+      "frames_guest": 0,
+      "frames_other": 0,
+      "frames_unparsed": 0,
+      "frames_non_ip": 0,
+      "frames_at_max_len": 0,
+      "max_frame_bytes": 192,
+      "payload_read": false
+    },
+    "notes": [
+      "egress_frames=0 —— 隔离的硬证据"
+    ],
+    "setup": {
+      "mode": "isolated",
+      "requested": {
+        "network": "default",
+        "link_state": "down"
+      },
+      "before": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "after": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "bridge": "virbr0"
+    }
+  },
+  "timings": {
+    "env_check": 267,
+    "revert": 165,
+    "network_apply": 926,
+    "agent_wait": 16489,
+    "environment": 596,
+    "baseline_manifest": 15224,
+    "upload": 93,
+    "capture": 79,
+    "execute": 523,
+    "after_manifest": 5809,
+    "total_ms": 40494
+  },
+  "notes": [],
+  "env_checks": [
+    {
+      "check": "sudo(免密)",
+      "ok": true,
+      "detail": "sudo -n 可用"
+    },
+    {
+      "check": "域存在/可查询",
+      "ok": true,
+      "detail": "win-behavior @ qemu:///system → shut off"
+    },
+    {
+      "check": "ufw 放行 virbr0",
+      "ok": true,
+      "detail": "virbr0 已放行（in + route）"
+    },
+    {
+      "check": "DHCP 未被丢弃",
+      "ok": true,
+      "detail": "**本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）"
+    },
+    {
+      "check": "基线存在/无 backing",
+      "ok": true,
+      "detail": "/var/lib/libvirt/images/win-behavior.base.qcow2"
+    },
+    {
+      "check": "域磁盘非基线",
+      "ok": true,
+      "detail": "域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2"
+    }
+  ],
+  "execution_workdir": "C:\\poc\\samples"
+}

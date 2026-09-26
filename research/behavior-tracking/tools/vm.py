@@ -293,6 +293,41 @@ class Qga:
             obj = [obj]
         return {o["FullName"]: o for o in obj if isinstance(o, dict) and "FullName" in o}
 
+    def dirs(self, scope=DEFAULT_SCOPE, *, timeout: int = 120) -> list[str]:
+        """递归**目录**清单（只列目录，不算哈希）。
+
+        为什么单独一个方法：`manifest()` 只收 `-File`，于是 `md`/`mkdir` 这类
+        **只建目录**的样本在指纹里表现为"什么都没做" —— 一个安静的假阴性
+        （`快速创建文件夹.bat`、`每天自动创建文件夹.bat` 正是这类）。
+
+        ⚠️ 刻意**不**把它并进 `manifest()`：清单哈希是 J1 判据的基础
+        （`rollback-design.md` §5.1），改变它的构成会让新旧运行的
+        `baseline_manifest_hash` 不可比。目录单独记，J1 一字不动。
+        """
+        scopes = [scope] if isinstance(scope, str) else list(scope)
+        ps_paths = ",".join("'" + s.replace("'", "''") + "'" for s in scopes)
+        ps = (
+            f"$ErrorActionPreference='SilentlyContinue';"
+            f"$p=@({ps_paths}) | Where-Object {{ Test-Path -LiteralPath $_ }};"
+            f"if($p){{"
+            f"Get-ChildItem -Path $p -Recurse -Force -Directory |"
+            f" Select-Object -ExpandProperty FullName | ConvertTo-Json -Compress"
+            f"}}"
+        )
+        r = self.exec_wait("powershell.exe",
+                           ["-NoProfile", "-NonInteractive", "-Command", ps],
+                           timeout=timeout)
+        raw = decode(r["stdout_b64"]).strip()
+        if not raw:
+            return []
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            raise GuestError(f"目录清单 JSON 解析失败：{raw[:300]}")
+        if isinstance(obj, str):
+            obj = [obj]
+        return sorted(str(x) for x in obj)
+
     def codepage(self, *, timeout: int = 60) -> int | None:
         """程序化取得控制台代码页 —— 解码 stdout 的前提（PoC §5.4）。"""
         r = self.exec_wait("cmd.exe", ["/c", "chcp"], timeout=timeout)
@@ -560,17 +595,24 @@ def _check_dhcp_drops(gap_s: float = 5.0) -> tuple[bool, str]:
 
 
 def check_env(vm: Vm, *, require_agent: bool = True,
-              dhcp_gap_s: float = 5.0) -> list[dict]:
-    """采集前**必查清单**（设计 §6.3）。返回检查结果列表；调用方负责硬失败。"""
+              dhcp_gap_s: float = 5.0, dhcp_relevant: bool = True) -> list[dict]:
+    """采集前**必查清单**（设计 §6.3）。返回检查结果列表；调用方负责硬失败。
+
+    `dhcp_relevant=False`（`--network=isolated`）时，DHCP 检查**没有鉴别力** ——
+    链路 down ⇒ 不会有 DHCP ⇒ 丢弃计数必然静止 ⇒ 检查恒真。
+    这种情况必须**如实标注**，否则会给出"通过了检查"的假安全感
+    （见 `network-policy.md` §7 第 5 条）。
+    """
     checks: list[dict] = []
 
     def add(name: str, ok: bool, detail: str):
         checks.append({"check": name, "ok": bool(ok), "detail": detail})
 
-    # 0) sudo 免密（镜像文件操作的前提）
+    # 0) sudo 免密（镜像文件操作 + 网络嗅探的前提）
     p = sh(["true"], sudo=True, check=False, timeout=15)
     add("sudo(免密)", p.returncode == 0,
-        "sudo -n 可用" if p.returncode == 0 else "需要免密 sudo（镜像文件为 root 所有）")
+        "sudo -n 可用" if p.returncode == 0
+        else "需要免密 sudo（镜像文件为 root 所有；嗅探需要 CAP_NET_RAW）")
 
     # 1) 连接 + 域（URI 坑，设计 §2）
     try:
@@ -585,7 +627,11 @@ def check_env(vm: Vm, *, require_agent: bool = True,
     add("ufw 放行 virbr0", ok, detail)
 
     # 3) DHCP drop 计数静止
-    ok, detail = _check_dhcp_drops(dhcp_gap_s)
+    if dhcp_relevant:
+        ok, detail = _check_dhcp_drops(dhcp_gap_s)
+    else:
+        ok, detail = True, ("**本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ "
+                            "计数必然静止（恒真，不构成证据）")
     add("DHCP 未被丢弃", ok, detail)
 
     # 4) 基线存在且自身无 backing（否则回滚会递归）

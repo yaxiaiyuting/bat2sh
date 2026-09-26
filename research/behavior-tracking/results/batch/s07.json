@@ -1,0 +1,321 @@
+{
+  "schema_version": 3,
+  "harness": {
+    "tool": "collect.py",
+    "version": "1.1.0",
+    "git_head": "04f0dd4aa5a0efb9d40b39411edd43a08495ef3d",
+    "invocation": [
+      "--sample",
+      "/home/duanjb666/下载/非常批处理/查找最新的文件.bat",
+      "--guest-name",
+      "s07.bat",
+      "--output",
+      "results/batch/s07.json",
+      "--network",
+      "isolated",
+      "--timeout",
+      "120",
+      "--domain",
+      "win-behavior",
+      "--connect",
+      "qemu:///system",
+      "--workdir",
+      "C:\\poc\\samples"
+    ]
+  },
+  "script": {
+    "name": "查找最新的文件.bat",
+    "sha256": "6067503b35b7e43e939e6ba08bae6f1e56078127022f514fe9bae7b1560a8b53",
+    "size": 589,
+    "local_path": "/home/duanjb666/下载/非常批处理/查找最新的文件.bat",
+    "guest_path": "C:\\poc\\samples\\s07.bat",
+    "guest_name": "s07.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Windows 10 Pro",
+    "guest_version": "Microsoft Windows 11",
+    "kernel_release": "29599",
+    "machine": "x86_64",
+    "guest_agent_version": "110.2.3",
+    "guest_agent_commands": 37,
+    "console_codepage": 936
+  },
+  "rollback": {
+    "method": "overlay-qcow2",
+    "stop_mode": "destroy",
+    "stop_ms": 0,
+    "revert_op_ms": 77,
+    "base_ident_before": {
+      "size": 68730224640,
+      "mtime": 1790425638,
+      "inode": 1418147
+    },
+    "overlay": "/var/lib/libvirt/images/win-behavior.qcow2",
+    "base": "/var/lib/libvirt/images/win-behavior.base.qcow2",
+    "agent_ready_ms": 16249,
+    "base_intact": {
+      "unchanged": true,
+      "before": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "after": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "note": "qcow2 以只读方式打开 backing file，写入只落覆盖层"
+    },
+    "cycle_ms": 37408,
+    "final_stop_ms": 243
+  },
+  "execution": {
+    "argv": [
+      "cmd.exe",
+      "/c",
+      "cd /d C:\\poc\\samples && C:\\poc\\samples\\s07.bat < nul"
+    ],
+    "pid": 7092,
+    "duration_ms": 359,
+    "exit_code": 1,
+    "signal": null,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "DQpDOlxwb2Ncc2FtcGxlcz5yZW0gIM7EvP64/NDCwdCx7cX6tKbA7SANCg0KQzpccG9jXHNhbXBsZXM+Y2xzDQoMDQpDOlxwb2Ncc2FtcGxlcz50aXRsZSAgICAgICAgIFlJUElOR1NPRlQgQ29weVJpZ2h0MjAwNiAgICAgICAgICAgICANCg0KQzpccG9jXHNhbXBsZXM+cmVtICI9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PSIgDQoNCkM6XHBvY1xzYW1wbGVzPkZvciAvUiAlaSBpbiAoLikgRE8gZGVsICVpXNfu0MLOxLz+xL/CvC50eHQgIA0KDQpDOlxwb2Ncc2FtcGxlcz5kZWwgQzpccG9jXHNhbXBsZXNcLlzX7tDCzsS8/sS/wrwudHh0ICANCg0KQzpccG9jXHNhbXBsZXM+ZGVsILG4sunEv8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+ZGVsIM3q1fvEv8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+c2V0IGhvbWVzPTIwMjYvMDkvMjYg1tzB+SAgICAgDQoNCkM6XHBvY1xzYW1wbGVzPmRhdGUvdCAgICAgICAgMT4+zerV+8S/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5mb3IgL0YgJUEgaW4gKM3q1fvEv8K8LnR4dCkgZG8gc2V0IGhvbWVzPSVBICAgICAgDQoNCkM6XHBvY1xzYW1wbGVzPnNldCBob21lcz0yMDI2LzA5LzI2ICAgICAgDQoNCkM6XHBvY1xzYW1wbGVzPm1kICAyMDI2LzA5LzI2ICAgICAgDQoNCkM6XHBvY1xzYW1wbGVzPmRpciAgL3Q6YyAvcyAgIDE+zerV+8S/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5mb3IgL0YgInRva2Vucz0xLDQqIGRlbGltcz0gIiAlMSBpbiAozerV+8S/wrwudHh0KSBkbyBmb3IgL1IgJWEgaW4gKCUyKikgZG8gaWYgJTEgPT0gMjAyNi8wOS8yNiBlY2hvICV+ZmEgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmZvciAvUiAlYSBpbiAoKikgZG8gaWYgx/22r8b3ID09IDIwMjYvMDkvMjYgZWNobyAlfmZhICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5pZiDH/bavxvcgPT0gMjAyNi8wOS8yNiBlY2hvIEM6XHBvY1xzYW1wbGVzXHMwNy5iYXQgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmlmIMf9tq/G9yA9PSAyMDI2LzA5LzI2IGVjaG8gQzpccG9jXHNhbXBsZXNczerV+8S/wrwudHh0ICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5mb3IgL1IgJWEgaW4gKCopIGRvIGlmIL7ttcTQ8sHQusXKxyA9PSAyMDI2LzA5LzI2IGVjaG8gJX5mYSAgMT4+1+7Qws7EvP7Ev8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+aWYgvu21xNDywdC6xcrHID09IDIwMjYvMDkvMjYgZWNobyBDOlxwb2Ncc2FtcGxlc1xzMDcuYmF0ICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5pZiC+7bXE0PLB0LrFyscgPT0gMjAyNi8wOS8yNiBlY2hvIEM6XHBvY1xzYW1wbGVzXM3q1fvEv8K8LnR4dCAgMT4+1+7Qws7EvP7Ev8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+Zm9yIC9SICVhIGluICgqKSBkbyBpZiBDOlxwb2Ncc2FtcGxlcyA9PSAyMDI2LzA5LzI2IGVjaG8gJX5mYSAgMT4+1+7Qws7EvP7Ev8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+aWYgQzpccG9jXHNhbXBsZXMgPT0gMjAyNi8wOS8yNiBlY2hvIEM6XHBvY1xzYW1wbGVzXHMwNy5iYXQgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmlmIEM6XHBvY1xzYW1wbGVzID09IDIwMjYvMDkvMjYgZWNobyBDOlxwb2Ncc2FtcGxlc1zN6tX7xL/CvC50eHQgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmZvciAvUiAlYSBpbiAoLiopIGRvIGlmIDIwMjYvMDkvMjYgPT0gMjAyNi8wOS8yNiBlY2hvICV+ZmEgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmZvciAvUiAlYSBpbiAoLi4qKSBkbyBpZiAyMDI2LzA5LzI2ID09IDIwMjYvMDkvMjYgZWNobyAlfmZhICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5mb3IgL1IgJWEgaW4gKHMwNy5iYXQqKSBkbyBpZiAyMDI2LzA5LzI2ID09IDIwMjYvMDkvMjYgZWNobyAlfmZhICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5pZiAyMDI2LzA5LzI2ID09IDIwMjYvMDkvMjYgZWNobyBDOlxwb2Ncc2FtcGxlc1xzMDcuYmF0ICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5mb3IgL1IgJWEgaW4gKM3q1fvEv8K8LnR4dCopIGRvIGlmIDIwMjYvMDkvMjYgPT0gMjAyNi8wOS8yNiBlY2hvICV+ZmEgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmlmIDIwMjYvMDkvMjYgPT0gMjAyNi8wOS8yNiBlY2hvIEM6XHBvY1xzYW1wbGVzXM3q1fvEv8K8LnR4dCAgMT4+1+7Qws7EvP7Ev8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+Zm9yIC9SICVhIGluICjX1r3aKikgZG8gaWYgMiA9PSAyMDI2LzA5LzI2IGVjaG8gJX5mYSAgMT4+1+7Qws7EvP7Ev8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+Zm9yIC9SICVhIGluICgqKSBkbyBpZiDL+cHQzsS8/tfcyv06ID09IDIwMjYvMDkvMjYgZWNobyAlfmZhICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5pZiDL+cHQzsS8/tfcyv06ID09IDIwMjYvMDkvMjYgZWNobyBDOlxwb2Ncc2FtcGxlc1xzMDcuYmF0ICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5pZiDL+cHQzsS8/tfcyv06ID09IDIwMjYvMDkvMjYgZWNobyBDOlxwb2Ncc2FtcGxlc1zN6tX7xL/CvC50eHQgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmlmIMv5wdDOxLz+19zK/TogPT0gMjAyNi8wOS8yNiBlY2hvIEM6XHBvY1xzYW1wbGVzXNfu0MLOxLz+xL/CvC50eHQgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmZvciAvUiAlYSBpbiAo19a92iopIGRvIGlmIDIgPT0gMjAyNi8wOS8yNiBlY2hvICV+ZmEgIDE+Ptfu0MLOxLz+xL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmZvciAvUiAlYSBpbiAov8nTw9fWvdoqKSBkbyBpZiAyID09IDIwMjYvMDkvMjYgZWNobyAlfmZhICAxPj7X7tDCzsS8/sS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5Gb3IgL1IgJWkgaW4gKCouKikgRE8gZWNobyAlfmZpICAxPj6xuLLpxL/CvC50eHQgDQoNCkM6XHBvY1xzYW1wbGVzPmVjaG8gQzpccG9jXHNhbXBsZXNcczA3LmJhdCAgMT4+sbiy6cS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5lY2hvIEM6XHBvY1xzYW1wbGVzXM3q1fvEv8K8LnR4dCAgMT4+sbiy6cS/wrwudHh0IA0KDQpDOlxwb2Ncc2FtcGxlcz5lY2hvIEM6XHBvY1xzYW1wbGVzXNfu0MLOxLz+xL/CvC50eHQgIDE+PrG4sunEv8K8LnR4dCANCg0KQzpccG9jXHNhbXBsZXM+Y29weSDX7tDCzsS8/sS/wrwudHh0ICAgMjAyNi8wOS8yNiAgICAgICAmIFwgICANCsP8we7T77eosrvV/ci3oaMNCg==",
+    "text": "\r\nC:\\poc\\samples>rem  文件更新列表批处理 \r\n\r\nC:\\poc\\samples>cls\r\n\f\r\nC:\\poc\\samples>title         YIPINGSOFT CopyRight2006             \r\n\r\nC:\\poc\\samples>rem \"==================================================\" \r\n\r\nC:\\poc\\samples>For /R %i in (.) DO del %i\\最新文件目录.txt  \r\n\r\nC:\\poc\\samples>del C:\\poc\\samples\\.\\最新文件目录.txt  \r\n\r\nC:\\poc\\samples>del 备查目录.txt \r\n\r\nC:\\poc\\samples>del 完整目录.txt \r\n\r\nC:\\poc\\samples>set homes=2026/09/26 周六     \r\n\r\nC:\\poc\\samples>date/t        1>>完整目录.txt \r\n\r\nC:\\poc\\samples>for /F %A in (完整目录.txt) do set homes=%A      \r\n\r\nC:\\poc\\samples>set homes=2026/09/26      \r\n\r\nC:\\poc\\samples>md  2026/09/26      \r\n\r\nC:\\poc\\samples>dir  /t:c /s   1>完整目录.txt \r\n\r\nC:\\poc\\samples>for /F \"tokens=1,4* delims= \" %1 in (完整目录.txt) do for /R %a in (%2*) do if %1 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 驱动器 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 驱动器 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 驱动器 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 卷的序列号是 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 卷的序列号是 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 卷的序列号是 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if C:\\poc\\samples == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if C:\\poc\\samples == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if C:\\poc\\samples == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (.*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (..*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (s07.bat*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 2026/09/26 == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (完整目录.txt*) do if 2026/09/26 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 2026/09/26 == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (*) do if 所列文件总数: == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\s07.bat  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\完整目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>if 所列文件总数: == 2026/09/26 echo C:\\poc\\samples\\最新文件目录.txt  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>for /R %a in (可用字节*) do if 2 == 2026/09/26 echo %~fa  1>>最新文件目录.txt \r\n\r\nC:\\poc\\samples>For /R %i in (*.*) DO echo %~fi  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\s07.bat  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\完整目录.txt  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>echo C:\\poc\\samples\\最新文件目录.txt  1>>备查目录.txt \r\n\r\nC:\\poc\\samples>copy 最新文件目录.txt   2026/09/26       & \\   \r\n命令语法不正确。\r\n"
+  },
+  "stderr": {
+    "b64": "1dKyu7W9IEM6XHBvY1xzYW1wbGVzXNfu0MLOxLz+xL/CvC50eHQNCtXSsru1vSBDOlxwb2Ncc2FtcGxlc1yxuLLpxL/CvC50eHQNCtXSsru1vSBDOlxwb2Ncc2FtcGxlc1zN6tX7xL/CvC50eHQNCsP8we7T77eosrvV/ci3oaMNCidcJyCyu8rHxNqyv7vyzeKyv8P8we6jrNKysrvKx7/J1MvQ0LXEs8zQ8g0Ku/LF+rSmwO3OxLz+oaMNCg==",
+    "text": "找不到 C:\\poc\\samples\\最新文件目录.txt\r\n找不到 C:\\poc\\samples\\备查目录.txt\r\n找不到 C:\\poc\\samples\\完整目录.txt\r\n命令语法不正确。\r\n'\\' 不是内部或外部命令，也不是可运行的程序\r\n或批处理文件。\r\n"
+  },
+  "filesystem": {
+    "method": "manifest-diff-v2",
+    "scope": [
+      "C:\\poc"
+    ],
+    "baseline_manifest_hash": "sha256:72d287ebce94b19275ded3c6f5a69babe0f6e4ff2f78dd6638475584421e05df",
+    "baseline_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      }
+    },
+    "before_count": 6,
+    "after_count": 10,
+    "created": [
+      "C:\\poc\\samples\\备查目录.txt",
+      "C:\\poc\\samples\\完整目录.txt",
+      "C:\\poc\\samples\\最新文件目录.txt"
+    ],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 6,
+    "known_artifacts": [
+      {
+        "path": "C:\\poc\\samples\\s07.bat",
+        "reason": "harness upload"
+      }
+    ],
+    "created_raw": [
+      "C:\\poc\\samples\\s07.bat",
+      "C:\\poc\\samples\\备查目录.txt",
+      "C:\\poc\\samples\\完整目录.txt",
+      "C:\\poc\\samples\\最新文件目录.txt"
+    ],
+    "after_manifest": {
+      "C:\\poc\\ga-install.log": {
+        "FullName": "C:\\poc\\ga-install.log",
+        "Length": 110352,
+        "Hash": "B184667324312D1BCC79AC237A4773F84B167E152EF3AF5977C5DE17DF015142"
+      },
+      "C:\\poc\\ga.log": {
+        "FullName": "C:\\poc\\ga.log",
+        "Length": 76988,
+        "Hash": "43DA9187266B323F208F28193AF1D11100AF54C3F6B229A453F378E0E802D20A"
+      },
+      "C:\\poc\\gt.log": {
+        "FullName": "C:\\poc\\gt.log",
+        "Length": 325702,
+        "Hash": "5C309FFCA2DE2BA58D4C32609D4FE42D6FB53AA25F3E816925C61EB43CAB460A"
+      },
+      "C:\\poc\\INSTALL-LOG.txt": {
+        "FullName": "C:\\poc\\INSTALL-LOG.txt",
+        "Length": 238,
+        "Hash": "4BB35F72CF6EB25AF7C27A9842F19733EC2870DEB6FF19CF78163D8A3EFB15DE"
+      },
+      "C:\\poc\\qemu-ga-x86_64.msi": {
+        "FullName": "C:\\poc\\qemu-ga-x86_64.msi",
+        "Length": 11909632,
+        "Hash": "19DCF8ABC30F70C2EB6E87282601FD0476E4E0B19936F63D9C80BE30DB0796ED"
+      },
+      "C:\\poc\\virtio-win-gt-x64.msi": {
+        "FullName": "C:\\poc\\virtio-win-gt-x64.msi",
+        "Length": 4887552,
+        "Hash": "4F4388468A7AC5286BD1F1924EF02E7281A60A600390A7CFCFD55809EFC0889F"
+      },
+      "C:\\poc\\samples\\s07.bat": {
+        "FullName": "C:\\poc\\samples\\s07.bat",
+        "Length": 589,
+        "Hash": "6067503B35B7E43E939E6BA08BAE6F1E56078127022F514FE9BAE7B1560A8B53"
+      },
+      "C:\\poc\\samples\\备查目录.txt": {
+        "FullName": "C:\\poc\\samples\\备查目录.txt",
+        "Length": 89,
+        "Hash": "EE3F2D9C9831BC8A6585C566422F0287AD02D7985E9CD888AC9BF019E6F3734C"
+      },
+      "C:\\poc\\samples\\完整目录.txt": {
+        "FullName": "C:\\poc\\samples\\完整目录.txt",
+        "Length": 416,
+        "Hash": "F4A03FD221C5E47C62384EF13EEB0AA136468CEB2A91B71DCEB4BAE04BF7BF15"
+      },
+      "C:\\poc\\samples\\最新文件目录.txt": {
+        "FullName": "C:\\poc\\samples\\最新文件目录.txt",
+        "Length": 55,
+        "Hash": "41380944B7782662A62278F77E298D9F0CBD41303DF54CFC330BBA4C44199EAA"
+      }
+    },
+    "dirs_method": "recurse-directory-listing",
+    "baseline_dirs": [
+      "C:\\poc\\samples"
+    ],
+    "after_dirs": [
+      "C:\\poc\\samples"
+    ],
+    "created_dirs": [],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "cwd-if-workdir-unset"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "nic-link-down",
+    "network_name": "default",
+    "link_state": "down",
+    "iface": "virbr0",
+    "attempted": null,
+    "attempted_basis": "link-down：guest 的帧不进入宿主网桥，因此无法观测连接尝试（只能证明没有出网）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0,
+    "capture": {
+      "method": "af_packet-header-only",
+      "iface": "virbr0",
+      "guest_mac": "52:54:00:c4:73:fd",
+      "window_ms": 522,
+      "frames_seen": 0,
+      "frames_guest": 0,
+      "frames_other": 0,
+      "frames_unparsed": 0,
+      "frames_non_ip": 0,
+      "frames_at_max_len": 0,
+      "max_frame_bytes": 192,
+      "payload_read": false
+    },
+    "notes": [
+      "egress_frames=0 —— 隔离的硬证据"
+    ],
+    "setup": {
+      "mode": "isolated",
+      "requested": {
+        "network": "default",
+        "link_state": "down"
+      },
+      "before": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "after": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "bridge": "virbr0"
+    }
+  },
+  "timings": {
+    "env_check": 242,
+    "revert": 168,
+    "network_apply": 826,
+    "agent_wait": 16492,
+    "environment": 547,
+    "baseline_manifest": 14481,
+    "upload": 85,
+    "capture": 78,
+    "execute": 533,
+    "after_manifest": 5123,
+    "total_ms": 38892
+  },
+  "notes": [],
+  "env_checks": [
+    {
+      "check": "sudo(免密)",
+      "ok": true,
+      "detail": "sudo -n 可用"
+    },
+    {
+      "check": "域存在/可查询",
+      "ok": true,
+      "detail": "win-behavior @ qemu:///system → shut off"
+    },
+    {
+      "check": "ufw 放行 virbr0",
+      "ok": true,
+      "detail": "virbr0 已放行（in + route）"
+    },
+    {
+      "check": "DHCP 未被丢弃",
+      "ok": true,
+      "detail": "**本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）"
+    },
+    {
+      "check": "基线存在/无 backing",
+      "ok": true,
+      "detail": "/var/lib/libvirt/images/win-behavior.base.qcow2"
+    },
+    {
+      "check": "域磁盘非基线",
+      "ok": true,
+      "detail": "域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2"
+    }
+  ],
+  "execution_workdir": "C:\\poc\\samples"
+}

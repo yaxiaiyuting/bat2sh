@@ -1,7 +1,8 @@
 # 行为采集工具（L3 输出效果层）
 
 > 研究基础设施，**不是 bat2sh 产品代码**。
-> 设计依据：`../rollback-design.md` · 实测结果：`../rollback-result.md`
+> 设计依据：`../rollback-design.md` · `../network-policy.md`
+> 实测结果：`../rollback-result.md` · `../network-policy-result.md` · `../batch-result.md`
 
 ## 这是什么
 
@@ -9,18 +10,35 @@
 
 - **覆盖层回滚** —— 每个样本前把 VM 恢复到逐字节相同的干净状态
 - **样本间隔离** —— 用三重判据（J1/J2/J3）证明，而非仅凭差分
-- **一条命令跑完** —— 回滚 → 等 agent → 传输 → 执行 → 采集 → 报告
+- **网络隔离 + 记录** —— 三档网络姿态；默认零出网，可选连接级记录（不记内容）
+- **一条命令跑完** —— 回滚 → 网络姿态 → 等 agent → 传输 → 执行 → 采集 → 报告
+- **批量执行** —— `batch.py` 跑完整清单，失败不阻塞，附批量级验证
+
+## 文件
+
+| 文件 | 职责 |
+| :--- | :--- |
+| `collect.py` | **CLI 入口**：单个样本的完整周期 |
+| `batch.py` | **CLI 入口**：批量执行清单 + 批量级验证 |
+| `verify.py` | **CLI 入口**：J1/J2/J3 隔离判据 |
+| `vm.py` | VM 原语：域状态 / 回滚 / QGA 通道 / 清单与差分 / 环境检查 |
+| `net.py` | 网络策略层：三档模式施加 + 采集窗口 + `network` 指纹 |
+| `netsniff.py` | `AF_PACKET` 头部嗅探器（**唯一提权进程**，只读，需 `CAP_NET_RAW`） |
+| `bat2sh-rec.network.xml` | `recording` 模式的承载网络（`forward mode='none'`，幂等 `net-define`） |
 
 ## 快速开始
 
 ```bash
-cd research/behavior-tracking/tools
+cd research/behavior-tracking
 
-# 采集一个样本
-python3 collect.py --sample samples/copy.bat --output results/copy.json
+# 采集一个样本（默认 --network=isolated：完全断网）
+python3 tools/collect.py --sample samples/copy.bat --output results/copy.json
+
+# 批量采集（清单见 ../batch-samples.txt）
+python3 tools/batch.py --samples batch-samples.txt --output results/batch
 
 # 验证样本间隔离（至少两份指纹）
-python3 verify.py results/copy.json results/other.json results/copy-rerun.json
+python3 tools/verify.py results/batch/s03.json results/batch/s04.json
 ```
 
 `--sample` 的相对路径依次在 **cwd → `tools/` → `tools/samples/` → `../samples/`** 中查找，
@@ -30,6 +48,35 @@ python3 verify.py results/copy.json results/other.json results/copy-rerun.json
 cd research/behavior-tracking/tools && python3 collect.py --sample samples/copy.bat ...
 cd research/behavior-tracking       && python3 tools/collect.py --sample samples/copy.bat ...
 ```
+
+## 网络姿态（`--network=`）
+
+| 模式 | 语义 | 外部性 | 何时用 |
+| :--- | :--- | :--- | :--- |
+| `isolated`（**默认**） | vNIC 链路 down（持久 XML） | **零** | 批量、样本普查 |
+| `recording` | 接 `bat2sh-rec`（无 NAT / 无转发 / 无 DNS 上联），宿主侧按**头部**记录 | **结构性零** | 需要连接级 dst/proto/result 时 |
+| `nat` | 接 `default`（NAT），全量出网 | ⚠️ **真实存在，不可撤回** | 仅在明确需要真实网络时 |
+
+指纹的 `network` 段含 `mode` / `isolated` / `attempted` / `connections[]` / `bytes_sent` /
+`bytes_recv` / `egress_frames` / `capture`。
+
+> **不记录 payload**：每帧最多读 192 B，解析器里没有读 payload 的代码路径
+> （`capture.payload_read=false` 是**构造性质**，不是承诺）。
+> `isolated` 下 `attempted=null`（宿主观测不到意图，如实返回未知而非 `false`）。
+
+## 两个必须知道的参数
+
+| 参数 | 为什么需要 |
+| :--- | :--- |
+| `--workdir`（默认 `C:\poc\samples`） | `guest-exec` 继承 qemu-ga 的 cwd = **`C:\Windows\System32`**。语料几乎全用**相对路径**，不设 workdir 时它们的写入**落在清单范围之外**、完全不可见 |
+| `--guest-name` | QGA 的 `guest-exec` 会给参数里的 `"` 加**反斜杠转义**，`cmd.exe` 不认 `\"` ⇒ **含空格/中文的路径根本跑不了**。用它将语料名换成安全 ASCII 名，原名仍记入指纹 |
+
+> 含空格的路径会被**硬拒绝**（而不是静默跑出 `rc=1`，看起来像"样本执行失败"）。
+
+## 指纹 schema
+
+`SCHEMA_VERSION = 3`。⚠️ **v2 → v3 是破坏性变更**：`network` 由**列表**（v2 恒为 `[]` 占位符）
+改为**对象**。旧 `[]` **不代表"没有网络行为"**，两种 schema 混用会被误读。
 
 ## 前置条件（缺一不可）
 
