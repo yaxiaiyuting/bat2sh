@@ -61,6 +61,9 @@ FROZEN_WARNINGS = [
     (475, 'command', 'assoc 已转换为 xdg-mime query default，输出为 .desktop 名称而非命令'),
     (478, 'command', 'ftype 已转换为 xdg-mime query default，输出为 .desktop 名称而非命令'),
     (512, 'command', 'ver 已转换为 uname -a'),
+    # 文件级警告（第 0 行 = 整个文件的属性，与"输入编码无法解码"同口径）：
+    # examples/stress_test.bat 是 LF-only，cmd.exe 会解析错乱（实测）
+    (0, '', '此脚本只有 LF 换行，Windows cmd.exe 解析会出错（实测：命令行首被逐行吃掉、报"不是内部或外部命令"）；建议把源文件转为 CRLF（bat2sh 不会自动改）'),
 ]
 
 

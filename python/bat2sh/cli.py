@@ -26,8 +26,8 @@ from .core.api.provider import (
 from .core.encoding import decode_bytes, normalize_newlines
 from .core.engine import (
     ConversionResult,
+    convert_decoded,
     convert_file,
-    convert_text,
     detect_kind,
     output_path_for,
     write_output,
@@ -354,8 +354,7 @@ def _print_only(
         _diag(f"bat2sh: 不支持的源文件类型: {path}", "error", _color_for(args))
         return 2
     decoded = decode_bytes(path.read_bytes(), encoding)
-    text, convert_report = convert_text(decoded.text, kind, settings, path.name)
-    convert_report.encoding = decoded.encoding
+    text, convert_report = convert_decoded(decoded, kind, settings, path.name)
     sys.stdout.write(text)
     if args.diff:
         _emit_diff(
@@ -519,8 +518,7 @@ def _run_flow(path: Path, settings: ConvertSettings, args: argparse.Namespace) -
     except OSError as exc:
         _diag(f"bat2sh: 读取失败: {exc}", "error", color)
         return 2
-    text, convert_report = convert_text(decoded.text, kind, settings, path.name)
-    convert_report.encoding = decoded.encoding
+    text, convert_report = convert_decoded(decoded, kind, settings, path.name)
 
     if (convert_report.todo_count or convert_report.error_count) and not args.force:
         _emit_run_todos(convert_report, color)
@@ -712,8 +710,7 @@ def _fix_todos_flow(path: Path, settings: ConvertSettings, args: argparse.Namesp
     except OSError as exc:
         _diag(f"bat2sh: 读取失败: {exc}", "error", color)
         return 2
-    text, convert_report = convert_text(decoded.text, kind, settings, path.name)
-    convert_report.encoding = decoded.encoding
+    text, convert_report = convert_decoded(decoded, kind, settings, path.name)
 
     if fixer.is_degraded(convert_report):
         _diag(

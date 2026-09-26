@@ -19,7 +19,10 @@ EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
 CASES: dict[str, dict] = {
     "hello.bat": {
         "kind": SourceKind.BATCH,
-        "warnings": 0,
+        # 1 = LF-only 行尾警告：examples/*.bat 都是 LF 换行，而 cmd.exe 只有拿到 CRLF
+        # 才不会解析错乱（实测，research/behavior-tracking/batch-result.md §4.1）。
+        # 这是**源文件**的属性，转换产物不受影响。
+        "warnings": 1,
         "todos": 0,
         "features": [
             'NAME="World"',
@@ -34,7 +37,7 @@ CASES: dict[str, dict] = {
     },
     "deploy.bat": {
         "kind": SourceKind.BATCH,
-        "warnings": 1,
+        "warnings": 2,  # 通配符集合 1 条 + LF-only 行尾 1 条（同上）
         "todos": 0,
         "features": [
             "shopt -s nullglob",

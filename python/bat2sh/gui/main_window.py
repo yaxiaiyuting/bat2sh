@@ -48,6 +48,7 @@ from ..core.api.provider import ProviderConfigError, create_provider
 from ..core.encoding import SUPPORTED_ENCODINGS, read_source
 from ..core.engine import (
     ConversionResult,
+    annotate_line_endings,
     convert_text,
     detect_kind,
     output_path_for,
@@ -627,6 +628,8 @@ class MainWindow(QMainWindow):
             return
         try:
             text, report = convert_text(entry.source_text, entry.kind, self.settings, entry.path.name)
+            # 行尾是**文件**属性（不是编辑框里的文本属性）：按读入的原文判定，见 engine.annotate_line_endings
+            annotate_line_endings(report, entry.source_text, entry.kind)
         except Exception as exc:
             QMessageBox.critical(self, "转换失败", str(exc))
             return
@@ -682,6 +685,7 @@ class MainWindow(QMainWindow):
                     errors.append(f"{entry.path}: 读取失败")
                 else:
                     text, report = convert_text(entry.source_text, entry.kind, self.settings, entry.path.name)
+                    annotate_line_endings(report, entry.source_text, entry.kind)
                     entry.output_text = text
                     entry.report = report
                     entry.output_path = output_path_for(entry.path, self.settings)

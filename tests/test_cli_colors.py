@@ -42,7 +42,10 @@ def run_cli(
 
 def make_bat(tmp_path: Path, text: str) -> Path:
     path = tmp_path / "demo.bat"
-    path.write_text(text, encoding="utf-8")
+    # 用 CRLF 写出：真实的 Windows 批处理就是 CRLF。LF-only 会被 bat2sh **如实告警**
+    # （实测 cmd.exe 解析错乱，research/behavior-tracking/batch-result.md §4.1），
+    # 会让"干净文件"这类断言失去意义；行尾专项测试见 tests/test_line_endings.py。
+    path.write_bytes(text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8"))
     return path
 
 

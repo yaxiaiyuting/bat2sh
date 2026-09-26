@@ -2,7 +2,16 @@
 
 from .types import ConvertReport, Diagnostic, SourceKind
 from .settings import ConvertSettings, load_settings, save_settings
-from .engine import ConversionResult, convert_file, convert_text, detect_kind
+from .encoding import detect_line_endings
+from .engine import (
+    ConversionResult,
+    annotate_line_endings,
+    convert_decoded,
+    convert_file,
+    convert_text,
+    detect_kind,
+    line_ending_diagnostic,
+)
 
 __all__ = [
     "ConvertReport",
@@ -12,7 +21,11 @@ __all__ = [
     "load_settings",
     "save_settings",
     "ConversionResult",
+    "convert_decoded",
     "convert_file",
     "convert_text",
     "detect_kind",
+    "detect_line_endings",
+    "annotate_line_endings",
+    "line_ending_diagnostic",
 ]

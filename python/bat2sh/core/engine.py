@@ -10,7 +10,15 @@ from datetime import datetime
 from pathlib import Path
 
 from .batch import BatchConverter
-from .encoding import normalize_newlines, read_source, write_utf8_lf
+from .encoding import (
+    LINE_ENDING_LF,
+    LINE_ENDING_MIXED,
+    DecodedFile,
+    detect_line_endings,
+    normalize_newlines,
+    read_source,
+    write_utf8_lf,
+)
 from .powershell import PowerShellConverter
 from .settings import ConvertSettings
 from .types import ConvertReport, Diagnostic, SourceKind
@@ -18,6 +26,64 @@ from .types import ConvertReport, Diagnostic, SourceKind
 
 def detect_kind(path: str | Path) -> SourceKind:
     return SourceKind.from_suffix(Path(path).suffix)
+
+
+_LINE_ENDING_WARNINGS: dict[str, str] = {
+    LINE_ENDING_LF: (
+        "此脚本只有 LF 换行，Windows cmd.exe 解析会出错"
+        "（实测：命令行首被逐行吃掉、报\"不是内部或外部命令\"）；"
+        "建议把源文件转为 CRLF（bat2sh 不会自动改）"
+    ),
+    LINE_ENDING_MIXED: (
+        "此脚本混用 CRLF 与 LF 换行，cmd.exe 对其中 LF 行的解析会错乱（实测）；"
+        "建议统一为 CRLF（bat2sh 不会自动改）"
+    ),
+}
+
+
+def line_ending_diagnostic(text: str, kind: SourceKind) -> Diagnostic | None:
+    """源文件行尾的警告（**只警告，不阻断、不改写**）；无需警告时返回 ``None``。
+
+    只对 **Windows 批处理**（.bat/.cmd）报：这条结论来自 cmd.exe 的行尾处理
+    （见 ``encoding.detect_line_endings``），PowerShell 解析 LF 正常，不该报警。
+
+    行号固定为 0 —— 这是**整个文件**的属性，不是某一行的属性（与"输入编码无法解码"
+    那条警告同口径）。
+    """
+    if kind is not SourceKind.BATCH:
+        return None
+    message = _LINE_ENDING_WARNINGS.get(detect_line_endings(text))
+    if message is None:
+        return None
+    return Diagnostic(0, message)
+
+
+def annotate_line_endings(report: ConvertReport, text: str, kind: SourceKind) -> None:
+    """把行尾警告追加进报告（供**从文件读入**的各入口调用）。"""
+    diagnostic = line_ending_diagnostic(text, kind)
+    if diagnostic is not None:
+        report.warnings.append(diagnostic)
+
+
+def convert_decoded(
+    decoded: DecodedFile,
+    kind: SourceKind,
+    settings: ConvertSettings,
+    source_name: str,
+) -> tuple[str, ConvertReport]:
+    """转换**已解码的源文件**：``convert_text`` + 只有文件才有的标注（编码、行尾）。
+
+    与 ``convert_text`` 的分工：``convert_text`` 只做"文本 → bash"，不掺文件级信息
+    （测试与 GUI 编辑框都直接用它）；需要"输入编码/行尾"这类文件属性的入口走本函数。
+    """
+    text, report = convert_text(decoded.text, kind, settings, source_name)
+    report.encoding = decoded.encoding
+    if decoded.replaced:
+        report.warnings.append(
+            Diagnostic(0, f"输入编码 {decoded.encoding} 无法解码全部字节，已用替换字符代替")
+        )
+    annotate_line_endings(report, decoded.text, kind)
+    return text, report
 
 
 def convert_text(
@@ -125,15 +191,10 @@ def convert_file(
         return result
     result.encoding = decoded.encoding
     try:
-        text, report = convert_text(decoded.text, kind, settings, src.name)
+        text, report = convert_decoded(decoded, kind, settings, src.name)
     except Exception as exc:  # 转换器内部错误不应让 GUI 崩溃
         result.error = f"转换失败: {exc}"
         return result
-    report.encoding = decoded.encoding
-    if decoded.replaced:
-        report.warnings.append(
-            Diagnostic(0, f"输入编码 {decoded.encoding} 无法解码全部字节，已用替换字符代替")
-        )
     result.text = text
     result.report = report
     if write:

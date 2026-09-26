@@ -85,6 +85,37 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+#: 行尾类型（``detect_line_endings`` 的返回值）
+LINE_ENDING_CRLF = "crlf"
+LINE_ENDING_LF = "lf"
+LINE_ENDING_MIXED = "mixed"
+LINE_ENDING_NONE = "none"
+
+
+def detect_line_endings(text: str) -> str:
+    """返回 ``'crlf' | 'lf' | 'mixed' | 'none'``。
+
+    只统计**行尾**，不看编码：``\\r\\n`` 记 CRLF；把 ``\\r\\n`` 去掉后剩下的单独
+    ``\\n`` 或单独 ``\\r`` 记作"非 CRLF 行尾"。单独 ``\\r``（老 Mac 风格）极罕见，
+    与 LF 合并计入 ``lf`` —— 对 cmd.exe 而言二者同样不是它期望的 CRLF。
+
+    为什么需要它：实测（``research/behavior-tracking/batch-result.md`` §4.1）
+    **只有 LF 换行的 .bat/.cmd 会让 cmd.exe 解析错乱** —— 命令行首被逐行吃掉
+    （累积偏移），报"不是内部或外部命令"，退出码 255。只把 LF 换成 CRLF（内容不动）
+    重跑，同一个样本从 ``rc=255`` 变成 ``rc=0``。
+    """
+    crlf = text.count("\r\n")
+    remainder = text.replace("\r\n", "")
+    other = remainder.count("\n") + remainder.count("\r")
+    if crlf and other:
+        return LINE_ENDING_MIXED
+    if crlf:
+        return LINE_ENDING_CRLF
+    if other:
+        return LINE_ENDING_LF
+    return LINE_ENDING_NONE
+
+
 def write_utf8_lf(path: str | Path, text: str) -> None:
     """按 UTF-8 无 BOM、LF 行尾写出文件。"""
     data = normalize_newlines(text).encode("utf-8")
