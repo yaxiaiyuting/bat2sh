@@ -1,0 +1,131 @@
+{
+  "sample": "copy.bat",
+  "w_head": "0ec2ad37",
+  "l_head": "0ec2ad37",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": false,
+      "attributed": false,
+      "w": 0,
+      "l": 1,
+      "rules": []
+    },
+    "stdout": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'source-alpha\\r\\n'",
+      "l_repr": "''",
+      "w_norm": "'source-alpha\\n'",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "\"cat: '/tmp/bat2sh-oracle/copy-1790434537536/samples/work\\\\c.txt': No such file or directory\\n\"",
+      "w_norm": "''",
+      "l_norm": "\"cat: '<WORK>/work\\\\c.txt': No such file or directory\\n\""
+    },
+    "fs_names": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/work/a.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/C:/iso-probe/from-a.txt",
+          "<WORK>/work/a.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/C:",
+          "<WORK>/C:/iso-probe",
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": false,
+      "rules": [
+        "N10"
+      ],
+      "compared": 2,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/C:/iso-probe/from-a.txt"
+      ]
+    }
+  },
+  "normalization_applied": [
+    {
+      "rule": "N10",
+      "channel": "fs_content",
+      "desc": "文件内容：行尾归一后哈希",
+      "masked": "文本产物行尾 CRLF vs LF",
+      "d_items": [
+        "D2"
+      ]
+    }
+  ],
+  "d_items": [
+    "D2"
+  ],
+  "d_desc": {
+    "D2": "行尾"
+  },
+  "unattributed": [
+    {
+      "channel": "rc",
+      "w": 0,
+      "l": 1
+    },
+    {
+      "channel": "stdout",
+      "w": "'source-alpha\\r\\n'",
+      "l": "''"
+    },
+    {
+      "channel": "stderr",
+      "w": "''",
+      "l": "\"cat: '/tmp/bat2sh-oracle/copy-1790434537536/samples/work\\\\c.txt': No such file or directory\\n\""
+    },
+    {
+      "channel": "fs_names",
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/C:",
+        "<WORK>/C:/iso-probe",
+        "<WORK>/C:/iso-probe/from-a.txt"
+      ]
+    },
+    {
+      "channel": "fs_content",
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/C:/iso-probe/from-a.txt"
+      ]
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

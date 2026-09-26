@@ -1,0 +1,127 @@
+{
+  "sample": "poc-02-fileops.bat",
+  "w_head": "0ec2ad37",
+  "l_head": "0ec2ad37",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": false,
+      "attributed": false,
+      "w": 0,
+      "l": 1,
+      "rules": []
+    },
+    "stdout": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "'beta\\r\\n'",
+      "l_repr": "''",
+      "w_norm": "'beta\\n'",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "\"cat: '/tmp/bat2sh-oracle/poc-02-fileops-1790434537218/samples/work\\\\b.txt': No such file or directory\\n\"",
+      "w_norm": "''",
+      "l_norm": "\"cat: '<WORK>/work\\\\b.txt': No such file or directory\\n\""
+    },
+    "fs_names": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/work/a.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/work/a.txt",
+          "<WORK>/work/b.txt",
+          "<WORK>/work/c.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [
+          "<WORK>/work"
+        ],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": false,
+      "rules": [
+        "N10"
+      ],
+      "compared": 2,
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/work/b.txt"
+      ]
+    }
+  },
+  "normalization_applied": [
+    {
+      "rule": "N10",
+      "channel": "fs_content",
+      "desc": "文件内容：行尾归一后哈希",
+      "masked": "文本产物行尾 CRLF vs LF",
+      "d_items": [
+        "D2"
+      ]
+    }
+  ],
+  "d_items": [
+    "D2"
+  ],
+  "d_desc": {
+    "D2": "行尾"
+  },
+  "unattributed": [
+    {
+      "channel": "rc",
+      "w": 0,
+      "l": 1
+    },
+    {
+      "channel": "stdout",
+      "w": "'beta\\r\\n'",
+      "l": "''"
+    },
+    {
+      "channel": "stderr",
+      "w": "''",
+      "l": "\"cat: '/tmp/bat2sh-oracle/poc-02-fileops-1790434537218/samples/work\\\\b.txt': No such file or directory\\n\""
+    },
+    {
+      "channel": "fs_names",
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/work/b.txt"
+      ]
+    },
+    {
+      "channel": "fs_content",
+      "differs": [],
+      "only_in_w": [],
+      "only_in_l": [
+        "<WORK>/work/b.txt"
+      ]
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

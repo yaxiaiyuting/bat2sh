@@ -25,6 +25,43 @@
 | `net.py` | 网络策略层：三档模式施加 + 采集窗口 + `network` 指纹 |
 | `netsniff.py` | `AF_PACKET` 头部嗅探器（**唯一提权进程**，只读，需 `CAP_NET_RAW`） |
 | `bat2sh-rec.network.xml` | `recording` 模式的承载网络（`forward mode='none'`，幂等 `net-define`） |
+| `collect_linux.py` | **L 侧采集**：产物在 bwrap 沙箱执行，输出**与 W 同结构**的指纹（oracle 用） |
+| `compare.py` | **W vs L 对比器**：归一化规则阶梯 + 三分类（一致 / 可归因 / 不可归因） |
+| `classify_corpus.py` | 语料可对比性分类（A 纯文件操作 / B 部分 / C 不可对比），oracle 选样用 |
+
+## 运行时 oracle（路 A：真机 W vs 产物 L）
+
+与 `../../tools/oracle/golden_harness.py`（**wine** 作 W 侧）互补：本设施用**真机 Windows VM**
+作 W 侧，权威顺序上高于 wine。设计见 `../oracle-design.md`，实测见 `../oracle-result.md`。
+
+```bash
+cd research/behavior-tracking
+
+# W（真机，约 40–80 s/样本）
+python3 tools/collect.py --sample tools/samples/copy.bat --guest-name v4.bat \
+        --output results/oracle/W/v4.json --scope 'C:\poc\samples' --network isolated
+
+# L（bwrap，< 2 s/样本）——产物**沿用 W 侧 guest 文件名（含 .bat）**，内容是 bash
+python3 tools/collect_linux.py --script tools/samples/copy.bat --guest-name v4.bat \
+        --output results/oracle/L/v4.json
+
+# 对比
+python3 tools/compare.py --w results/oracle/W/v4.json --l results/oracle/L/v4.json \
+        --source tools/samples/copy.bat --report results/oracle/report/v4.json
+```
+
+**三条必读**：
+
+1. **产物必须沿用 W 侧文件名**（含 `.bat`）。实测 `%~nx0` → `$(basename "$0")`、
+   `for %%i in (*.bat)` → `for i in *.bat` ⇒ 脚本能观测自己的名字与目录内容。
+2. **工作根目录名必须一致**（`--run-name`，默认 `samples` = `C:\poc\samples` 的 basename）。
+   `for /r %%i in (.)` 会**为每个目录建同名文件，含工作根自己**。
+3. **归一化规则不是可有可无的**：`compare.py` 先只加表示层规则（N1/N5/N6/N7），
+   不够再加，**每加一条都写进 `normalization_applied` 并注明它掩盖了什么** ——
+   这是对抗"假一致"的唯一办法，不要绕过。
+
+`--neutralize-errexit` 是**诊断**开关（规则 N13）：中和 `set -euo pipefail` 后重跑，
+用于把"级联后果（D5）"与"根因"用证据分开。重跑结果**不替换**正式 L 指纹。
 
 ## 快速开始
 
@@ -75,8 +112,14 @@ cd research/behavior-tracking       && python3 tools/collect.py --sample samples
 
 ## 指纹 schema
 
-`SCHEMA_VERSION = 3`。⚠️ **v2 → v3 是破坏性变更**：`network` 由**列表**（v2 恒为 `[]` 占位符）
+`SCHEMA_VERSION = 4`。⚠️ **v2 → v3 是破坏性变更**：`network` 由**列表**（v2 恒为 `[]` 占位符）
 改为**对象**。旧 `[]` **不代表"没有网络行为"**，两种 schema 混用会被误读。
+
+> **v3 → v4**（本文档此前误写为 3，v2.10.0 oracle session 更正）：新增两个**顶层**字段
+> `fixed_time`（固定时钟的执行证据：`target_utc` / `after_offset_s` / `ok` …）与
+> `execution_workdir`。二者均为**增量**，不改动既有字段语义。
+> `collect_linux.py` 亦输出 `schema_version: 4`，但其 `fixed_time` **不存在**
+> （L 侧无法固定时钟，改用 `environment.clock_fixed: false` 显式声明）。
 
 ## 前置条件（缺一不可）
 

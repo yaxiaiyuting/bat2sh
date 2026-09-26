@@ -1,0 +1,260 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect.py",
+    "version": "1.2.0",
+    "git_head": "0ec2ad37e3011d5d18596aa7aca56b84acf11fc8",
+    "invocation": [
+      "--sample",
+      "tools/samples/copy.bat",
+      "--output",
+      "results/oracle/W/v4.json",
+      "--guest-name",
+      "v4.bat",
+      "--scope",
+      "C:\\poc\\samples",
+      "--network",
+      "isolated"
+    ]
+  },
+  "script": {
+    "name": "copy.bat",
+    "sha256": "7cf5462660e2677276451962cb0c98f3dcac2f5f9a8da51d7fd1b8831edec32d",
+    "size": 483,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples/copy.bat",
+    "guest_path": "C:\\poc\\samples\\v4.bat",
+    "guest_name": "v4.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Windows 10 Pro",
+    "guest_version": "Microsoft Windows 11",
+    "kernel_release": "29599",
+    "machine": "x86_64",
+    "guest_agent_version": "110.2.3",
+    "guest_agent_commands": 37,
+    "console_codepage": 936
+  },
+  "rollback": {
+    "method": "overlay-qcow2",
+    "stop_mode": "destroy",
+    "stop_ms": 0,
+    "revert_op_ms": 87,
+    "base_ident_before": {
+      "size": 68730224640,
+      "mtime": 1790425638,
+      "inode": 1418147
+    },
+    "overlay": "/var/lib/libvirt/images/win-behavior.qcow2",
+    "base": "/var/lib/libvirt/images/win-behavior.base.qcow2",
+    "agent_ready_ms": 58951,
+    "base_intact": {
+      "unchanged": true,
+      "before": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "after": {
+        "size": 68730224640,
+        "mtime": 1790425638,
+        "inode": 1418147
+      },
+      "note": "qcow2 以只读方式打开 backing file，写入只落覆盖层"
+    },
+    "cycle_ms": 80901,
+    "final_stop_ms": 258
+  },
+  "execution": {
+    "argv": [
+      "cmd.exe",
+      "/c",
+      "cd /d C:\\poc\\samples && C:\\poc\\samples\\v4.bat < nul"
+    ],
+    "pid": 5624,
+    "duration_ms": 3538,
+    "exit_code": 0,
+    "signal": null,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "c291cmNlLWFscGhhDQo=",
+    "text": "source-alpha\r\n"
+  },
+  "stderr": {
+    "b64": "",
+    "text": ""
+  },
+  "filesystem": {
+    "method": "manifest-diff-v2",
+    "scope": [
+      "C:\\poc\\samples"
+    ],
+    "baseline_manifest_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline_manifest": {},
+    "before_count": 0,
+    "after_count": 3,
+    "created": [
+      "C:\\poc\\samples\\work\\a.txt",
+      "C:\\poc\\samples\\work\\c.txt"
+    ],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 0,
+    "known_artifacts": [
+      {
+        "path": "C:\\poc\\samples\\v4.bat",
+        "reason": "harness upload"
+      }
+    ],
+    "created_raw": [
+      "C:\\poc\\samples\\v4.bat",
+      "C:\\poc\\samples\\work\\a.txt",
+      "C:\\poc\\samples\\work\\c.txt"
+    ],
+    "after_manifest": {
+      "C:\\poc\\samples\\v4.bat": {
+        "FullName": "C:\\poc\\samples\\v4.bat",
+        "Length": 483,
+        "Hash": "7CF5462660E2677276451962CB0C98F3DCAC2F5F9A8DA51D7FD1B8831EDEC32D"
+      },
+      "C:\\poc\\samples\\work\\a.txt": {
+        "FullName": "C:\\poc\\samples\\work\\a.txt",
+        "Length": 14,
+        "Hash": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F"
+      },
+      "C:\\poc\\samples\\work\\c.txt": {
+        "FullName": "C:\\poc\\samples\\work\\c.txt",
+        "Length": 14,
+        "Hash": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F"
+      }
+    },
+    "dirs_method": "recurse-directory-listing",
+    "baseline_dirs": [],
+    "after_dirs": [
+      "C:\\poc\\samples\\work"
+    ],
+    "created_dirs": [
+      "C:\\poc\\samples\\work"
+    ],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "cwd-if-workdir-unset"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "nic-link-down",
+    "network_name": "default",
+    "link_state": "down",
+    "iface": "virbr0",
+    "attempted": null,
+    "attempted_basis": "link-down：guest 的帧不进入宿主网桥，因此无法观测连接尝试（只能证明没有出网）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0,
+    "capture": {
+      "method": "af_packet-header-only",
+      "iface": "virbr0",
+      "guest_mac": "52:54:00:c4:73:fd",
+      "window_ms": 4016,
+      "frames_seen": 0,
+      "frames_guest": 0,
+      "frames_other": 0,
+      "frames_unparsed": 0,
+      "frames_non_ip": 0,
+      "frames_at_max_len": 0,
+      "max_frame_bytes": 192,
+      "payload_read": false
+    },
+    "notes": [
+      "egress_frames=0 —— 隔离的硬证据"
+    ],
+    "setup": {
+      "mode": "isolated",
+      "requested": {
+        "network": "default",
+        "link_state": "down"
+      },
+      "before": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "after": {
+        "mac": "52:54:00:c4:73:fd",
+        "network": "default",
+        "link_state": "down"
+      },
+      "bridge": "virbr0"
+    }
+  },
+  "timings": {
+    "env_check": 264,
+    "revert": 175,
+    "network_apply": 1035,
+    "agent_wait": 59216,
+    "fixed_time": 126,
+    "environment": 540,
+    "baseline_manifest": 10239,
+    "upload": 111,
+    "capture": 185,
+    "execute": 4063,
+    "after_manifest": 6451,
+    "total_ms": 82642
+  },
+  "notes": [],
+  "env_checks": [
+    {
+      "check": "sudo(免密)",
+      "ok": true,
+      "detail": "sudo -n 可用"
+    },
+    {
+      "check": "域存在/可查询",
+      "ok": true,
+      "detail": "win-behavior @ qemu:///system → shut off"
+    },
+    {
+      "check": "ufw 放行 virbr0",
+      "ok": true,
+      "detail": "virbr0 已放行（in + route）"
+    },
+    {
+      "check": "DHCP 未被丢弃",
+      "ok": true,
+      "detail": "**本模式下无鉴别力**：链路 down ⇒ 不会有 DHCP ⇒ 计数必然静止（恒真，不构成证据）"
+    },
+    {
+      "check": "基线存在/无 backing",
+      "ok": true,
+      "detail": "/var/lib/libvirt/images/win-behavior.base.qcow2"
+    },
+    {
+      "check": "域磁盘非基线",
+      "ok": true,
+      "detail": "域磁盘 = /var/lib/libvirt/images/win-behavior.qcow2"
+    }
+  ],
+  "fixed_time": {
+    "target_utc": "2026-06-01T04:00:00Z",
+    "target_utc_epoch": 1780286400,
+    "target_local": "2026-06-01 12:00:00",
+    "local_timezone": "Asia/Shanghai (UTC+8)",
+    "rtc_start_epoch": 1780315200,
+    "action": "set",
+    "before_offset_s": 10139251.59,
+    "after_offset_s": 0.038,
+    "tolerance_s": 2.0,
+    "ok": true
+  },
+  "execution_workdir": "C:\\poc\\samples"
+}

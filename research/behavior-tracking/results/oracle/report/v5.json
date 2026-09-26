@@ -1,0 +1,95 @@
+{
+  "sample": "以文件夹名为名建立文本文件.cmd",
+  "w_head": "0ec2ad37",
+  "l_head": "0ec2ad37",
+  "class": "不可归因",
+  "channels": {
+    "rc": {
+      "strict": true,
+      "attributed": true,
+      "w": 0,
+      "l": 0,
+      "rules": []
+    },
+    "stdout": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "stderr": {
+      "strict": true,
+      "attributed": true,
+      "rules": [],
+      "w_repr": "''",
+      "l_repr": "''",
+      "w_norm": "''",
+      "l_norm": "''"
+    },
+    "fs_names": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "w": {
+        "created": [
+          "<WORK>/samples.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      },
+      "l": {
+        "created": [
+          "<WORK>/./.txt"
+        ],
+        "modified": [],
+        "deleted": [],
+        "created_dirs": [],
+        "deleted_dirs": []
+      }
+    },
+    "fs_content": {
+      "strict": false,
+      "attributed": false,
+      "rules": [],
+      "compared": 0,
+      "differs": [],
+      "only_in_w": [
+        "<WORK>/samples.txt"
+      ],
+      "only_in_l": [
+        "<WORK>/./.txt"
+      ]
+    }
+  },
+  "normalization_applied": [],
+  "d_items": [],
+  "d_desc": {},
+  "unattributed": [
+    {
+      "channel": "fs_names",
+      "only_in_w": [
+        "<WORK>/samples.txt"
+      ],
+      "only_in_l": [
+        "<WORK>/./.txt"
+      ]
+    },
+    {
+      "channel": "fs_content",
+      "differs": [],
+      "only_in_w": [
+        "<WORK>/samples.txt"
+      ],
+      "only_in_l": [
+        "<WORK>/./.txt"
+      ]
+    }
+  ],
+  "n8_eligible": false,
+  "n9_eligible": false
+}

@@ -1,0 +1,226 @@
+{
+  "schema_version": 4,
+  "harness": {
+    "tool": "collect_linux.py",
+    "version": "1.0.0",
+    "git_head": "0ec2ad37e3011d5d18596aa7aca56b84acf11fc8",
+    "invocation": [
+      "tools/collect_linux.py",
+      "--script",
+      "tools/samples/copy.bat",
+      "--guest-name",
+      "v4.bat",
+      "--output",
+      "results/oracle/L/v4.json"
+    ],
+    "convert_argv": [
+      "bat2sh",
+      "--cli",
+      "-q",
+      "-o",
+      "/tmp/bat2sh-oracle/copy-1790434537536/samples/v4.bat",
+      "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples/copy.bat"
+    ],
+    "side": "L"
+  },
+  "script": {
+    "name": "copy.bat",
+    "sha256": "7CF5462660E2677276451962CB0C98F3DCAC2F5F9A8DA51D7FD1B8831EDEC32D",
+    "size": 483,
+    "local_path": "/home/duanjb666/bat2sh/research/behavior-tracking/tools/samples/copy.bat",
+    "guest_path": "<WORK>/v4.bat",
+    "guest_name": "v4.bat",
+    "renamed": true
+  },
+  "environment": {
+    "guest_os": "Linux (bwrap)",
+    "kernel_release": "7.2.7-1-cachyos",
+    "machine": "x86_64",
+    "console_codepage": 65001,
+    "timezone": "Asia/Shanghai",
+    "locale": "C.UTF-8",
+    "clock_fixed": false
+  },
+  "rollback": {
+    "method": "tmpdir-recreate",
+    "run_dir": "/tmp/bat2sh-oracle/copy-1790434537536/samples",
+    "kept": false
+  },
+  "execution": {
+    "argv": [
+      "bwrap",
+      "--unshare-all",
+      "--die-with-parent",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/etc",
+      "/etc",
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+      "--proc",
+      "/proc",
+      "--dev",
+      "/dev",
+      "--tmpfs",
+      "/tmp",
+      "--bind",
+      "/tmp/bat2sh-oracle/copy-1790434537536/samples",
+      "/tmp/bat2sh-oracle/copy-1790434537536/samples",
+      "--chdir",
+      "/tmp/bat2sh-oracle/copy-1790434537536/samples",
+      "/bin/bash",
+      "/tmp/bat2sh-oracle/copy-1790434537536/samples/v4.bat"
+    ],
+    "stdin": "/dev/null",
+    "exit_code": 1,
+    "signal": null,
+    "duration_ms": 10,
+    "timeout": false,
+    "out_truncated": false,
+    "err_truncated": false
+  },
+  "stdout": {
+    "b64": "",
+    "text": ""
+  },
+  "stderr": {
+    "b64": "Y2F0OiAnL3RtcC9iYXQyc2gtb3JhY2xlL2NvcHktMTc5MDQzNDUzNzUzNi9zYW1wbGVzL3dvcmtcYy50eHQnOiBObyBzdWNoIGZpbGUgb3IgZGlyZWN0b3J5Cg==",
+    "text": "cat: '/tmp/bat2sh-oracle/copy-1790434537536/samples/work\\c.txt': No such file or directory\n"
+  },
+  "filesystem": {
+    "method": "manifest-diff-linux-v1",
+    "scope": [
+      "<WORK>"
+    ],
+    "baseline_manifest_hash": "sha256:c66ec6c008df559c9cf4cf2ac4752811382c4bfaa6f387d9245d4fe976e7b9e2",
+    "baseline_manifest": {
+      "v4.bat": {
+        "FullName": "/tmp/bat2sh-oracle/copy-1790434537536/samples/v4.bat",
+        "Length": 699,
+        "Hash": "2928C4D67E7BA0B5365EE30F51B2EBA4647D28B991CC1C4C247CF434DC0C9BBA",
+        "hash_lf_to_crlf": "65BF9F602416E1B9E03ABF84E0EF51A22246668BBB099C88B3DD7C6D37376DCE",
+        "hash_cp936_crlf": "38D9B396287DAC199966A6D957937FCD83DD932EF46B421EE6CCCE5EC03C0B99"
+      }
+    },
+    "before_count": 1,
+    "after_count": 4,
+    "created": [
+      "C:/iso-probe/from-a.txt",
+      "work/a.txt",
+      "work/c.txt"
+    ],
+    "modified": [],
+    "deleted": [],
+    "unchanged_count": 1,
+    "known_artifacts": [
+      {
+        "path": "v4.bat",
+        "reason": "harness artifact"
+      }
+    ],
+    "created_raw": [
+      "C:/iso-probe/from-a.txt",
+      "work/a.txt",
+      "work/c.txt"
+    ],
+    "after_manifest": {
+      "v4.bat": {
+        "FullName": "/tmp/bat2sh-oracle/copy-1790434537536/samples/v4.bat",
+        "Length": 699,
+        "Hash": "2928C4D67E7BA0B5365EE30F51B2EBA4647D28B991CC1C4C247CF434DC0C9BBA",
+        "hash_lf_to_crlf": "65BF9F602416E1B9E03ABF84E0EF51A22246668BBB099C88B3DD7C6D37376DCE",
+        "hash_cp936_crlf": "38D9B396287DAC199966A6D957937FCD83DD932EF46B421EE6CCCE5EC03C0B99"
+      },
+      "C:/iso-probe/from-a.txt": {
+        "FullName": "/tmp/bat2sh-oracle/copy-1790434537536/samples/C:/iso-probe/from-a.txt",
+        "Length": 14,
+        "Hash": "17D5C0A1646072ECBE1B161EDC5387F422C7D718446BAA878317E3B198DA2B39",
+        "hash_lf_to_crlf": "83D2E683721894EAA9FA610EDFFB7231608A960CE5E3D2A3151F8AE1DF1C7835",
+        "hash_cp936_crlf": "83D2E683721894EAA9FA610EDFFB7231608A960CE5E3D2A3151F8AE1DF1C7835"
+      },
+      "work/a.txt": {
+        "FullName": "/tmp/bat2sh-oracle/copy-1790434537536/samples/work/a.txt",
+        "Length": 13,
+        "Hash": "A95850A2AC2CAA14D5A21B68C65C571EC3DDBA57EC9D73F4A9044DE7163C15B9",
+        "hash_lf_to_crlf": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F",
+        "hash_cp936_crlf": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F"
+      },
+      "work/c.txt": {
+        "FullName": "/tmp/bat2sh-oracle/copy-1790434537536/samples/work/c.txt",
+        "Length": 13,
+        "Hash": "A95850A2AC2CAA14D5A21B68C65C571EC3DDBA57EC9D73F4A9044DE7163C15B9",
+        "hash_lf_to_crlf": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F",
+        "hash_cp936_crlf": "78A7D927FDA8E4A76139EDBA4332BFFDE721DD7825ECC7A3E0F7C1CE303D0B6F"
+      }
+    },
+    "dirs_method": "walk",
+    "baseline_dirs": [],
+    "after_dirs": [
+      "C:",
+      "C:/iso-probe",
+      "work"
+    ],
+    "created_dirs": [
+      "C:",
+      "C:/iso-probe",
+      "work"
+    ],
+    "deleted_dirs": [],
+    "blind_spots": [
+      "reads",
+      "transient-effects",
+      "metadata-only-writes",
+      "registry-not-collected",
+      "process-not-collected",
+      "network-not-collected"
+    ]
+  },
+  "process": [],
+  "network": {
+    "mode": "isolated",
+    "isolated": true,
+    "isolation_method": "bwrap-unshare-all",
+    "attempted": null,
+    "attempted_basis": "unshare-all：无网络命名空间，无出网路径（结构性零）",
+    "connections": [],
+    "bytes_sent": 0,
+    "bytes_recv": 0,
+    "egress_frames": 0
+  },
+  "env_checks": [
+    {
+      "check": "bwrap 存在",
+      "ok": true,
+      "detail": "/usr/bin/bwrap (bubblewrap 0.13.0)"
+    },
+    {
+      "check": "bat2sh 存在",
+      "ok": true,
+      "detail": "/usr/bin/bat2sh"
+    }
+  ],
+  "execution_workdir": "<WORK>",
+  "notes": [
+    "clock_not_fixed: L 侧无法固定时钟（bwrap 不能设 CAP_SYS_TIME）；含 %date%/%time% 的样本只能靠规则 N8 形状化（D7）",
+    "artifact 沿用 W 侧 guest 文件名（含 .bat）—— 见 oracle-design §3.2.1"
+  ],
+  "timings": {
+    "convert": 199,
+    "before_manifest": 0,
+    "execute": 10,
+    "after_manifest": 0,
+    "total_ms": 214
+  }
+}
