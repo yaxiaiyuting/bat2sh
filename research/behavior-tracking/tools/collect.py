@@ -40,8 +40,10 @@ TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_SAMPLES = os.path.normpath(os.path.join(TOOLS_DIR, "..", "samples"))
 #: v3：`network` 由**列表**改为**对象**（破坏性变更，见 network-policy.md §7 第 3 条）。
 #: 旧版（v2）指纹的 `network: []` 是占位符，**不代表"没有网络行为"**。
-SCHEMA_VERSION = 3
-HARNESS_VERSION = "1.1.0"
+#: v4：新增顶层 `fixed_time`（**增量**，不破坏 v3 读取方）—— 记录 guest 时钟被对齐到
+#:     T0 的实测残差，见 vm-time-fix.md。v3 指纹缺此字段 ⇒ 无法声称"跑在固定时间上"。
+SCHEMA_VERSION = 4
+HARNESS_VERSION = "1.2.0"
 
 
 # --------------------------------------------------------------------------
@@ -380,6 +382,20 @@ def collect(args) -> dict:
         print("== boot == 已跳过（--no-start）", flush=True)
 
     qga = vm.qga
+
+    # ---- 3.5 固定 guest 时间（见 vm-time-fix.md）----
+    # 必须在**任何行为观测之前**：`%date%`/`%time%` 依赖样本（如 `md %date%`）与
+    # 文件时间戳都要求起点时间固定，否则指纹随真实日历漂移。
+    # ⚠️ 只靠域 XML 的 `<clock offset='absolute'>` **不够**：Windows 会拒绝比"上次已知时间"
+    #    早很多的 RTC 值（实测 2026-06-01 被拒、2026-10-01 被接受）。这里是硬保证。
+    print("== fixed time ==", flush=True)
+    clk.tic("fixed_time")
+    ft = qga.enforce_fixed_time()
+    clk.toc("fixed_time")
+    fp["fixed_time"] = ft
+    print(f"  T0 = {ft['target_utc']} == guest 本地 {ft['target_local']}  "
+          f"({ft['action']}，残差 {ft['after_offset_s']:+.3f}s)", flush=True)
+    print(flush=True)
 
     # recording 模式：`forward mode='none'` 下 libvirt **不通告默认网关**，
     # guest 有 IP 却没有默认路由 ⇒ 样本连"尝试"都发不出（假阴性）。

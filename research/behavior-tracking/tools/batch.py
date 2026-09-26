@@ -164,6 +164,9 @@ def run_one(s: dict, outdir: str, *, network: str, workdir: str | None,
                 "network_isolated": nw.get("isolated"),
                 "egress_frames": nw.get("egress_frames"),
                 "network_connections": len(nw.get("connections") or []),
+                # v4 指纹才有 fixed_time；v3 指纹如实留 None（不假装跑在固定时间上）
+                "fixed_time_ok": (fp.get("fixed_time") or {}).get("ok"),
+                "fixed_time_offset_s": (fp.get("fixed_time") or {}).get("after_offset_s"),
                 "stdout_head": ((fp.get("stdout") or {}).get("text") or "")[:400],
                 "notes": fp.get("notes") or [],
             })

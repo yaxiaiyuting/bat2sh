@@ -47,6 +47,25 @@ DEFAULT_SCOPE = GUEST_ROOT  # 递归范围：样本写哪儿都能看见
 # guest-exec-status 每流上限（qga/commands.c），超出即置 truncated
 GUEST_EXEC_MAX_OUTPUT = 16 * 1024 * 1024
 
+# ---- 固定 guest 时间（`research/behavior-tracking/vm-time-fix.md`）----
+# 目的：让指纹在**日历上**也可复现 —— `%date%`/`%time%`/文件时间戳/日志时间
+# 都不再随真实日期漂移（语料里 s07 这类 `md %date%` 样本直接依赖它）。
+#
+# T0 = **guest 本地** 2026-06-01 12:00:00（Asia/Shanghai，UTC+8）= **UTC** 2026-06-01 04:00:00。
+#   取值理由：晚于镜像构建时间 2026-05-20（构建号 260520-1434），且早于实测可用的 2026-09-26，
+#   落在 Insider 时间炸弹的已知安全区间内。
+#
+# ⚠️ 两个数字**故意不同**，不是笔误：
+#   · `guest-set-time` 收的是 **UTC 纪元秒** ⇒ FIXED_TIME_UTC_EPOCH。
+#   · libvirt `<clock offset='absolute' start=…>` 写进 CMOS RTC，而 **Windows 把 RTC 当本地时间**读
+#     ⇒ `start` 必须是"目标本地墙钟的 UTC 字面量"（2026-06-01T12:00:00Z ⇒ guest 显示 12:00）。
+#   两条路径落到**同一个 guest 墙钟**（实测，见 vm-time-fix.md §3）。
+FIXED_TIME_UTC_EPOCH = 1780286400          # 2026-06-01T04:00:00Z == 本地 12:00:00 (UTC+8)
+FIXED_TIME_RTC_START = 1780315200          # XML start；RTC 字面量 2026-06-01T12:00:00
+FIXED_TIME_LOCAL = "2026-06-01 12:00:00"   # guest 侧应看到的墙钟（Asia/Shanghai）
+FIXED_TIME_UTC = "2026-06-01T04:00:00Z"
+FIXED_TIME_TOLERANCE_S = 2.0               # 设置后允许的残差（QGA 往返 + 时钟粒度）
+
 
 class VmError(RuntimeError):
     """VM / 宿主层故障。"""
@@ -193,6 +212,54 @@ class Qga:
 
     def agent_info(self) -> dict:
         return self.raw({"execute": "guest-info"}) or {}
+
+    # ---- 时间（固定 T0）----
+
+    def get_time(self) -> float:
+        """guest 时钟，返回 **UTC 纪元秒**（QGA `guest-get-time` 的纳秒 / 1e9）。"""
+        return self.raw({"execute": "guest-get-time"}) / 1e9
+
+    def set_time(self, epoch_s: float = FIXED_TIME_UTC_EPOCH) -> None:
+        """把 guest 时钟设为指定 UTC 纪元秒（QGA `guest-set-time`，纳秒）。
+
+        这是**方向无关**的显式设置：Windows 启动时若发现 RTC 比自己的"上次已知时间"
+        早很多，会**拒绝**该 RTC 值（实测，见 vm-time-fix.md §3.2），
+        因此"只改 RTC"不足以把时钟拨到过去的固定点。
+        """
+        self.raw({"execute": "guest-set-time",
+                  "arguments": {"time": int(round(epoch_s * 1e9))}})
+
+    def enforce_fixed_time(self, *, target: float = FIXED_TIME_UTC_EPOCH,
+                           tolerance_s: float = FIXED_TIME_TOLERANCE_S) -> dict:
+        """把 guest 时钟对齐到 T0 并**读回验证**；失败即硬失败。
+
+        返回 dict 进指纹（证明"这一轮确实跑在固定时间上"）。
+        """
+        before = self.get_time()
+        before_off = before - target
+        action = "already"
+        if abs(before_off) > tolerance_s:
+            self.set_time(target)
+            action = "set"
+        after = self.get_time()
+        after_off = after - target
+        result = {
+            "target_utc": FIXED_TIME_UTC,
+            "target_utc_epoch": target,
+            "target_local": FIXED_TIME_LOCAL,
+            "local_timezone": "Asia/Shanghai (UTC+8)",
+            "rtc_start_epoch": FIXED_TIME_RTC_START,
+            "action": action,
+            "before_offset_s": round(before_off, 3),
+            "after_offset_s": round(after_off, 3),
+            "tolerance_s": tolerance_s,
+            "ok": abs(after_off) <= tolerance_s,
+        }
+        if not result["ok"]:
+            raise GuestError(
+                f"固定时间失败：设置后仍偏离 {after_off:+.3f}s（容差 {tolerance_s}s）"
+                f" —— 拒绝在未知时钟下采集")
+        return result
 
     # ---- 执行 ----
 
